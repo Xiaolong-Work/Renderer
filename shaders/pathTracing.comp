@@ -1,0 +1,1125 @@
+#version 450 core
+
+#ifdef _MSC_VER
+#define CPU
+#endif // MSC_VER
+
+#ifdef CPU
+#pragma once
+#include <glm.hpp>
+#include <iostream>
+#include <random>
+#include <stack>
+#include <string>
+#include <utils1.h>
+#include <vector>
+
+#define inout_float float&
+#define inout_int int&
+#define inout_Stack Stack&
+#define inout_Point Point&
+#define inout_Ray Ray&
+#define inout_IntersectResult IntersectResult&
+#define inout_ShaderStack ShaderStack&
+#define inout_vec3 vec3&
+
+#define vec3 glm::vec3
+#define vec2 glm::vec2
+#define Point vec3
+#define Direction vec3
+#define Coordinate3D vec3
+#define Coordinate2D vec2
+#define Vector3f vec3
+
+using std::max;
+using std::min;
+
+using std::atan2;
+#define atan atan2
+#define clamp glm::clamp
+
+class TestShaderOnCPU
+{
+public:
+#else
+#define inout_float inout float
+#define inout_int inout int
+#define inout_Stack inout Stack
+#define inout_Point inout Point
+#define inout_Ray inout Ray
+#define inout_IntersectResult inout IntersectResult
+#define inout_ShaderStack inout ShaderStack
+#define inout_vec3 inout vec3
+
+#define Vector2i ivec2
+#define Vector2f vec2
+#define Vector2d dvec2
+#define Vector3i ivec3
+#define Vector3f vec3
+#define Vector3d dvec3
+#define Vector4i ivec4
+#define Vector4f vec4
+#define Vector4d dvec4
+
+#define Point vec3
+#define Direction vec3
+#define Coordinate3D vec3
+#define Coordinate2D vec2
+#endif // CPU
+
+    float MAX_FLOAT = 3.402823466e+38;
+    float pi = 3.14159265358979;
+
+    void swap(inout_float a, inout_float b)
+    {
+        float temp = a;
+        a = b;
+        b = temp;
+    }
+
+/* ==================== Random Number ==================== */
+#ifdef CPU
+
+    float rand()
+    {
+        std::random_device device;
+        std::mt19937 generate(device());
+        std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+
+        return distribution(generate);
+    }
+#else
+layout(std430, binding = 0) readonly buffer RandomSSBO { float random_table[]; };
+
+float rand(inout int seed)
+{
+	float result = random_table[seed];
+	seed = int(result * 1024.0 * 1024.0);
+    return result;
+}
+
+
+#endif // CPU
+
+/* ==================== Stack ==================== */
+#define MAX_STACK_SIZE 64
+
+    struct Stack
+    {
+        int data[MAX_STACK_SIZE];
+        int top;
+    };
+
+    void push(inout_Stack s, int value)
+    {
+        if (s.top < MAX_STACK_SIZE)
+        {
+            s.data[++s.top] = value;
+        }
+    }
+
+    int pop(inout_Stack s)
+    {
+        if (s.top >= 0)
+        {
+            return s.data[s.top--];
+        }
+        return -1;
+    }
+
+    bool empty(Stack s) { return s.top == -1; }
+
+    /* ==================== Vertex ==================== */
+    struct Vertex
+    {
+        vec3 position;
+        vec3 normal;
+        vec2 texture;
+    };
+
+    /* ==================== Ray ==================== */
+    struct Ray
+    {
+        Point origin;
+        Direction direction;
+        float t;
+    };
+
+    Point spread(Ray ray, float t) { return ray.origin + ray.direction * t; }
+
+    /* ==================== BoundingBox ==================== */
+    struct BoundingBox
+    {
+        vec3 min;
+        vec3 max;
+    };
+
+    bool overlapsBoxes(BoundingBox box, BoundingBox other)
+    {
+        if (box.min.x > other.max.x || box.max.x < other.min.x)
+        {
+            return false;
+        }
+        else if (box.min.y > other.max.y || box.max.y < other.min.y)
+        {
+            return false;
+        }
+        else if (box.min.z > other.max.z || box.max.z < other.min.z)
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
+    bool overlapsBoxPoint(BoundingBox box, Point other)
+    {
+        if (box.min.x > other.x || box.max.x < other.x)
+        {
+            return false;
+        }
+        else if (box.min.y > other.y || box.max.y < other.y)
+        {
+            return false;
+        }
+        else if (box.min.z > other.z || box.max.z < other.z)
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
+    bool intersectBoxRay(BoundingBox box, Ray ray)
+    {
+        if (overlapsBoxPoint(box, ray.origin))
+        {
+            return true;
+        }
+
+        float t_enter = -MAX_FLOAT;
+        float t_exit = MAX_FLOAT;
+
+        float t_min, t_max;
+
+        t_min = (box.min.x - ray.origin.x) / ray.direction.x;
+        t_max = (box.max.x - ray.origin.x) / ray.direction.x;
+        if (ray.direction.x < 0.0f)
+        {
+            swap(t_min, t_max);
+        }
+        t_enter = max(t_min, t_enter);
+        t_exit = min(t_max, t_exit);
+
+        t_min = (box.min.y - ray.origin.y) / ray.direction.y;
+        t_max = (box.max.y - ray.origin.y) / ray.direction.y;
+        if (ray.direction.y < 0.0f)
+        {
+            swap(t_min, t_max);
+        }
+        t_enter = max(t_min, t_enter);
+        t_exit = min(t_max, t_exit);
+
+        t_min = (box.min.z - ray.origin.z) / ray.direction.z;
+        t_max = (box.max.z - ray.origin.z) / ray.direction.z;
+        if (ray.direction.z < 0.0f)
+        {
+            swap(t_min, t_max);
+        }
+        t_enter = max(t_min, t_enter);
+        t_exit = min(t_max, t_exit);
+
+        if (t_enter <= t_exit && t_enter >= 0.0f && ray.t > t_enter)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    /* ==================== BVH ==================== */
+    struct BVH
+    {
+        BoundingBox box;
+        int left;
+        int right;
+        int index;
+        float area;
+    };
+
+#ifdef CPU
+    std::vector<BVH> bvh;
+#else
+layout(std430, binding = 1) readonly buffer BVHSSBO { BVH bvh[]; };
+#endif // CPU
+
+    /* ==================== Triangle ==================== */
+    struct Triangle
+    {
+        Vertex vertex1;
+        Vertex vertex2;
+        Vertex vertex3;
+        vec3 normal;
+        float area;
+    };
+
+#ifdef CPU
+    std::vector<Triangle> triangles;
+#else
+layout(std430, binding = 2) readonly buffer TriangleSSBO { Triangle triangles[]; };
+#endif // CPU
+#ifdef CPU
+    bool intersectTriangleRay(Triangle triangle, Ray ray, float result[4])
+#else
+bool intersectTriangleRay(Triangle triangle, Ray ray, inout_float result[4])
+#endif // CPU
+    {
+        if (dot(ray.direction, triangle.normal) > 0.0f)
+        {
+            return false;
+        }
+        vec3 edge1 = triangle.vertex2.position - triangle.vertex1.position;
+        vec3 edge2 = triangle.vertex3.position - triangle.vertex1.position;
+
+        Vector3f s = ray.origin - triangle.vertex1.position;
+        Vector3f s1 = cross(ray.direction, edge2);
+        Vector3f s2 = cross(s, edge1);
+        float s1_dot_e1 = dot(s1, edge1);
+
+        float t = dot(s2, edge2) / s1_dot_e1;
+        float b1 = dot(s1, s) / s1_dot_e1;
+        float b2 = dot(s2, ray.direction) / s1_dot_e1;
+        float b0 = 1 - b1 - b2;
+        if (t < 0)
+        {
+            return false;
+        }
+        if (b1 < 0 || b2 < 0 || b0 < 0)
+        {
+            return false;
+        }
+        if (b1 > 1 || b2 > 1 || b0 > 1)
+        {
+            return false;
+        }
+        result[0] = b0;
+        result[1] = b1;
+        result[2] = b2;
+        result[3] = t;
+
+        return true;
+    }
+
+    void sampleTriangle(Triangle triangle, inout_Point result, inout_float pdf, inout int random_seed)
+    {
+        float x = sqrt(rand(random_seed));
+        float y = rand(random_seed);
+        result = triangle.vertex1.position * (1.0f - x) + triangle.vertex2.position * (x * (1.0f - y)) +
+                 triangle.vertex3.position * (x * y);
+        pdf = 1.0f / triangle.area;
+    }
+
+    /* ==================== Object ==================== */
+    struct Object
+    {
+        BoundingBox box;
+        vec3 radiance;
+        float area;
+        int material_index;
+        int bvh_index;
+        bool is_light;
+    };
+
+#ifdef CPU
+    std::vector<Object> objects;
+#else
+layout(std430, binding = 3) readonly buffer ObjectIndexSSBO { Object objects[]; };
+#endif // CPU
+
+    struct IntersectResult
+    {
+        bool is_intersect;
+        Ray ray;
+        float t;
+        Point point;
+        int object_index;
+        Vector3f color;
+        Direction normal;
+    };
+
+    IntersectResult traverseObjectBVH(int index, Ray ray)
+    {
+        IntersectResult intersect_result;
+        intersect_result.t = MAX_FLOAT;
+        intersect_result.is_intersect = false;
+        intersect_result.color = vec3(0, 0, 0);
+
+        Stack task;
+        task.top = -1;
+        push(task, index);
+
+        while (!empty(task))
+        {
+            int now = pop(task);
+
+            BVH node = bvh[now];
+            BoundingBox box = node.box;
+
+            if (intersectBoxRay(box, ray))
+            {
+                if (node.index == -1)
+                {
+                    push(task, node.left);
+                    push(task, node.right);
+                }
+                else
+                {
+                    Triangle triangle = triangles[node.index];
+                    float result[4];
+                    if (intersectTriangleRay(triangle, ray, result))
+                    {
+                        intersect_result.is_intersect = true;
+                        float b1 = result[0];
+                        float b2 = result[1];
+                        float b3 = result[2];
+                        float t = result[3];
+
+                        if (t > intersect_result.t)
+                        {
+                            continue;
+                        }
+
+                        // if (material.material.texture_load_flag)
+                        // {
+                        // 	Coordinate2D coordinate = triangle.vertex1.texture * b1 + triangle.vertex2.texture * b2 +
+                        // triangle.vertex3.texture * b3; 	intersect_result.color =
+                        // material.material.texture.getColor(coordinate.x, coordinate.y);
+                        // }
+
+                        intersect_result.normal =
+                            triangle.vertex1.normal * b1 + triangle.vertex2.normal * b2 + triangle.vertex3.normal * b3;
+
+                        intersect_result.t = result[3];
+                        ray.t = min(intersect_result.t, ray.t);
+                        intersect_result.point = spread(ray, intersect_result.t);
+                        intersect_result.ray = ray;
+                        intersect_result.object_index = index;
+                    }
+                }
+            }
+        }
+
+        return intersect_result;
+    }
+
+    IntersectResult intersectObjectRay(Object object, Ray ray) { return traverseObjectBVH(object.bvh_index, ray); }
+
+    void traverseObjectSample(int index, float p, inout_IntersectResult result, inout_float pdf, inout int random_seed)
+    {
+        BVH node = bvh[index];
+
+        while (true)
+        {
+            if (node.index != -1)
+            {
+                Point sample_point;
+
+                sampleTriangle(triangles[node.index], sample_point, pdf, random_seed);
+
+                result.point = sample_point;
+                result.normal = triangles[node.index].normal;
+                pdf *= node.area;
+                return;
+            }
+            else
+            {
+                if (p < bvh[node.left].area)
+                {
+                    node = bvh[node.left];
+                }
+                else
+                {
+                    node = bvh[node.right];
+                }
+            }
+        }
+    }
+
+    void sampleObject(Object object, inout_IntersectResult result, inout_float pdf, inout int random_seed)
+    {
+        BVH root = bvh[object.bvh_index];
+        float p = rand(random_seed) * root.area;
+        traverseObjectSample(object.bvh_index, p, result, pdf, random_seed);
+        pdf /= root.area;
+        return;
+    }
+
+    /* ==================== Material ==================== */
+    struct Material
+    {
+        vec3 Ka;
+        vec3 Kd;
+        vec3 Ks;
+        vec3 Tr;
+        float Ns;
+        float Ni;
+        int type;
+        int texture_index;
+    };
+
+#ifdef CPU
+    std::vector<Material> materials;
+#else
+layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[]; };
+#endif // CPU
+
+    float fresnel(Vector3f wi, Vector3f normal, float ni)
+    {
+        float cos_i = clamp(-1.0f, 1.0f, dot(wi, normal));
+        float eta_i = 1, eta_t = ni;
+        if (cos_i > 0)
+        {
+            swap(eta_i, eta_t);
+        }
+
+        float sin_t = eta_i / eta_t * sqrt(max(0.0f, 1 - cos_i * cos_i));
+
+        if (sin_t >= 1)
+        {
+            return 1.0f;
+        }
+        else
+        {
+            float cos_t = sqrt(max(0.f, 1 - sin_t * sin_t));
+            cos_i = abs(cos_i);
+            float Rs = ((eta_t * cos_i) - (eta_i * cos_t)) / ((eta_t * cos_i) + (eta_i * cos_t));
+            float Rp = ((eta_i * cos_i) - (eta_t * cos_t)) / ((eta_i * cos_i) + (eta_t * cos_t));
+            return (Rs * Rs + Rp * Rp) / 2;
+        }
+    }
+
+    vec3 glossySample(Direction wi, Direction normal, Material material, inout int random_seed)
+    {
+        /* 计算反射方向 */
+        Direction reflect_direction = reflect(wi, normal);
+
+        /* 计算天顶角 */
+        float zenith_angle = acos(reflect_direction[2]);
+
+        /* 计算方位角 */
+        float azimuth_angle = atan(reflect_direction[1], reflect_direction[0]);
+        /* 调整为 [0, 2*pi] 范围 */
+        if (azimuth_angle < 0)
+        {
+            azimuth_angle += 2 * pi;
+        }
+
+        float Ns = material.Ns;
+        /* 在反射方向周围随机选择 */
+        float strength = 2.0f;
+        float p = (rand(random_seed) * 2 - 1) / Ns;
+        zenith_angle += p * strength * 8.0f;
+
+        float q = (rand(random_seed) * 2 - 1) * sqrt(1.0f / Ns - pow(p, 2.0f));
+        azimuth_angle += q * strength;
+
+        /* 计算单位向量的三个分量 */
+        float x = sin(zenith_angle) * cos(azimuth_angle);
+        float y = sin(zenith_angle) * sin(azimuth_angle);
+        float z = cos(zenith_angle);
+
+        /* 返回单位向量 */
+        return vec3(x, y, z);
+    }
+
+    vec3 diffuseSample(Direction normal, inout int random_seed)
+    {
+        /* 生成随机数 */
+        float u = rand(random_seed);
+
+        // TODO
+        float v = rand(random_seed);
+
+        /* 余弦加权的立体角分布 */
+        float phi = 2 * pi * u;
+        float cos_theta = sqrt(1 - v);
+        float sin_theta = sqrt(v);
+        float x = cos(phi) * sin_theta;
+        float y = sin(phi) * sin_theta;
+        float z = cos_theta;
+
+        /* 将方向向量从局部坐标系变换到世界坐标系 */
+        vec3 bitangent = cross(normal, vec3(0, 0, 1));
+        if (length(bitangent) < 0.001f)
+        {
+            bitangent = cross(normal, vec3(0, 1, 0));
+        }
+        bitangent = normalize(bitangent);
+        vec3 tangent = cross(bitangent, normal);
+
+        return tangent * x + bitangent * y + normal * z;
+    }
+
+    vec3 reflectSample(Direction wi, Direction normal) { return reflect(wi, normal); }
+
+    vec3 refractionSample(Direction wi, Direction normal, float ni, inout int random_seed)
+    {
+        float cos_theta_i = dot(-wi, normal);
+        float eta = 1.0f / ni;
+        float discriminant = 1.0f - eta * eta * (1.0f - cos_theta_i * cos_theta_i);
+
+        /* 发生全反射，折射光线不存在 */
+        if (discriminant <= 0)
+        {
+            return reflect(wi, normal);
+        }
+        else
+        {
+            /* 根据菲涅尔项随机选择反射和折射 */
+            float p = rand(random_seed);
+
+            if (p < fresnel(wi, normal, ni))
+            {
+                return reflect(wi, normal);
+            }
+            else
+            {
+                float cosThetaT = sqrt(discriminant);
+                return eta * wi + (eta * cos_theta_i - cosThetaT) * normal;
+            }
+        }
+    }
+
+#define Diffuse 0
+#define Specular 1
+#define Refraction 2
+#define Glossy 3
+
+    float pdfMaterial(Vector3f wi, Vector3f wo, Vector3f normal, Material material)
+    {
+        if (material.type == Glossy)
+        {
+            return 1.0f / (2.0f * pi) * (1.0f / material.Ns) + 1.0f * (1.0f - 1.0f / material.Ns);
+        }
+        else if (material.type == Refraction || material.type == Specular)
+        {
+            return 1.0f;
+        }
+        else if (material.type == Diffuse)
+        {
+            return 1.0f / (2.0f * pi);
+        }
+        else
+        {
+            return 0.0f;
+        }
+    }
+
+    Vector3f evaluateMaterial(Vector3f wi, Vector3f wo, Vector3f normal, Vector3f color, Material material)
+    {
+        if (material.type == Diffuse)
+        {
+            if (dot(normal, wo) < 0.0f)
+            {
+                return material.Ka;
+            }
+            else
+            {
+                if (material.texture_index != -1)
+                {
+                    // return Vector3f(powf(color.x / 255.0f, 1.0f / 0.6f),
+                    //                 powf(color.y / 255.0f, 1.0f / 0.6f),
+                    //                 powf(color.z / 255.0f, 1.0f / 0.6f)) /
+                    //            pi +
+                    //        material.Ka;
+                }
+                else
+                {
+                    return material.Kd / pi + material.Ka;
+                }
+            }
+        }
+        else if (material.type == Glossy)
+        {
+            Vector3f diffuse = max(dot(normal, wo), 0.0f) * material.Kd;
+
+            if (material.texture_index != -1)
+            {
+                // diffuse = Vector3f{powf(color.x / 255.0f, 1.0f / 0.6f),
+                //                    powf(color.y / 255.0f, 1.0f / 0.6f),
+                //                    powf(color.z / 255.0f, 1.0f / 0.6f)} *
+                //           max(dot(normal, wo), 0.0f) / pi;
+                // if (material.Kd != Vector3f{0.0f, 0.0f, 0.0f})
+                // {
+                //     diffuse *= material.Kd;
+                // }
+            }
+
+            Direction half_direction = normalize(wi + wo);
+            Vector3f specular = pow(max(dot(half_direction, normal), 0.0f), material.Ns) * material.Ks;
+            return diffuse + specular;
+        }
+        else if (material.type == Specular)
+        {
+            Direction half_direction = normalize(wi + wo);
+            return pow(max(dot(half_direction, normal), 0.0f), material.Ns) * material.Ks;
+        }
+        else if (material.type == Refraction)
+        {
+            return material.Kd / pi;
+        }
+        else
+        {
+            return material.Kd / pi;
+        }
+    }
+
+    vec3 sampleMaterial(Direction wi, Direction normal, Material material, inout int random_seed)
+    {
+        if (material.type == Glossy)
+        {
+            return glossySample(wi, normal, material, random_seed);
+        }
+        else if (material.type == Specular)
+        {
+            return reflectSample(wi, normal);
+        }
+        else if (material.type == Refraction)
+        {
+            return refractionSample(wi, normal, material.Ni, random_seed);
+        }
+        else
+        {
+            return diffuseSample(normal, random_seed);
+        }
+    }
+
+    /* ==================== Scene ==================== */
+
+#ifdef CPU
+    struct Scene
+    {
+        Vector3f position;
+        Direction look;
+        Direction up;
+
+        Vector3f Ka;
+
+        int width;
+        int height;
+        int max_depth;
+        int spp;
+
+        float fov;
+    };
+#else
+
+struct SceneUBO
+{
+	vec3 position;
+    vec3 look;
+    vec3 up;
+
+    vec3 Ka;
+	float fov;
+
+    int width;
+    int height;
+    int max_depth;
+    int spp;
+
+    
+};
+layout(std430, binding = 7) readonly buffer Scene{ SceneUBO scene; };
+
+#endif
+
+#ifdef CPU
+    std::vector<BVH> scene_bvh;
+    std::vector<int> light_object_index;
+    std::vector<Vector3f> frame_buffer;
+    Scene scene;
+#else
+layout(std430, binding = 5) readonly buffer SeeneBVHSSBO { BVH scene_bvh[]; };
+layout(std430, binding = 6) readonly buffer LightObjectIndex { int light_object_index[]; };
+layout(std430, binding = 10) buffer OutScene{ SceneUBO out_scene; };
+#endif // CPU
+
+    IntersectResult traverseScene(int index, inout_Ray ray)
+    {
+        IntersectResult result;
+        result.t = MAX_FLOAT;
+        result.is_intersect = false;
+        result.color = vec3(0, 0, 0);
+
+        Stack task;
+        task.top = -1;
+        push(task, index);
+
+        while (!empty(task))
+        {
+            int node_index = pop(task);
+            BVH node = scene_bvh[node_index];
+            BoundingBox box = node.box;
+
+            if (intersectBoxRay(box, ray))
+            {
+                if (node.left != -1 && node.right != -1)
+                {
+                    push(task, node.left);
+                    push(task, node.right);
+                }
+                else
+                {
+                    IntersectResult temp_result = intersectObjectRay(objects[node.index], ray);
+                    if (temp_result.is_intersect)
+                    {
+                        if (temp_result.t < result.t)
+                        {
+                            result = temp_result;
+                            result.object_index = node.index;
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    IntersectResult intersectSceneRay(inout_Ray ray) { return traverseScene(0, ray); }
+
+#ifdef CPU
+    void sampleLight(inout_IntersectResult result, inout_float pdf)
+    {
+        float emit_area_sum = 0;
+        for (int i = 0; i < light_object_index.size(); i++)
+        {
+            emit_area_sum += objects[light_object_index[i]].area;
+        }
+
+        float p = rand() * emit_area_sum;
+
+        emit_area_sum = 0;
+        for (int i = 0; i < light_object_index.size(); i++)
+        {
+            emit_area_sum += objects[light_object_index[i]].area;
+            if (p <= emit_area_sum)
+            {
+                sampleObject(objects[light_object_index[i]], result, pdf);
+                result.object_index = light_object_index[i];
+                break;
+            }
+        }
+    }
+#else
+void sampleLight(inout_IntersectResult result, inout_float pdf, inout int random_seed)
+{
+    float emit_area_sum = 0;
+    for (int i = 0; i < light_object_index.length(); i++)
+    {
+        emit_area_sum += objects[light_object_index[i]].area;
+    }
+
+    float p = rand(random_seed) * emit_area_sum;
+
+    emit_area_sum = 0;
+    for (int i = 0; i < light_object_index.length(); i++)
+    {
+        emit_area_sum += objects[light_object_index[i]].area;
+        if (p <= emit_area_sum)
+        {
+            sampleObject(objects[light_object_index[i]], result, pdf, random_seed);
+            result.object_index = light_object_index[i];
+            break;
+        }
+    }
+}
+#endif // CPU
+    struct ShaderStack
+    {
+        vec3 color[MAX_STACK_SIZE];
+        vec3 coefficient[MAX_STACK_SIZE];
+        int top;
+    };
+
+    void pushShader(inout_ShaderStack s, vec3 color, vec3 coefficient)
+    {
+        if (s.top < MAX_STACK_SIZE)
+        {
+            s.top++;
+            s.color[s.top] = color;
+            s.coefficient[s.top] = coefficient;
+        }
+    }
+
+    void popShader(inout_ShaderStack s, inout_vec3 color, inout_vec3 coefficient)
+    {
+        if (s.top >= 0)
+        {
+            color = s.color[s.top];
+            coefficient = s.coefficient[s.top];
+            s.top--;
+        }
+    }
+
+    Vector3f shader(Ray ray, inout int random_seed)
+    {
+        ShaderStack task;
+        task.top = -1;
+        int depth = 0;
+        while (true)
+        {
+            vec3 result_color = vec3(0.0f);
+
+            /* 光线与场景求交 */
+            IntersectResult result = intersectSceneRay(ray);
+            /* 没有交点 */
+            if (!result.is_intersect)
+            {
+                pushShader(task, scene.Ka, vec3(0.0f));
+                break;
+            }
+
+            Object object = objects[result.object_index];
+            /* 相交的是一个光源 */
+            if (object.is_light)
+            {
+				if (depth == 0)
+				{
+					return object.radiance;
+				}
+                pushShader(task, object.radiance, vec3(1.0f));
+                break;
+            }
+
+            /* 相交的是一个通常的物体 */
+            Point object_point = result.point;
+            Direction object_normal = result.normal;
+            Direction wo = result.ray.direction;
+            Vector3f color = result.color;
+            Material material = materials[object.material_index];
+
+            /* 对于光源进行采样 */
+            float pdf;
+            IntersectResult light;
+			light.ray.t = MAX_FLOAT;
+            light.color = vec3(0, 0, 0);
+            light.t = MAX_FLOAT;
+            light.is_intersect = false;
+			light.object_index = -1;
+
+            sampleLight(light, pdf, random_seed);
+            Point light_point = light.point;
+            Vector3f ws = normalize(light_point - object_point);
+            Direction light_point_normal = light.normal;
+            Vector3f light_radiance = objects[light.object_index].radiance;
+
+            /* 检查是否被阻挡 */
+            float distance1 = length(light_point - object_point);
+            Ray object_to_light;
+            object_to_light.origin = object_point;
+            object_to_light.direction = ws;
+
+            object_to_light.t = MAX_FLOAT;
+            IntersectResult test = intersectSceneRay(object_to_light);
+
+            /* 无遮挡 */
+            if (test.t - distance1 > -0.001)
+            {
+                Vector3f evaluate = evaluateMaterial(wo, ws, object_normal, color, material);
+                float cos_theta = dot(object_normal, ws);
+                float cos_theta_x = dot(light_point_normal, -ws);
+                result_color = light_radiance * evaluate * cos_theta * cos_theta_x / (float(pow(distance1, 2.0f)) * pdf);
+            }
+
+            /* 采样光线 */
+            Vector3f wi = normalize(sampleMaterial(wo, object_normal, material, random_seed));
+            ray.origin = object_point;
+            ray.direction = wi;
+            ray.t = MAX_FLOAT;
+
+            Vector3f evaluate = evaluateMaterial(wo, wi, object_normal, color, material);
+            float pdf_O = pdfMaterial(wo, wi, object_normal, material);
+            float cos_theta = dot(wi, object_normal);
+
+            pushShader(task, result_color, evaluate * cos_theta / pdf_O);
+            depth++;
+            if (depth > scene.max_depth)
+            {
+                pushShader(task, vec3(0.0f), vec3(0.0f));
+                break;
+            }
+        }
+
+        vec3 color = vec3(0);
+
+        vec3 temp;
+        vec3 coefficient;
+        popShader(task, temp, coefficient);
+        color = temp * coefficient;
+
+        while (task.top != -1)
+        {
+            popShader(task, temp, coefficient);
+            color = temp + color * coefficient;
+        }
+
+        return color;
+    }
+
+#ifdef CPU
+    void drawInner(int i, int j)
+    {
+        float scale = tan(scene.fov * pi / 360.0f);
+        float image_aspect_ratio = float(scene.width) / float(scene.height);
+        Point eye_position = scene.position;
+        Point image_center = scene.look;
+        Direction n = image_center - eye_position;
+
+        Vector3f local_y = normalize(scene.up);
+        Vector3f local_x = normalize(cross(n, local_y));
+
+        float t = scale * length(n);
+        float r = t * image_aspect_ratio;
+        Point begin = image_center + local_y * t - local_x * r;
+
+        Point pixel_center = begin - local_y * float(i + 0.5 * 2.0f * t) / float(scene.height) +
+                             local_x * float(j + 0.5 * 2.0f * r) / float(scene.width);
+        Vector3f direction = normalize(pixel_center - eye_position);
+
+        vec3 color = vec3(0.0f);
+        for (int k = 0; k < scene.spp; k++)
+        {
+            bool temp;
+            Ray ray;
+            ray.origin = eye_position;
+            ray.direction = direction;
+            ray.t = MAX_FLOAT;
+            color += shader(ray) / float(scene.spp);
+        }
+
+        this->frame_buffer[i * scene.width + j] = color;
+    }
+
+    void draw()
+    {
+        this->frame_buffer.resize(scene.width * scene.height);
+
+        float scale = std::tan(scene.fov * pi / 360.0f);
+        float image_aspect_ratio = float(scene.width) / float(scene.height);
+        Point eye_position = scene.position;
+        Point image_center = scene.look;
+        Direction n = image_center - eye_position;
+
+        /* 计算在成像平面上的局部坐标系 */
+        Vector3f local_y = glm::normalize(scene.up);
+        Vector3f local_x = glm::normalize(glm::cross(n, local_y));
+
+        float t = scale * glm::length(n);
+        float r = t * image_aspect_ratio;
+        Point begin = image_center + local_y * t - local_x * r;
+
+        for (int i = 0; i < scene.height; i++)
+        {
+#pragma omp parallel for
+            for (int j = 0; j < scene.width; j++)
+            {
+                Point pixel_center = begin - local_y * float(i + 0.5) * 2.0f * t / float(scene.height) +
+                                     local_x * float(j + 0.5) * 2.0f * r / float(scene.width);
+                Vector3f direction = glm::normalize(pixel_center - eye_position);
+                for (int k = 0; k < scene.spp; k++)
+                {
+                    bool temp;
+                    Ray ray{eye_position, direction};
+                    ray.t = MAX_FLOAT;
+                    this->frame_buffer[i * scene.width + j] += shader(ray) / float(scene.spp);
+                }
+            }
+            outputProgress(i / (float)scene.height);
+        }
+        outputProgress(1.f);
+
+        std::string path =
+            "./0_spp_" + std::to_string(scene.spp) + "_depth_" + std::to_string(scene.max_depth) + ".ppm";
+        FILE* fp = fopen(path.c_str(), "wb");
+        (void)fprintf(fp, "P6\n%d %d\n255\n", scene.width, scene.height);
+        for (auto i = 0; i < scene.height * scene.width; ++i)
+        {
+            static unsigned char color[3];
+            color[0] = (unsigned char)(255 * std::pow(clamp(0.0f, 1.0f, this->frame_buffer[i].x), 0.6f));
+            color[1] = (unsigned char)(255 * std::pow(clamp(0.0f, 1.0f, this->frame_buffer[i].y), 0.6f));
+            color[2] = (unsigned char)(255 * std::pow(clamp(0.0f, 1.0f, this->frame_buffer[i].z), 0.6f));
+            fwrite(color, 1, 3, fp);
+        }
+        fclose(fp);
+    }
+#else
+
+#endif // CPU
+
+#ifdef CPU
+};
+#endif // CPU
+
+#ifndef CPU
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(binding = 8, rgba8) uniform image2D outputImage;
+#endif // !CPU
+
+#ifdef CPU
+#else
+void main()
+{
+	uint j = gl_GlobalInvocationID.x;
+	uint i = gl_GlobalInvocationID.y;
+    
+	ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+
+	float scale = tan(scene.fov * pi / 360.0f);
+    float image_aspect_ratio = float(scene.width) / float(scene.height);
+    Point eye_position = scene.position;
+    Point image_center = scene.look;
+    Direction n = image_center - eye_position;
+
+    /* 计算在成像平面上的局部坐标系 */
+    Vector3f local_y = normalize(scene.up);
+    Vector3f local_x = normalize(cross(n, local_y));
+
+    float t = scale * length(n);
+    float r = t * image_aspect_ratio;
+    Point begin = image_center + local_y * t - local_x * r;
+
+
+	Point pixel_center = begin - local_y * float(i + 0.5) * 2.0f * t / float(scene.height) +
+                         local_x * float(j + 0.5) * 2.0f * r / float(scene.width);
+	Vector3f direction = normalize(pixel_center - eye_position);
+
+	int seed = int(1024 * j + i);
+	vec3 color = vec3(0.0f);
+	for (int k = 0; k < scene.spp; k++)
+	{		
+		Ray ray;
+		ray.origin = eye_position;
+		ray.direction = direction;
+		ray.t = MAX_FLOAT;
+		color += shader(ray, seed) / float(scene.spp);
+	}
+
+	imageStore(outputImage, pixelCoord, vec4(color, 1.0f));
+    
+}
+
+void main1()
+{
+    vec4 color = vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+    imageStore(outputImage, pixelCoord, color);
+}
+#endif // CPU

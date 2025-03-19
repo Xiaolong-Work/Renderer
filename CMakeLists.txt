@@ -15,7 +15,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Add include file
+find_package(Vulkan REQUIRED)
 include_directories(
+	${Vulkan_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/3rd_party/glfw/include
 	${CMAKE_SOURCE_DIR}/3rd_party/glm
 )
@@ -23,11 +25,14 @@ include_directories(
 # Add source directory
 add_subdirectory(src/path_tracing)
 add_subdirectory(src/model)
+add_subdirectory(src/vulkan_manager)
+add_subdirectory(shaders)
 add_subdirectory(3rd_party/glm)
 add_subdirectory(3rd_party/glfw)
 
 # Link library
 target_link_libraries(Renderer PathTracing)
+target_link_libraries(Renderer VulkanManager)
 target_link_libraries(Renderer glfw)
 
 # OpenMp support
@@ -42,3 +47,6 @@ endif()
 target_compile_definitions(Renderer PRIVATE ROOT_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_definitions(Model PRIVATE ROOT_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_definitions(PathTracing PRIVATE ROOT_DIR="${CMAKE_SOURCE_DIR}")
+
+set(CMAKE_VERBOSE_MAKEFILE ON)
+add_dependencies(Renderer CompileShaders)

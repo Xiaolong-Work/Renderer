@@ -89,15 +89,22 @@ public:
         return distribution(generate);
     }
 #else
+
 layout(std430, binding = 0) readonly buffer RandomSSBO { float random_table[]; };
 
-float rand(inout int seed)
+uint pcg_hash(uint seed) 
 {
-	float result = random_table[seed];
-	seed = int(result * 1024.0 * 1024.0);
-    return result;
+    seed = seed * 747796405u + 2891336453u;
+    seed = (seed >> ((seed >> 28u) + 4u)) ^ seed * 277803737u;
+    return seed;
 }
 
+
+float rand(inout uint state) 
+{
+    state = pcg_hash(state);  
+    return float(state & 0xFFFFFF) / float(0x1000000); 
+}
 
 #endif // CPU
 
@@ -316,7 +323,7 @@ bool intersectTriangleRay(Triangle triangle, Ray ray, inout_float result[4])
         return true;
     }
 
-    void sampleTriangle(Triangle triangle, inout_Point result, inout_float pdf, inout int random_seed)
+    void sampleTriangle(Triangle triangle, inout_Point result, inout_float pdf, inout uint random_seed)
     {
         float x = sqrt(rand(random_seed));
         float y = rand(random_seed);
@@ -420,7 +427,7 @@ layout(std430, binding = 3) readonly buffer ObjectIndexSSBO { Object objects[]; 
 
     IntersectResult intersectObjectRay(Object object, Ray ray) { return traverseObjectBVH(object.bvh_index, ray); }
 
-    void traverseObjectSample(int index, float p, inout_IntersectResult result, inout_float pdf, inout int random_seed)
+    void traverseObjectSample(int index, float p, inout_IntersectResult result, inout_float pdf, inout uint random_seed)
     {
         BVH node = bvh[index];
 
@@ -451,7 +458,7 @@ layout(std430, binding = 3) readonly buffer ObjectIndexSSBO { Object objects[]; 
         }
     }
 
-    void sampleObject(Object object, inout_IntersectResult result, inout_float pdf, inout int random_seed)
+    void sampleObject(Object object, inout_IntersectResult result, inout_float pdf, inout uint random_seed)
     {
         BVH root = bvh[object.bvh_index];
         float p = rand(random_seed) * root.area;
@@ -504,7 +511,7 @@ layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[];
         }
     }
 
-    vec3 glossySample(Direction wi, Direction normal, Material material, inout int random_seed)
+    vec3 glossySample(Direction wi, Direction normal, Material material, inout uint random_seed)
     {
         /* 计算反射方向 */
         Direction reflect_direction = reflect(wi, normal);
@@ -538,7 +545,7 @@ layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[];
         return vec3(x, y, z);
     }
 
-    vec3 diffuseSample(Direction normal, inout int random_seed)
+    vec3 diffuseSample(Direction normal, inout uint random_seed)
     {
         /* 生成随机数 */
         float u = rand(random_seed);
@@ -568,7 +575,7 @@ layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[];
 
     vec3 reflectSample(Direction wi, Direction normal) { return reflect(wi, normal); }
 
-    vec3 refractionSample(Direction wi, Direction normal, float ni, inout int random_seed)
+    vec3 refractionSample(Direction wi, Direction normal, float ni, inout uint random_seed)
     {
         float cos_theta_i = dot(-wi, normal);
         float eta = 1.0f / ni;
@@ -680,7 +687,7 @@ layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[];
         }
     }
 
-    vec3 sampleMaterial(Direction wi, Direction normal, Material material, inout int random_seed)
+    vec3 sampleMaterial(Direction wi, Direction normal, Material material, inout uint random_seed)
     {
         if (material.type == Glossy)
         {
@@ -819,7 +826,7 @@ layout(std430, binding = 10) buffer OutScene{ SceneUBO out_scene; };
         }
     }
 #else
-void sampleLight(inout_IntersectResult result, inout_float pdf, inout int random_seed)
+void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint random_seed)
 {
     float emit_area_sum = 0;
     for (int i = 0; i < light_object_index.length(); i++)
@@ -869,7 +876,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout int random
         }
     }
 
-    Vector3f shader(Ray ray, inout int random_seed)
+    Vector3f shader(Ray ray, inout uint random_seed)
     {
         ShaderStack task;
         task.top = -1;
@@ -895,7 +902,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout int random
 				{
 					return object.radiance;
 				}
-                pushShader(task, object.radiance, vec3(1.0f));
+                pushShader(task, scene.Ka, vec3(0.0f));
                 break;
             }
 
@@ -1069,8 +1076,8 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout int random
 #endif // CPU
 
 #ifndef CPU
-layout(local_size_x = 8, local_size_y = 8) in;
-layout(binding = 8, rgba8) uniform image2D outputImage;
+layout(local_size_x = 1, local_size_y = 1) in;
+layout(binding = 8, rgba32f) uniform image2D outputImage;
 #endif // !CPU
 
 #ifdef CPU
@@ -1101,7 +1108,8 @@ void main()
                          local_x * float(j + 0.5) * 2.0f * r / float(scene.width);
 	Vector3f direction = normalize(pixel_center - eye_position);
 
-	int seed = int(1024 * j + i);
+	uint seed = uint(1024 * j + i);
+	seed = uint(random_table[seed] * 1024 * 1024);
 	vec3 color = vec3(0.0f);
 	for (int k = 0; k < scene.spp; k++)
 	{		

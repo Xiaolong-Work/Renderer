@@ -108,7 +108,7 @@ public:
 		vkCmdBindDescriptorSets(
 			commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
-		vkCmdDispatch(commandBuffer, 128, 128, 1);
+		vkCmdDispatch(commandBuffer, 1024, 1024, 1);
 
 		commandManager.endComputeCommands(commandBuffer);
 	}
@@ -116,7 +116,7 @@ public:
 	VkDescriptorSetLayout descriptorSetLayout;
 	void createDescriptorSetLayout()
 	{
-		std::array<VkDescriptorSetLayoutBinding, 10> layoutBindings{};
+		std::array<VkDescriptorSetLayoutBinding, 9> layoutBindings{};
 		for (size_t i = 0; i < 8; i++)
 		{
 			layoutBindings[i].binding = i;
@@ -131,12 +131,6 @@ public:
 		layoutBindings[8].descriptorCount = 1;
 		layoutBindings[8].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 		layoutBindings[8].pImmutableSamplers = nullptr;
-
-		layoutBindings[9].binding = 9;
-		layoutBindings[9].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		layoutBindings[9].descriptorCount = 1;
-		layoutBindings[9].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		layoutBindings[9].pImmutableSamplers = nullptr;
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -155,15 +149,13 @@ public:
 	VkDescriptorPool descriptorPool;
 	void createDescriptorPool()
 	{
-		std::array<VkDescriptorPoolSize, 3> poolSizes;
+		std::array<VkDescriptorPoolSize, 2> poolSizes;
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		poolSizes[0].descriptorCount = 8;
 
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		poolSizes[1].descriptorCount = 1;
 
-		poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[2].descriptorCount = 1;
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -202,16 +194,12 @@ public:
 			bufferInfo[i].range = VK_WHOLE_SIZE;
 		}
 
-		std::array<VkDescriptorImageInfo, 2> storageImageInfo{};
+		std::array<VkDescriptorImageInfo, 1> storageImageInfo{};
 		storageImageInfo[0].imageView = storageImageManager.imageView;
 		storageImageInfo[0].sampler = VK_NULL_HANDLE;
 		storageImageInfo[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-		storageImageInfo[1].imageView = storageImageManager.imageView;
-		storageImageInfo[1].sampler = this->textureManager.sampler;
-		storageImageInfo[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		std::array<VkWriteDescriptorSet, 10> descriptorWrites{};
+		std::array<VkWriteDescriptorSet, 9> descriptorWrites{};
 		for (size_t i = 0; i < 8; i++)
 		{
 			descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -236,17 +224,6 @@ public:
 		descriptorWrites[8].pBufferInfo = nullptr;
 		descriptorWrites[8].pImageInfo = &storageImageInfo[0];
 		descriptorWrites[8].pTexelBufferView = nullptr;
-
-		descriptorWrites[9].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[9].pNext = nullptr;
-		descriptorWrites[9].dstSet = this->descriptorSet;
-		descriptorWrites[9].dstBinding = 9;
-		descriptorWrites[9].dstArrayElement = 0;
-		descriptorWrites[9].descriptorCount = 1;
-		descriptorWrites[9].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[9].pBufferInfo = nullptr;
-		descriptorWrites[9].pImageInfo = &storageImageInfo[1];
-		descriptorWrites[9].pTexelBufferView = nullptr;
 
 		vkUpdateDescriptorSets(
 			contentManager.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);

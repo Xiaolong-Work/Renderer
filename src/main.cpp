@@ -14,7 +14,7 @@ std::map<int, std::string> name = {{0, "cornell-box"}, {1, "veach-mis"}, {2, "ba
 
 int main()
 {
-	int spp = 4;
+	int spp = 512;
 	int max_depth = 5;
 
 	Renderer renderer;
@@ -41,7 +41,7 @@ int main()
 
 	app.setSpp(spp);
 	app.init(scene);
-	
+
 	start = std::chrono::system_clock::now();
 	app.draw();
 	end = std::chrono::system_clock::now();

@@ -10,7 +10,7 @@ void VulkanPathTracingRender::saveResult()
 	this->storageImageManager.getData(stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(this->contentManager.device, stagingBufferMemory, 0, 1024 * 1204 * 4, 0, &data);
+	vkMapMemory(this->contentManager.device, stagingBufferMemory, 0, 1024 * 1024 * 4, 0, &data);
 
 	VkImageSubresource subresource{};
 	subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -28,16 +28,20 @@ void VulkanPathTracingRender::saveResult()
 	int height = this->bufferManager.scene.height;
 
 	std::vector<unsigned char> image_data(width * height * 3);
-	uint8_t* pixelData = static_cast<uint8_t*>(data);
+	float* pixelData = static_cast<float*>(data);
+	;
 	for (uint32_t y = 0; y < 1024; y++)
 	{
 		for (uint32_t x = 0; x < 1024; x++)
 		{
 			static unsigned char color[3];
 			uint32_t pixelIndex = y * 1024 + x;
-			image_data[pixelIndex * 3 + 0] = (unsigned char)(pixelData[pixelIndex * 4 + 0]);
-			image_data[pixelIndex * 3 + 1] = (unsigned char)(pixelData[pixelIndex * 4 + 1]);
-			image_data[pixelIndex * 3 + 2] = (unsigned char)(pixelData[pixelIndex * 4 + 2]);
+			image_data[pixelIndex * 3 + 0] =
+				(unsigned char)(255 * std::pow(clamp(0, 1, pixelData[pixelIndex * 4 + 0]), 0.6f));
+			image_data[pixelIndex * 3 + 1] =
+				(unsigned char)(255 * std::pow(clamp(0, 1, pixelData[pixelIndex * 4 + 1]), 0.6f));
+			image_data[pixelIndex * 3 + 2] =
+				(unsigned char)(255 * std::pow(clamp(0, 1, pixelData[pixelIndex * 4 + 2]), 0.6f));
 		}
 	}
 

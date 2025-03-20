@@ -60,6 +60,11 @@ int Texture::getHeight() const
 	return this->height;
 }
 
+void Texture::clear()
+{
+	stbi_image_free(this->data);
+}
+
 stbi_uc* Texture::getData()
 {
 	return this->data;

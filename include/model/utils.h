@@ -20,6 +20,9 @@ typedef glm::ivec4 Vector4i;
 typedef glm::vec4 Vector4f;
 typedef glm::dvec4 Vector4d;
 
+typedef glm::mat4x4 Matrix4f;
+typedef glm::mat3x3 Matrix3f;
+
 typedef Vector3f Point;
 typedef Vector3f Direction;
 typedef Vector3f Coordinate3D;

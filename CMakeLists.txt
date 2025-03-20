@@ -23,16 +23,18 @@ include_directories(
 )
 
 # Add source directory
-add_subdirectory(src/path_tracing)
+add_subdirectory(shaders)
 add_subdirectory(src/model)
 add_subdirectory(src/vulkan_manager)
-add_subdirectory(shaders)
+add_subdirectory(src/path_tracing)
+add_subdirectory(src/rasterizer)
 add_subdirectory(3rd_party/glm)
 add_subdirectory(3rd_party/glfw)
 
 # Link library
 target_link_libraries(Renderer PathTracing)
 target_link_libraries(Renderer VulkanManager)
+target_link_libraries(Renderer Rasterizer)
 target_link_libraries(Renderer glfw)
 
 # OpenMp support

@@ -7,6 +7,8 @@
 #include <iostream>
 #include <scene.h>
 #include <texture_manager.h>
+#include <ssbo_buffer_manager.h>
+
 
 class VulkanPathTracingRender
 {

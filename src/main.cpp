@@ -10,11 +10,22 @@
 #include <scene.h>
 #include <utils.h>
 
+#include <vulkan_rasterizer_render.h>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 std::map<int, std::string> name = {{0, "cornell-box"}, {1, "veach-mis"}, {2, "bathroom"}};
 
-int main()
+void rasterRender()
 {
-	int spp = 512;
+	VulkanRasterRenderer renderer;
+	renderer.run();
+}
+
+void PathTracingRender()
+{
+	int spp = 4;
 	int max_depth = 5;
 
 	Renderer renderer;
@@ -54,5 +65,11 @@ int main()
 	end = std::chrono::system_clock::now();
 	outputTimeUse("Render CPU", end - start);
 
-	return 0;
+	return;
+}
+
+int main()
+{
+	rasterRender();
+	PathTracingRender();
 }

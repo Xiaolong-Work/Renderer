@@ -58,9 +58,6 @@ public:
     VkImage image;
     VkDeviceMemory imageMemory;
     VkImageView imageView;
-
-private:
-    VkExtent3D extent;
 };
 
 class StorageImageManager : public ImageManager

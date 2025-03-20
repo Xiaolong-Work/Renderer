@@ -53,6 +53,11 @@ public:
 	 */
 	int getHeight() const;
 
+	/**
+	 * @brief Clear texture data.
+	 */
+	void clear();
+
 protected:
 	/**
 	 * @brief Retrieves the raw texture data.

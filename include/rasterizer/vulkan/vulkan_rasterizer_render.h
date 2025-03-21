@@ -7,33 +7,13 @@
 #include <image_manager.h>
 #include <iostream>
 #include <scene.h>
+#include <shader_manager.h>
 #include <ssbo_buffer_manager.h>
 #include <swap_chain_manager.h>
 #include <texture_manager.h>
 
 // #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
-
-static std::vector<char> readFile(const std::string& filename)
-{
-	/* 从尾部读取文件以获取文件大小 */
-	std::ifstream file(filename, std::ios::ate | std::ios::binary);
-	if (!file.is_open())
-	{
-		throw std::runtime_error("Failed to open file!");
-	}
-	size_t fileSize = (size_t)file.tellg();
-
-	/* 申请缓冲区 */
-	std::vector<char> buffer(fileSize);
-
-	/* 读取文件内容 */
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
-
-	file.close();
-	return buffer;
-}
 
 const std::string MODEL_PATH = std::string(ROOT_DIR) + "/models/viking_room/viking_room.obj";
 const std::string TEXTURE_PATH = std::string(ROOT_DIR) + "/models/viking_room/viking_room.png";
@@ -116,8 +96,16 @@ protected:
 		this->swapChainManager.init();
 
 		this->depthImageManager = DepthImageManager(pContentManager, pCommandManager);
-		depthImageManager.setExtent(this->swapChainManager.extent);
-		depthImageManager.init();
+		this->depthImageManager.setExtent(this->swapChainManager.extent);
+		this->depthImageManager.init();
+
+		this->vertexShaderManager = ShaderManager(pContentManager);
+		this->vertexShaderManager.setShaderName("vertex.spv");
+		this->vertexShaderManager.init();
+
+		this->fragmentShaderManager = ShaderManager(pContentManager);
+		this->fragmentShaderManager.setShaderName("fragment.spv");
+		this->fragmentShaderManager.init();
 
 		createRenderPass();
 
@@ -402,38 +390,17 @@ protected:
 		}
 	}
 
-	VkShaderModule createShaderModule(const std::vector<char>& code)
-	{
-		VkShaderModuleCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.pNext = nullptr;
-		createInfo.flags = 0;
-		createInfo.codeSize = code.size();
-		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-		VkShaderModule shaderModule;
-		if (vkCreateShaderModule(contentManager.device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create shader module!");
-		}
-
-		return shaderModule;
-	}
+	ShaderManager vertexShaderManager;
+	ShaderManager fragmentShaderManager;
 
 	void createGraphicsPipeline()
 	{
-		auto vertShaderCode = readFile(std::string(ROOT_DIR) + "/shaders/vert.spv");
-		auto fragShaderCode = readFile(std::string(ROOT_DIR) + "/shaders/Frag.spv");
-
-		VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-		VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
-
 		VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vertShaderStageInfo.pNext = nullptr;
 		vertShaderStageInfo.flags = 0;
 		vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertShaderStageInfo.module = vertShaderModule;
+		vertShaderStageInfo.module = vertexShaderManager.module;
 		vertShaderStageInfo.pName = "main";
 		vertShaderStageInfo.pSpecializationInfo = nullptr;
 
@@ -442,7 +409,7 @@ protected:
 		fragShaderStageInfo.pNext = nullptr;
 		fragShaderStageInfo.flags = 0;
 		fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragShaderStageInfo.module = fragShaderModule;
+		fragShaderStageInfo.module = fragmentShaderManager.module;
 		fragShaderStageInfo.pName = "main";
 		vertShaderStageInfo.pSpecializationInfo = nullptr;
 
@@ -592,9 +559,6 @@ protected:
 		{
 			throw std::runtime_error("Failed to create graphics pipeline!");
 		}
-
-		vkDestroyShaderModule(contentManager.device, fragShaderModule, nullptr);
-		vkDestroyShaderModule(contentManager.device, vertShaderModule, nullptr);
 	}
 
 	void draw()
@@ -712,6 +676,9 @@ protected:
 		this->swapChainManager.clear();
 
 		this->commandManager.clear();
+
+		this->vertexShaderManager.clear();
+		this->fragmentShaderManager.clear();
 
 		this->contentManager.clear();
 	}

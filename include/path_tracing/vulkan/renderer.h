@@ -8,32 +8,12 @@
 #include <scene.h>
 #include <texture_manager.h>
 #include <ssbo_buffer_manager.h>
+#include <shader_manager.h>
 
 
 class VulkanPathTracingRender
 {
 public:
-	static std::vector<char> readFile(const std::string& filename)
-	{
-		/* 从尾部读取文件以获取文件大小 */
-		std::ifstream file(filename, std::ios::ate | std::ios::binary);
-		if (!file.is_open())
-		{
-			throw std::runtime_error("Failed to open file!");
-		}
-		size_t fileSize = (size_t)file.tellg();
-
-		/* 申请缓冲区 */
-		std::vector<char> buffer(fileSize);
-
-		/* 读取文件内容 */
-		file.seekg(0);
-		file.read(buffer.data(), fileSize);
-
-		file.close();
-		return buffer;
-	}
-
 	int spp;
 	void setSpp(int spp)
 	{
@@ -42,6 +22,7 @@ public:
 
 	VkPipeline computePipeline;
 	VkPipelineLayout computePipelineLayout;
+	ShaderManager computeShaderManager;
 	void init(const Scene& scene)
 	{
 		this->contentManager.init();
@@ -59,6 +40,11 @@ public:
 		this->storageImageManager.setExtent(VkExtent2D{scene.camera.width, scene.camera.height});
 		this->storageImageManager.init();
 
+
+		this->computeShaderManager = ShaderManager(pContentManager);
+		this->computeShaderManager.setShaderName("compute.spv");
+		this->computeShaderManager.init();
+
 		this->textureManager = TextureManager(pContentManager, pCommandManager);
 		this->textureManager.init();
 		auto pTextureManager = std::make_shared<TextureManager>(this->textureManager);
@@ -67,15 +53,12 @@ public:
 		createDescriptorPool();
 		createDescriptorSets();
 
-		auto computeShaderCode = readFile(std::string(ROOT_DIR) + "/shaders/comp.spv");
-		VkShaderModule computeShaderModule = createShaderModule(computeShaderCode);
-
 		VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
 		computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		computeShaderStageInfo.pNext = nullptr;
 		computeShaderStageInfo.flags = 0;
 		computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-		computeShaderStageInfo.module = computeShaderModule;
+		computeShaderStageInfo.module = this->computeShaderManager.module;
 		computeShaderStageInfo.pName = "main";
 		computeShaderStageInfo.pSpecializationInfo = nullptr;
 

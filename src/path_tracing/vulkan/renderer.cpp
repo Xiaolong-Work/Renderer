@@ -29,7 +29,6 @@ void VulkanPathTracingRender::saveResult()
 
 	std::vector<unsigned char> image_data(width * height * 3);
 	float* pixelData = static_cast<float*>(data);
-	;
 	for (uint32_t y = 0; y < 1024; y++)
 	{
 		for (uint32_t x = 0; x < 1024; x++)
@@ -46,6 +45,8 @@ void VulkanPathTracingRender::saveResult()
 	}
 
 	stbi_write_bmp(path.c_str(), width, height, 3, image_data.data());
+
+	std::cout << "The rendering result has been written to " << path << std::endl;
 
 	vkDestroyBuffer(contentManager.device, stagingBuffer, nullptr);
 	vkFreeMemory(contentManager.device, stagingBufferMemory, nullptr);

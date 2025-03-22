@@ -19,3 +19,8 @@ void main()
     fragColor = inColor;
     fragTexCoord = inTexCoord;
 }
+
+void path_tracing()
+{
+	gl_Position = vec4(0.0);
+}

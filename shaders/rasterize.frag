@@ -11,3 +11,8 @@ void main()
 {
     outColor = texture(texSampler, fragTexCoord);
 }
+
+void path_tracing()
+{
+	outColor = texture(texSampler, fragTexCoord);
+}

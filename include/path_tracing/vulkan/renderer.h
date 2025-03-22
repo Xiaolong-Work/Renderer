@@ -6,10 +6,10 @@
 #include <image_manager.h>
 #include <iostream>
 #include <scene.h>
-#include <texture_manager.h>
-#include <ssbo_buffer_manager.h>
 #include <shader_manager.h>
-
+#include <ssbo_buffer_manager.h>
+#include <swap_chain_manager.h>
+#include <texture_manager.h>
 
 class VulkanPathTracingRender
 {
@@ -23,6 +23,7 @@ public:
 	VkPipeline computePipeline;
 	VkPipelineLayout computePipelineLayout;
 	ShaderManager computeShaderManager;
+
 	void init(const Scene& scene)
 	{
 		this->contentManager.init();
@@ -32,6 +33,17 @@ public:
 		this->commandManager.init();
 		auto pCommandManager = std::make_shared<CommandManager>(this->commandManager);
 
+		this->swapChainManager = SwapChainManager(pContentManager, pCommandManager);
+		this->swapChainManager.init();
+
+		this->vertexShaderManager = ShaderManager(pContentManager);
+		this->vertexShaderManager.setShaderName("vertex.spv");
+		this->vertexShaderManager.init();
+
+		this->fragmentShaderManager = ShaderManager(pContentManager);
+		this->fragmentShaderManager.setShaderName("fragment.spv");
+		this->fragmentShaderManager.init();
+
 		this->bufferManager = SSBOBufferManager(pContentManager, pCommandManager);
 		this->bufferManager.setData(scene, this->spp);
 		this->bufferManager.init();
@@ -39,7 +51,6 @@ public:
 		this->storageImageManager = StorageImageManager(pContentManager, pCommandManager);
 		this->storageImageManager.setExtent(VkExtent2D{scene.camera.width, scene.camera.height});
 		this->storageImageManager.init();
-
 
 		this->computeShaderManager = ShaderManager(pContentManager);
 		this->computeShaderManager.setShaderName("compute.spv");
@@ -49,10 +60,72 @@ public:
 		this->textureManager.init();
 		auto pTextureManager = std::make_shared<TextureManager>(this->textureManager);
 
+		this->graphicsPipelineManager = PipelineManager(pContentManager);
+		this->setupGraphicsPipelines();
+		this->graphicsPipelineManager.init();
+
 		createDescriptorSetLayout();
 		createDescriptorPool();
 		createDescriptorSets();
 
+		createComputePipeline();
+	}
+
+	void setupGraphicsPipelines()
+	{
+		std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+		this->graphicsPipelineManager.dynamicStates = dynamicStates;
+
+		VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertShaderStageInfo.pNext = nullptr;
+		vertShaderStageInfo.flags = 0;
+		vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertShaderStageInfo.module = vertexShaderManager.module;
+		vertShaderStageInfo.pName = "path_tracing";
+		vertShaderStageInfo.pSpecializationInfo = nullptr;
+
+		VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+		fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragShaderStageInfo.pNext = nullptr;
+		fragShaderStageInfo.flags = 0;
+		fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragShaderStageInfo.module = fragmentShaderManager.module;
+		fragShaderStageInfo.pName = "path_tracing";
+		vertShaderStageInfo.pSpecializationInfo = nullptr;
+
+		std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = (float)swapChainManager.extent.width;
+		viewport.height = (float)swapChainManager.extent.height;
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		VkRect2D scissor{};
+		scissor.offset = {0, 0};
+		scissor.extent = swapChainManager.extent;
+
+		//VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+		//pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		//pipelineLayoutInfo.setLayoutCount = 1;
+		//pipelineLayoutInfo.pSetLayouts = &descriptorManager.setLayout;
+		//pipelineLayoutInfo.pushConstantRangeCount = 0;
+		//pipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+		//graphicsPipelineManager.setRequiredValue(shaderStages, viewport, scissor, pipelineLayoutInfo, renderPass);
+	}
+
+	ShaderManager vertexShaderManager{};
+	ShaderManager fragmentShaderManager{};
+
+	VkPipeline graphicsPipeline;
+
+	PipelineManager graphicsPipelineManager{};
+
+	void createComputePipeline()
+	{
 		VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
 		computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		computeShaderStageInfo.pNext = nullptr;
@@ -70,7 +143,7 @@ public:
 		if (vkCreatePipelineLayout(contentManager.device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) !=
 			VK_SUCCESS)
 		{
-			throw std::runtime_error("failed to create compute pipeline layout!");
+			throw std::runtime_error("Failed to create compute pipeline layout!");
 		}
 
 		VkComputePipelineCreateInfo pipelineInfo{};
@@ -81,7 +154,7 @@ public:
 		if (vkCreateComputePipelines(
 				contentManager.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS)
 		{
-			throw std::runtime_error("failed to create compute pipeline!");
+			throw std::runtime_error("Failed to create compute pipeline!");
 		}
 	}
 
@@ -93,7 +166,7 @@ public:
 		vkCmdBindDescriptorSets(
 			commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
-		vkCmdDispatch(commandBuffer, 1024, 1024, 1);
+		vkCmdDispatch(commandBuffer, 128, 128, 1);
 
 		commandManager.endComputeCommands(commandBuffer);
 	}
@@ -140,7 +213,6 @@ public:
 
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		poolSizes[1].descriptorCount = 1;
-
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -516,4 +588,5 @@ public:
 	CommandManager commandManager{};
 	SSBOBufferManager bufferManager{};
 	TextureManager textureManager{};
+	SwapChainManager swapChainManager;
 };

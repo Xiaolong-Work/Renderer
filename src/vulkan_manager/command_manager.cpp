@@ -12,6 +12,7 @@ void CommandManager::clear()
 {
     vkDestroyCommandPool(pContentManager->device, this->graphicsCommandPool, nullptr);
     vkDestroyCommandPool(pContentManager->device, this->transferCommandPool, nullptr);
+	vkDestroyCommandPool(pContentManager->device, this->computeCommandPool, nullptr);
 }
 
 void CommandManager::createCommandPool()
@@ -142,8 +143,7 @@ void CommandManager::endComputeCommands(VkCommandBuffer commandBuffer)
 	VkFence fence;
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    VkResult result = vkCreateFence(pContentManager->device, &fenceInfo, nullptr, &fence);
-    if (result != VK_SUCCESS)
+	if (vkCreateFence(pContentManager->device, &fenceInfo, nullptr, &fence) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to create fence!");
     }
@@ -159,16 +159,8 @@ void CommandManager::endComputeCommands(VkCommandBuffer commandBuffer)
     submitInfo.signalSemaphoreCount = 0;
     submitInfo.pSignalSemaphores = nullptr;
 
-    auto re1 = vkQueueSubmit(pContentManager->computeQueue, 1, &submitInfo, fence);
+    vkQueueSubmit(pContentManager->computeQueue, 1, &submitInfo, fence);
 
-	VkDeviceGroupPresentCapabilitiesKHR deviceGroupCapabilities{};
-    deviceGroupCapabilities.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_CAPABILITIES_KHR;
-    VkResult checkResult = vkGetDeviceGroupPresentCapabilitiesKHR(pContentManager->device, &deviceGroupCapabilities);
-    if (checkResult == VK_ERROR_DEVICE_LOST)
-    {
-        std::cerr << "Device lost detected!" << std::endl;
-    }
-
-    auto re2 = vkWaitForFences(pContentManager->device, 1, &fence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(pContentManager->device, 1, &fence, VK_TRUE, UINT64_MAX);
     vkFreeCommandBuffers(pContentManager->device, computeCommandPool, 1, &commandBuffer);
 }

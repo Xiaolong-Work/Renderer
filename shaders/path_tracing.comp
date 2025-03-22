@@ -1076,7 +1076,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
 #endif // CPU
 
 #ifndef CPU
-layout(local_size_x = 1, local_size_y = 1) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 layout(binding = 8, rgba32f) uniform image2D outputImage;
 #endif // !CPU
 
@@ -1122,12 +1122,5 @@ void main()
 
 	imageStore(outputImage, pixelCoord, vec4(color, 1.0f));
     
-}
-
-void main1()
-{
-    vec4 color = vec4(1.0f, 0.0f, 0.0f, 1.0f);
-    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
-    imageStore(outputImage, pixelCoord, color);
 }
 #endif // CPU

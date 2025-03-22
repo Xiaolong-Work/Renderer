@@ -330,7 +330,7 @@ void StorageImageManager::init()
     createImage(this->extent,
 				VK_FORMAT_R32G32B32A32_SFLOAT,
                 VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+				VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 this->image,
                 this->imageMemory);

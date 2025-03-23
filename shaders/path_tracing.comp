@@ -513,36 +513,29 @@ layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[];
 
     vec3 glossySample(Direction wi, Direction normal, Material material, inout uint random_seed)
     {
-        /* 计算反射方向 */
+        /* Compute the reflection direction and ensure normalization */
         Direction reflect_direction = reflect(wi, normal);
 
-        /* 计算天顶角 */
-        float zenith_angle = acos(reflect_direction[2]);
+		float u = rand(random_seed);
+		float v = rand(random_seed);
 
-        /* 计算方位角 */
-        float azimuth_angle = atan(reflect_direction[1], reflect_direction[0]);
-        /* 调整为 [0, 2*pi] 范围 */
-        if (azimuth_angle < 0)
-        {
-            azimuth_angle += 2 * pi;
-        }
+		float exponent = max(material.Ns, 0.0f); // Ensure the exponent is non-negative
+		float cos_theta = pow(max(u, 1e-6f), 1.0f / (exponent + 1));
+		float sin_theta = sqrt(1 - cos_theta * cos_theta);
+		float phi = 2.0f * pi * v;
 
-        float Ns = material.Ns;
-        /* 在反射方向周围随机选择 */
-        float strength = 2.0f;
-        float p = (rand(random_seed) * 2 - 1) / Ns;
-        zenith_angle += p * strength * 8.0f;
+		float x = sin_theta * cos(phi);
+		float y = sin_theta * sin(phi);
+		float z = cos_theta;
 
-        float q = (rand(random_seed) * 2 - 1) * sqrt(1.0f / Ns - pow(p, 2.0f));
-        azimuth_angle += q * strength;
+		// Construct an orthonormal basis around the reflection direction
+		Vector3f tangent = (abs(reflect_direction.z) > 0.999f) ? Vector3f(1, 0, 0)
+																: // If too close to the Z-axis, use (1,0,0) as tangent
+						   normalize(cross(reflect_direction, Vector3f(0, 1, 0)));
+		Vector3f bitangent = normalize(cross(tangent, reflect_direction));
 
-        /* 计算单位向量的三个分量 */
-        float x = sin(zenith_angle) * cos(azimuth_angle);
-        float y = sin(zenith_angle) * sin(azimuth_angle);
-        float z = cos(zenith_angle);
-
-        /* 返回单位向量 */
-        return vec3(x, y, z);
+		// Transform the sampled direction from local to world space and return
+		return normalize(tangent * x + bitangent * y + reflect_direction * z);
     }
 
     vec3 diffuseSample(Direction normal, inout uint random_seed)
@@ -881,6 +874,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
         ShaderStack task;
         task.top = -1;
         int depth = 0;
+		float last = 0.0;
         while (true)
         {
             vec3 result_color = vec3(0.0f);
@@ -902,7 +896,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
 				{
 					return object.radiance;
 				}
-                pushShader(task, scene.Ka, vec3(0.0f));
+                pushShader(task, object.radiance, vec3(last));
                 break;
             }
 
@@ -955,6 +949,15 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
             Vector3f evaluate = evaluateMaterial(wo, wi, object_normal, color, material);
             float pdf_O = pdfMaterial(wo, wi, object_normal, material);
             float cos_theta = dot(wi, object_normal);
+
+			if (material.type == Glossy)
+			{
+				last = 1.0f;
+			}
+			else
+			{
+				last = 0.0f;
+			}
 
             pushShader(task, result_color, evaluate * cos_theta / pdf_O);
             depth++;
@@ -1095,7 +1098,6 @@ void main()
     Point image_center = scene.look;
     Direction n = image_center - eye_position;
 
-    /* 计算在成像平面上的局部坐标系 */
     Vector3f local_y = normalize(scene.up);
     Vector3f local_x = normalize(cross(n, local_y));
 
@@ -1106,10 +1108,12 @@ void main()
 
 	Point pixel_center = begin - local_y * float(i + 0.5) * 2.0f * t / float(scene.height) +
                          local_x * float(j + 0.5) * 2.0f * r / float(scene.width);
-	Vector3f direction = normalize(pixel_center - eye_position);
 
-	uint seed = uint(1024 * j + i);
-	seed = uint(random_table[seed] * 1024 * 1024);
+    Vector3f direction = normalize(pixel_center - eye_position);
+
+	uint seed = uint(scene.width * i + j);
+	seed = uint(random_table[seed] * scene.width * scene.height);
+
 	vec3 color = vec3(0.0f);
 	for (int k = 0; k < scene.spp; k++)
 	{		
@@ -1120,7 +1124,16 @@ void main()
 		color += shader(ray, seed) / float(scene.spp);
 	}
 
-	imageStore(outputImage, pixelCoord, vec4(color, 1.0f));
+	imageStore(outputImage, ivec2(j ,i), vec4(color, 1.0f));
     
+}
+
+void main1()
+{
+ uint i = gl_GlobalInvocationID.x;
+    uint j = gl_GlobalInvocationID.y;
+    
+    vec3 color = vec3(float(i) / scene.width, float(j) / scene.height, 0.0);
+    imageStore(outputImage, ivec2(i, j), vec4(color, 1.0));
 }
 #endif // CPU

@@ -25,7 +25,7 @@ void rasterRender()
 
 void PathTracingRender()
 {
-	int spp = 4;
+	int spp = 16;
 	int max_depth = 5;
 
 	Renderer renderer;
@@ -70,6 +70,6 @@ void PathTracingRender()
 
 int main()
 {
-	rasterRender();
+	//rasterRender();
 	PathTracingRender();
 }

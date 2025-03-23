@@ -37,37 +37,31 @@ Vector3f PathTracingMaterial::sample(const Direction& wi, const Direction& norma
 
 Vector3f PathTracingMaterial::glossySample(const Direction& wi, const Direction& normal) const
 {
-	/* Calculate the reflection direction */
-	Direction reflect_direction = glm::reflect(wi, normal);
+	// Compute the reflection direction and ensure normalization
+	Direction reflect_direction = glm::normalize(glm::reflect(wi, normal));
 
-	/* Generate random numbers */
+	// Generate random numbers for sampling
 	float u = getRandomNumber(0.0f, 1.0f);
 	float v = getRandomNumber(0.0f, 1.0f);
 
-	/* Use Phong cosine distribution for importance sampling */
-	float exponent = this->Ns;							  // Specular Index
-	float cos_theta = std::pow(u, 1.0f / (exponent + 1)); // Cosine sampling
+	// Compute Phong cosine-weighted sampling
+	float exponent = std::max(this->Ns, 0.0f); // Ensure the exponent is non-negative
+	float cos_theta = std::pow(std::max(u, 1e-6f), 1.0f / (exponent + 1));
 	float sin_theta = std::sqrt(1 - cos_theta * cos_theta);
-	float phi = 2.0f * pi * v; // Uniform azimuth distribution
+	float phi = 2.0f * pi * v;
 
-	/* Construct random offset in the local coordinate system in the reflection direction */
+	// Convert to local coordinate system
 	float x = sin_theta * std::cos(phi);
 	float y = sin_theta * std::sin(phi);
 	float z = cos_theta;
 
-	/* Construct an orthogonal basis */
-	Vector3f tangent, bitangent;
-	if (std::abs(reflect_direction.z) > 0.999f)
-	{
-		tangent = Vector3f(1, 0, 0);
-	}
-	else
-	{
-		tangent = glm::normalize(glm::cross(reflect_direction, Vector3f(0, 0, 1)));
-	}
-	bitangent = glm::cross(reflect_direction, tangent);
+	// Construct an orthonormal basis around the reflection direction
+	Vector3f tangent = (std::abs(reflect_direction.z) > 0.999f) ? Vector3f(1, 0, 0)
+																: // If too close to the Z-axis, use (1,0,0) as tangent
+						   glm::normalize(glm::cross(reflect_direction, Vector3f(0, 1, 0)));
+	Vector3f bitangent = glm::normalize(glm::cross(tangent, reflect_direction));
 
-	/* Transform to world coordinates */
+	// Transform the sampled direction from local to world space and return
 	return glm::normalize(tangent * x + bitangent * y + reflect_direction * z);
 }
 
@@ -182,24 +176,25 @@ Vector3f PathTracingMaterial::evaluate(const Vector3f& wi,
 	}
 	else if (this->type == MaterialType::Glossy)
 	{
-		Vector3f diffuse = std::max(glm::dot(normal, wo), 0.0f) * this->Kd;
-		;
+		Vector3f diffuse = std::max(glm::dot(normal, wo), 0.0f) * this->Kd / pi;
 
 		if (this->texture_load_flag)
 		{
-			diffuse = Vector3f{std::powf(color.x / 255.0f, 1.0f / 0.6f),
-							   std::powf(color.y / 255.0f, 1.0f / 0.6f),
-							   std::powf(color.z / 255.0f, 1.0f / 0.6f)} *
+			diffuse = Vector3f{std::powf(color.x / 255.0f, 2.2f),
+							   std::powf(color.y / 255.0f, 2.2f),
+							   std::powf(color.z / 255.0f, 2.2f)} *
 					  std::max(glm::dot(normal, wo), 0.0f) / pi;
+
 			if (this->Kd != Vector3f{0.0f, 0.0f, 0.0f})
 			{
 				diffuse *= this->Kd;
 			}
 		}
 
-		Direction half_direction = glm::normalize(wi + wo);
-		Vector3f specular = std::pow(std::max(glm::dot(half_direction, normal), 0.0f), this->Ns) * this->Ks;
-		return diffuse + specular + Ka;
+		Direction reflect_dir = glm::reflect(-wi, normal);
+		Vector3f specular = std::pow(std::max(glm::dot(reflect_dir, wo), 0.0f), this->Ns) * this->Ks;
+
+		return diffuse + specular;
 	}
 	else if (this->type == MaterialType::Specular)
 	{

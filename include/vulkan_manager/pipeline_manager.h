@@ -38,6 +38,8 @@ public:
 	VkPipelineLayout layout;
 	VkPipeline pipeline;
 
+	bool enableVertexInpute{true};
+
 protected:
 	void setDefaultFixedState();
 

@@ -14,6 +14,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
     return VK_FALSE;
 }
 
+void ContentManager::setExtent(const VkExtent2D& extent)
+{
+	this->windowWidth = extent.width;
+	this->windowHeight = extent.height;
+}
+
 void ContentManager::init()
 {
     createWindow();

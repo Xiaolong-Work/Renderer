@@ -10,15 +10,17 @@ void VulkanPathTracingRender::saveResult()
 	this->storageImageManager.getData(stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(this->contentManager.device, stagingBufferMemory, 0, 1024 * 1024 * 4, 0, &data);
+	vkMapMemory(this->contentManager.device,
+				stagingBufferMemory,
+				0,
+				this->bufferManager.scene.height * this->bufferManager.scene.width * 4,
+				0,
+				&data);
 
 	VkImageSubresource subresource{};
 	subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	subresource.mipLevel = 0;
 	subresource.arrayLayer = 0;
-
-	VkSubresourceLayout layout;
-	vkGetImageSubresourceLayout(this->contentManager.device, this->storageImageManager.image, &subresource, &layout);
 
 	std::string path = std::string(ROOT_DIR) + "/results/" + this->bufferManager.scene_name + "_spp_" +
 					   std::to_string(this->bufferManager.scene.spp) + "_depth_" +
@@ -29,9 +31,9 @@ void VulkanPathTracingRender::saveResult()
 
 	std::vector<unsigned char> image_data(width * height * 3);
 	float* pixelData = static_cast<float*>(data);
-	for (uint32_t y = 0; y < 1024; y++)
+	for (uint32_t y = 0; y < height; y++)
 	{
-		for (uint32_t x = 0; x < 1024; x++)
+		for (uint32_t x = 0; x < width; x++)
 		{
 			static unsigned char color[3];
 			uint32_t pixelIndex = y * 1024 + x;

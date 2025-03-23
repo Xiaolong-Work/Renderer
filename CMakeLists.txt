@@ -51,7 +51,12 @@ target_compile_definitions(Model PRIVATE ROOT_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_definitions(PathTracing PRIVATE ROOT_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_definitions(Rasterizer PRIVATE ROOT_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_definitions(VulkanManager PRIVATE ROOT_DIR="${CMAKE_SOURCE_DIR}")
-target_compile_definitions(VulkanManager PRIVATE SHADERS_DIR="${CMAKE_SOURCE_DIR}/shaders/")
+target_compile_definitions(VulkanManager PRIVATE SHADERS_DIR="${CMAKE_BINARY_DIR}/shaders/")
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 add_dependencies(Renderer CompileShaders)
+
+if (MSVC)
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi /DEBUG")
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
+endif()

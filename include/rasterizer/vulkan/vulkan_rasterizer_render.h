@@ -101,11 +101,11 @@ protected:
 		this->depthImageManager.init();
 
 		this->vertexShaderManager = ShaderManager(pContentManager);
-		this->vertexShaderManager.setShaderName("vertex.spv");
+		this->vertexShaderManager.setShaderName("rasterize_vert.spv");
 		this->vertexShaderManager.init();
 
 		this->fragmentShaderManager = ShaderManager(pContentManager);
-		this->fragmentShaderManager.setShaderName("fragment.spv");
+		this->fragmentShaderManager.setShaderName("rasterize_frag.spv");
 		this->fragmentShaderManager.init();
 
 		createRenderPass();
@@ -438,6 +438,7 @@ protected:
 		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
 		graphicsPipelineManager.setRequiredValue(shaderStages, viewport, scissor, pipelineLayoutInfo, renderPass);
+		graphicsPipelineManager.enableVertexInpute = true;
 	}
 
 	void draw()

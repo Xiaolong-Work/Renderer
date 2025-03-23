@@ -13,6 +13,8 @@ class ContentManager
 public:
     ContentManager() = default;
 
+	void setExtent(const VkExtent2D& extent);
+
     void init();
     void clear();
 
@@ -62,8 +64,8 @@ private:
 #else
     bool enableValidationLayers = true;
 #endif
-    uint32_t windowWidth = 1024;
-    uint32_t windowHeight = 1024;
+	uint32_t windowWidth = 1024;
+	uint32_t windowHeight = 1024;
 
     VkDebugUtilsMessengerEXT debugMessenger;
 };

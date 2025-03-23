@@ -11,33 +11,35 @@ message(STATUS "Vulkan SDK Bin Directory: ${VULKAN_BIN_DIR}")
 
 set(SHADER_COMPILING "${VULKAN_BIN_DIR}/glslc.exe")
 
-add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/shaders/compute.spv
-    COMMAND ${SHADER_COMPILING} -O --target-env=vulkan1.3 ${CMAKE_SOURCE_DIR}/shaders/path_tracing.comp -o ${CMAKE_SOURCE_DIR}/shaders/compute.spv
-    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/path_tracing.comp
-    COMMENT "Compiling compute shader"
-	VERBATIM
-)
 
-add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/shaders/vertex.spv
-    COMMAND ${SHADER_COMPILING} -O --target-env=vulkan1.3 ${CMAKE_SOURCE_DIR}/shaders/rasterize.vert -o ${CMAKE_SOURCE_DIR}/shaders/vertex.spv
-    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/rasterize.vert
-    COMMENT "Compiling vertex shader"
-	VERBATIM
-)
+# Supported shader types
+set(SHADER_EXTS "vert" "frag" "geom" "comp")
 
-add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/shaders/fragment.spv
-    COMMAND ${SHADER_COMPILING} -O --target-env=vulkan1.3 ${CMAKE_SOURCE_DIR}/shaders/rasterize.frag -o ${CMAKE_SOURCE_DIR}/shaders/fragment.spv
-    DEPENDS ${CMAKE_SOURCE_DIR}/shaders/rasterize.frag
-    COMMENT "Compiling fragment shader"
-	VERBATIM
-)
+# Store all .spv output files
+set(SPV_FILES "")
 
-add_custom_target(
-    CompileShaders ALL
-    DEPENDS ${CMAKE_BINARY_DIR}/shaders/compute.spv
-	DEPENDS ${CMAKE_BINARY_DIR}/shaders/vertex.spv
-	DEPENDS ${CMAKE_BINARY_DIR}/shaders/fragment.spv
-)
+# Iterate over all shader types
+foreach(EXT ${SHADER_EXTS})
+    file(GLOB SHADERS "*.${EXT}")
+
+    foreach(SHADER ${SHADERS})
+        get_filename_component(SHADER_NAME ${SHADER} NAME_WE)
+
+        # Generates a file name in the format _ext.spv
+        set(SPV_OUTPUT "${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME}_${EXT}.spv")
+
+        add_custom_command(
+            OUTPUT ${SPV_OUTPUT}
+            COMMAND ${SHADER_COMPILING} -O --target-env=vulkan1.3 ${SHADER} -o ${SPV_OUTPUT}
+            DEPENDS ${SHADER}
+            COMMENT "Compiling ${SHADER} to ${SPV_OUTPUT}"
+            VERBATIM
+        )
+
+        list(APPEND SPV_FILES ${SPV_OUTPUT})
+    endforeach()
+endforeach()
+
+
+# Create CMake targets to use all SPV files as build targets
+add_custom_target(CompileShaders ALL DEPENDS ${SPV_FILES})

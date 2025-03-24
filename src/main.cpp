@@ -10,6 +10,7 @@
 #include <scene.h>
 #include <utils.h>
 
+#include <renderer_rt_core.h>
 #include <vulkan_rasterizer_render.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -23,13 +24,32 @@ void rasterRender()
 	renderer.run();
 }
 
+void pathTracingGPU(const Scene& scene, const int spp)
+{
+	VulkanPathTracingRender app{};
+	app.setSpp(spp);
+	app.init(scene);
+
+	auto start = std::chrono::system_clock::now();
+	app.draw();
+	auto end = std::chrono::system_clock::now();
+	outputTimeUse("Render GPU", end - start);
+
+	app.saveResult();
+}
+
+void pathTracingRTCore()
+{
+	VulkanPathTracingRenderRTCore renderer;
+}
+
 void pathTracingRender()
 {
-	int spp = 4;
-	int max_depth = 5;
+	int spp = 16;
+	int max_depth = 8;
 
 	Renderer renderer;
-	VulkanPathTracingRender app{};
+
 	Scene scene;
 
 	int scene_index = 2;
@@ -50,15 +70,7 @@ void pathTracingRender()
 	end = std::chrono::system_clock::now();
 	outputTimeUse("Build BVH", end - start);
 
-	/*app.setSpp(spp);
-	app.init(scene);*/
-
-	start = std::chrono::system_clock::now();
-	//app.draw();
-	end = std::chrono::system_clock::now();
-	outputTimeUse("Render GPU", end - start);
-
-	//app.saveResult();
+	pathTracingGPU(scene, spp);
 
 	start = std::chrono::system_clock::now();
 	renderer.render(scene);
@@ -72,4 +84,5 @@ int main()
 {
 	// rasterRender();
 	pathTracingRender();
+	pathTracingRTCore();
 }

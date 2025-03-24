@@ -16,6 +16,11 @@
 class VulkanPathTracingRender
 {
 public:
+	~VulkanPathTracingRender()
+	{
+		clear();
+	}
+
 	int spp;
 	void setSpp(int spp)
 	{
@@ -259,7 +264,7 @@ public:
 		vkCmdBindDescriptorSets(
 			commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
-		vkCmdDispatch(commandBuffer, this->bufferManager.scene.width, this->bufferManager.scene.height, 1);
+		vkCmdDispatch(commandBuffer, this->bufferManager.scene.width / 16, this->bufferManager.scene.height / 16, 1);
 
 		commandManager.endComputeCommands(commandBuffer);
 
@@ -593,6 +598,37 @@ public:
 	StorageImageManager storageImageManager;
 
 	void saveResult();
+
+	void clear()
+	{
+
+		this->textureManager.clear();
+
+		for (auto framebuffer : framebuffers)
+		{
+			vkDestroyFramebuffer(contentManager.device, framebuffer, nullptr);
+		}
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			vkDestroySemaphore(contentManager.device, renderFinishedSemaphores[i], nullptr);
+			vkDestroySemaphore(contentManager.device, imageAvailableSemaphores[i], nullptr);
+			vkDestroyFence(contentManager.device, inFlightFences[i], nullptr);
+		}
+
+		this->graphicsPipelineManager.clear();
+
+		vkDestroyRenderPass(contentManager.device, renderPass, nullptr);
+
+		this->swapChainManager.clear();
+
+		this->commandManager.clear();
+
+		this->vertexShaderManager.clear();
+		this->fragmentShaderManager.clear();
+
+		this->contentManager.clear();
+	}
 
 	ContentManager contentManager{};
 	CommandManager commandManager{};

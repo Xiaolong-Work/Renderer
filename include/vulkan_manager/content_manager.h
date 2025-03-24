@@ -35,6 +35,8 @@ public:
     uint32_t presentFamily;
     uint32_t computeFamily;
 
+	bool enablePathTracing{false};
+
 protected:
     void createWindow();
 

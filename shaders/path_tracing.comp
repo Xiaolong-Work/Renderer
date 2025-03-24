@@ -381,7 +381,7 @@ layout(binding = 10) uniform sampler2D textures[];
     vec3 glossySample(Direction wi, Direction normal, Material material, inout uint random_seed)
     {
         /* Compute the reflection direction and ensure normalization */
-        Direction reflect_direction = reflect(wi, normal);
+        Direction reflect_direction = normalize(reflect(wi, normal));
 
 		float u = rand(random_seed);
 		float v = rand(random_seed);
@@ -407,29 +407,31 @@ layout(binding = 10) uniform sampler2D textures[];
 
     vec3 diffuseSample(Direction normal, inout uint random_seed)
     {
-        /* 生成随机数 */
+        /* Generate random numbers */
         float u = rand(random_seed);
-
-        // TODO
         float v = rand(random_seed);
 
-        /* 余弦加权的立体角分布 */
+        /* Cosine-weighted solid angle distribution */
         float phi = 2 * pi * u;
-        float cos_theta = sqrt(1 - v);
-        float sin_theta = sqrt(v);
+        float cos_theta = sqrt(v);
+        float sin_theta = sqrt(1 - v);
         float x = cos(phi) * sin_theta;
         float y = sin(phi) * sin_theta;
         float z = cos_theta;
 
-        /* 将方向向量从局部坐标系变换到世界坐标系 */
-        vec3 bitangent = cross(normal, vec3(0, 0, 1));
-        if (length(bitangent) < 0.001f)
-        {
-            bitangent = cross(normal, vec3(0, 1, 0));
-        }
-        bitangent = normalize(bitangent);
-        vec3 tangent = cross(bitangent, normal);
+        /* Calculate the local coordinate system */
+        Vector3f tangent, bitangent;
+		if (abs(normal.z) > 0.999f)
+		{
+			tangent = Vector3f(1, 0, 0);
+		}
+		else
+		{
+			tangent = normalize(cross(normal, Vector3f(0, 0, 1)));
+		}
+		bitangent = cross(normal, tangent);
 
+		/* Transform to world coordinates */
         return tangent * x + bitangent * y + normal * z;
     }
 
@@ -442,25 +444,20 @@ layout(binding = 10) uniform sampler2D textures[];
         float discriminant = 1.0f - eta * eta * (1.0f - cos_theta_i * cos_theta_i);
 
         /* 发生全反射，折射光线不存在 */
-        if (discriminant <= 0)
+
+        /* 根据菲涅尔项随机选择反射和折射 */
+        float p = rand(random_seed);
+	    
+        if (p < fresnel(wi, normal, ni))
         {
             return reflect(wi, normal);
         }
         else
         {
-            /* 根据菲涅尔项随机选择反射和折射 */
-            float p = rand(random_seed);
-
-            if (p < fresnel(wi, normal, ni))
-            {
-                return reflect(wi, normal);
-            }
-            else
-            {
-                float cosThetaT = sqrt(discriminant);
-                return eta * wi + (eta * cos_theta_i - cosThetaT) * normal;
-            }
+            float cosThetaT = sqrt(discriminant);
+            return eta * wi + (eta * cos_theta_i - cosThetaT) * normal;
         }
+        
     }
 
 #define Diffuse 0
@@ -492,47 +489,35 @@ layout(binding = 10) uniform sampler2D textures[];
     {
         if (material.type == Diffuse)
         {
-            if (dot(normal, wo) < 0.0f)
-            {
-                return material.Ka;
-            }
-            else
-            {
-                if (material.texture_index != -1)
-                {
-                    return color * material.Kd / pi;
-                }
-                else
-                {
-                    return material.Kd / pi;
-                }
-            }
+            vec3 shader_color;
+			if (material.texture_index != -1)
+			{
+				shader_color = color;
+			}
+			else
+			{
+				shader_color = material.Kd;
+			}
+			return max(dot(normal, wo), 0.0f) * shader_color / pi;
         }
         else if (material.type == Glossy)
         {
-            Vector3f diffuse ;
+			vec3 shader_color;
+			if (material.texture_index != -1)
+			{
+				shader_color = color;
+			}
+			else
+			{
+				shader_color = material.Kd;
+			}
 
-            if (material.texture_index != -1)
-            {
-                diffuse = color * max(dot(normal, wo), 0.0f) / pi;
-                if (material.Kd != Vector3f(0.0f, 0.0f, 0.0f))
-                {
-                    diffuse *= material.Kd;
-                }
-            }
+			Vector3f diffuse = max(dot(normal, wo), 0.0f) * shader_color / pi;
 
             Direction half_direction = normalize(wi + wo);
             Vector3f specular = pow(max(dot(half_direction, normal), 0.0f), material.Ns) * material.Ks;
-            return diffuse + specular;
-        }
-        else if (material.type == Specular)
-        {
-            Direction half_direction = normalize(wi + wo);
-            return pow(max(dot(half_direction, normal), 0.0f), material.Ns) * material.Ks;
-        }
-        else if (material.type == Refraction)
-        {
-            return material.Kd / pi;
+            
+			return diffuse + specular;
         }
         else
         {
@@ -874,22 +859,29 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
         ShaderStack task;
         task.top = -1;
         int depth = 0;
-		float last = 0.0;
+		float last = 1.0;
         while (true)
         {
+			if (depth > scene.max_depth)
+            {
+                pushShader(task, vec3(0.0f), vec3(0.0f));
+                break;
+            }
+			
             vec3 result_color = vec3(0.0f);
 
-            /* 光线与场景求交 */
+            /* Intersection of light and scene */
             IntersectResult result = intersectSceneRay(ray);
-            /* 没有交点 */
+
+            /* No intersection */
             if (!result.is_intersect)
             {
                 pushShader(task, scene.Ka, vec3(0.0f));
                 break;
             }
-
             Object object = objects[result.object_index];
-            /* 相交的是一个光源 */
+
+            /* The intersection is a light source */
             if (object.is_light)
             {
 				if (depth == 0)
@@ -900,19 +892,18 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
                 break;
             }
 
-            /* 相交的是一个通常的物体 */
+            /* The object being intersected is a normal object */
             Point object_point = result.point;
             Direction object_normal = result.normal;
-            Direction wo = result.ray.direction;
+            Direction wi = -ray.direction;
             Vector3f color = result.color;
             Material material = materials[object.material_index];
-			// return result.color;
 
-            /* 对于光源进行采样 */
+            /* Sample the light source */
             float pdf;
             IntersectResult light;
 			light.ray.t = MAX_FLOAT;
-            light.color = vec3(0, 0, 0);
+            light.color = vec3(0);
             light.t = MAX_FLOAT;
             light.is_intersect = false;
 			light.object_index = -1;
@@ -923,35 +914,37 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
             Direction light_point_normal = light.normal;
             Vector3f light_radiance = objects[light.object_index].radiance;
 
-            /* 检查是否被阻挡 */
+            /* Check if it is blocked */
             float distance1 = length(light_point - object_point);
+
             Ray object_to_light;
             object_to_light.origin = object_point + 1e-4 * object_normal;
             object_to_light.direction = ws;
-
             object_to_light.t = MAX_FLOAT;
+
             IntersectResult test = intersectSceneRay(object_to_light);
 
-            /* 无遮挡 */
+            /* No occlusion */
             if (test.t - distance1 > -0.001)
             {
-                Vector3f evaluate = evaluateMaterial(wo, ws, object_normal, color, material);
+                Vector3f evaluate = evaluateMaterial(wi, ws, object_normal, color, material);
                 float cos_theta = dot(object_normal, ws);
                 float cos_theta_x = dot(light_point_normal, -ws);
                 result_color = light_radiance * evaluate * cos_theta * cos_theta_x / (float(pow(distance1, 2.0f)) * pdf);
             }
 
-            /* 采样光线 */
-            Vector3f wi = normalize(sampleMaterial(wo, object_normal, material, random_seed));
+            /* Sampling light */
+            Vector3f wo = normalize(sampleMaterial(-wi, object_normal, material, random_seed));
             ray.origin = object_point;
-            ray.direction = wi;
+            ray.direction = wo;
             ray.t = MAX_FLOAT;
 
-            Vector3f evaluate = evaluateMaterial(wo, wi, object_normal, color, material);
-            float pdf_O = pdfMaterial(wo, wi, object_normal, material);
-            float cos_theta = dot(wi, object_normal);
-
-			if (material.type == Glossy)
+			if (material.type == Specular || material.type == Refraction)
+			{
+				depth++;
+				continue;
+			}
+			else if (material.type == Glossy)
 			{
 				last = 1.0f;
 			}
@@ -960,18 +953,12 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
 				last = 0.0f;
 			}
 
-			if (material.type == Specular || material.type == Refraction)
-			{
-				continue;
-			}
-
+            Vector3f evaluate = evaluateMaterial(wi, wo, object_normal, color, material);
+            float pdf_O = pdfMaterial(wi, wo, object_normal, material);
+            float cos_theta = dot(wo, object_normal);
             pushShader(task, result_color, evaluate * cos_theta / pdf_O);
-            depth++;
-            if (depth > scene.max_depth)
-            {
-                pushShader(task, vec3(0.0f), vec3(0.0f));
-                break;
-            }
+            
+			depth++;
         }
 
         vec3 color = vec3(0);
@@ -1085,7 +1072,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
 #endif // CPU
 
 #ifndef CPU
-layout(local_size_x = 1, local_size_y = 1) in;
+layout(local_size_x = 16, local_size_y = 16) in;
 layout(binding = 8, rgba32f) uniform image2D outputImage;
 #endif // !CPU
 

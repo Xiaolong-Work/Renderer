@@ -194,8 +194,8 @@ Vector3f PathTracingMaterial::evaluate(const Vector3f& wi,
 
 		Vector3f diffuse = std::max(glm::dot(normal, wo), 0.0f) * shader_color / glm::pi<float>();
 
-		Vector3f h = glm::normalize(wo + wi);
-		Vector3f specular = std::pow(std::max(glm::dot(normal, h), 0.0f), this->Ns) * this->Ks;
+		Vector3f half_direction = glm::normalize(wo + wi);
+		Vector3f specular = std::pow(std::max(glm::dot(normal, half_direction), 0.0f), this->Ns) * this->Ks;
 
 		return diffuse + specular;
 	}

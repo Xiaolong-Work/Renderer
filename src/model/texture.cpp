@@ -16,6 +16,7 @@ void Texture::setTexture(const std::string& texture_filepath)
 	{
 		throw std::runtime_error("Failed to load texture image!");
 	}
+	this->texture_path = texture_filepath;
 }
 
 Vector3f Texture::getColor(float u, float v) const
@@ -47,7 +48,7 @@ Vector3f Texture::getColor(float u, float v) const
 	unsigned char b = this->data[index + 2];
 	unsigned char a = this->data[index + 3];
 
-	return Vector3f{r, g, b};
+	return Vector3f{float(r) / 255.0, float(g) / 255.0, float(b) / 255.0};
 }
 
 int Texture::getWidth() const
@@ -65,7 +66,12 @@ void Texture::clear()
 	stbi_image_free(this->data);
 }
 
-stbi_uc* Texture::getData()
+std::string Texture::getPath() const
+{
+	return this->texture_path;
+}
+
+stbi_uc* Texture::getData() const
 {
 	return this->data;
 }

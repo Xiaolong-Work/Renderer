@@ -112,7 +112,6 @@ struct SSBOScene
 
 	int width;
 	int height;
-
 	int max_depth;
 	int spp;
 };
@@ -138,6 +137,8 @@ public:
 	std::vector<SSBOOMaterial> materials;
 	SSBOScene scene;
 	std::string scene_name;
+
+	std::vector<std::string> texture_paths;
 
 	void setData(const Scene& scene, int spp)
 	{
@@ -188,7 +189,8 @@ public:
 			temp_material = object.material;
 			if (object.material.texture_load_flag)
 			{
-				// TODO
+				this->texture_paths.push_back(object.material.texture.getPath());
+				temp_material.texture_index = this->texture_paths.size() - 1;
 			}
 			else
 			{

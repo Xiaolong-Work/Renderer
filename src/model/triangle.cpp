@@ -10,7 +10,12 @@ Triangle::Triangle(const Vertex& vertex1, const Vertex& vertex2, const Vertex& v
 	this->edge2 = vertex3.position - vertex1.position;
 	this->edge3 = vertex3.position - vertex2.position;
 
+	auto average_normal = (vertex1.normal + vertex2.normal + vertex3.normal) / 3.0f;
 	this->normal = glm::normalize(glm::cross(this->edge1, this->edge2));
+	if (glm::dot(this->normal, average_normal) < 0.0f)
+	{
+		this->normal *= -1;
+	}
 
 	this->area = glm::length(glm::cross(this->edge1, this->edge2)) * 0.5f;
 

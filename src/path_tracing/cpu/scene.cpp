@@ -11,6 +11,7 @@ void Scene::setData(std::vector<Object>& objects, const Camera& camera)
 		this->objects.push_back(temp);
 	}
 }
+
 void Scene::initBVH()
 {
 	float area = 0.0f;
@@ -144,10 +145,6 @@ IntersectResult Scene::traverse(const int index, Ray& ray) const
 		}
 		else
 		{
-			if (this->objects[root.object_index].material.name == "Blinds")
-			{
-				return result;
-			}
 			IntersectResult temp_result = this->objects[root.object_index].intersect(ray);
 			if (temp_result.is_intersect)
 			{
@@ -195,9 +192,15 @@ Vector3f Scene::shader(Ray ray)
 {
 	std::vector<std::pair<Vector3f, Vector3f>> task{};
 	int depth = 0;
-
+	float last = 1.0f;
 	while (true)
 	{
+		if (depth > this->max_depth)
+		{
+			task.push_back(std::make_pair(Vector3f(0.0f), Vector3f(0.0f)));
+			break;
+		}
+
 		Vector3f result_color{0.0f, 0.0f, 0.0f};
 
 		/* Intersection of light and scene */
@@ -218,14 +221,14 @@ Vector3f Scene::shader(Ray ray)
 			{
 				return object.radiance;
 			}
-			task.push_back(std::make_pair(this->Ka, Vector3f(0.0f, 0.0f, 0.0f)));
+			task.push_back(std::make_pair(object.radiance, Vector3f(last)));
 			break;
 		}
 
 		/* The object being intersected is a normal object */
 		Point object_point = result.point;
 		Direction object_normal = result.normal;
-		Direction wo = result.ray.direction;
+		Direction wi = -ray.direction;
 		Vector3f color = result.color;
 		PathTracingMaterial material = object.material;
 
@@ -246,7 +249,7 @@ Vector3f Scene::shader(Ray ray)
 		/* No occlusion */
 		if (test.t - distance > -0.001)
 		{
-			Vector3f evaluate = material.evaluate(wo, ws, object_normal, color);
+			Vector3f evaluate = material.evaluate(wi, ws, object_normal, color);
 			float cos_theta = glm::dot(object_normal, ws);
 			float cos_theta_x = glm::dot(light_point_normal, -ws);
 			result_color =
@@ -254,31 +257,32 @@ Vector3f Scene::shader(Ray ray)
 		}
 
 		/* Sampling light */
-		Vector3f wi = glm::normalize(material.sample(wo, object_normal));
+		Vector3f wo = glm::normalize(material.sample(wi, object_normal));
 		ray.origin = object_point;
-		ray.direction = wi;
+		ray.direction = wo;
 		ray.t = std::numeric_limits<float>::infinity();
 
 		/* Specular reflection */
-		if (material.type == MaterialType::Specular)
+		if (material.type == MaterialType::Specular || material.type == MaterialType::Refraction)
 		{
 			depth++;
 			continue;
 		}
+		else if (material.type == MaterialType::Glossy)
+		{
+			last = 1.0f;
+		}
 		else
 		{
-			Vector3f evaluate = material.evaluate(wo, wi, object_normal, color);
-			float pdf_O = material.pdf(wo, wi, object_normal);
-			float cos_theta = glm::dot(wi, object_normal);
-			task.push_back(std::make_pair(result_color, evaluate * cos_theta / pdf_O));
+			last = 0.0;
 		}
 
+		Vector3f evaluate = material.evaluate(wi, wo, object_normal, color);
+		float pdf_O = material.pdf(wi, wo, object_normal);
+		float cos_theta = glm::dot(wo, object_normal);
+		task.push_back(std::make_pair(result_color, evaluate * cos_theta / pdf_O));
+
 		depth++;
-		if (depth > this->max_depth)
-		{
-			task.push_back(std::make_pair(Vector3f(0.0f), Vector3f(0.0f)));
-			break;
-		}
 	}
 
 	Vector3f color{0.0f, 0.0f, 0.0f};

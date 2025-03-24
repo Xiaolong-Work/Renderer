@@ -23,16 +23,16 @@ void rasterRender()
 	renderer.run();
 }
 
-void PathTracingRender()
+void pathTracingRender()
 {
-	int spp = 16;
+	int spp = 4;
 	int max_depth = 5;
 
 	Renderer renderer;
 	VulkanPathTracingRender app{};
 	Scene scene;
 
-	int scene_index = 0;
+	int scene_index = 2;
 	scene.name = name[scene_index];
 	scene.max_depth = max_depth;
 	renderer.spp = spp;
@@ -50,15 +50,15 @@ void PathTracingRender()
 	end = std::chrono::system_clock::now();
 	outputTimeUse("Build BVH", end - start);
 
-	app.setSpp(spp);
-	app.init(scene);
+	/*app.setSpp(spp);
+	app.init(scene);*/
 
 	start = std::chrono::system_clock::now();
-	app.draw();
+	//app.draw();
 	end = std::chrono::system_clock::now();
 	outputTimeUse("Render GPU", end - start);
 
-	app.saveResult();
+	//app.saveResult();
 
 	start = std::chrono::system_clock::now();
 	renderer.render(scene);
@@ -70,6 +70,6 @@ void PathTracingRender()
 
 int main()
 {
-	//rasterRender();
-	PathTracingRender();
+	// rasterRender();
+	pathTracingRender();
 }

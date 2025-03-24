@@ -19,15 +19,15 @@ Vector3f PathTracingMaterial::sample(const Direction& wi, const Direction& norma
 {
 	if (this->type == MaterialType::Glossy)
 	{
-		return glossySample(wi, normal);
+		return glossySample(-wi, normal);
 	}
 	else if (this->type == MaterialType::Specular)
 	{
-		return reflectSample(wi, normal);
+		return reflectSample(-wi, normal);
 	}
 	else if (this->type == MaterialType::Refraction)
 	{
-		return refractionSample(wi, normal, this->Ni);
+		return refractionSample(-wi, normal, this->Ni);
 	}
 	else
 	{
@@ -95,40 +95,51 @@ Vector3f PathTracingMaterial::diffuseSample(const Direction& normal) const
 	return tangent * x + bitangent * y + normal * z;
 }
 
+/* Note : The direction of wi points to the shader */
 Vector3f PathTracingMaterial::reflectSample(const Direction& wi, const Direction& normal) const
 {
 	return glm::reflect(wi, normal);
 }
 
+/* Note : The direction of wi points to the shader */
 Vector3f PathTracingMaterial::refractionSample(const Direction& wi, const Direction& normal, const float ni) const
 {
 	float cos_theta_i = glm::dot(-wi, normal);
-	/* Ensure the media refractive index is correct */
-	float eta = (cos_theta_i > 0) ? (1.0f / ni) : ni;
-	Direction n = (cos_theta_i > 0) ? normal : -normal;
-	cos_theta_i = std::abs(cos_theta_i);
+	float eta_i = 1.0f;			// Refractive index of air
+	float eta_t = this->Ni;		// Refractive Index of material
 
-	float discriminant = 1.0f - eta * eta * (1.0f - cos_theta_i * cos_theta_i);
-
-	/* Total internal reflection occurs */
-	if (discriminant < 0)
+	Direction n;
+	/* Determine whether the light is entering from the outside or emitting from the inside */
+	if (cos_theta_i < 0)
 	{
-		return glm::reflect(wi, normal);
+		cos_theta_i = -cos_theta_i;
+		n = -normal;
+		std::swap(eta_i, eta_t);
 	}
 	else
 	{
-		/* Randomly select reflection or refraction based on the Fresnel term */
-		float p = getRandomNumber(0.0f, 1.0f);
-		if (p < fresnel(wi, normal, ni))
-		{
-			return glm::reflect(wi, normal);
-		}
-		else
-		{
-			float cosThetaT = std::sqrt(discriminant);
-			return glm::normalize(eta * (-wi) + (eta * cos_theta_i - cosThetaT) * n);
-		}
+		n = normal;
 	}
+
+	float eta = eta_i / eta_t;
+	float sin_theta_i = std::sqrt(1.0f - cos_theta_i * cos_theta_i);
+	float sin_theta_t = eta * sin_theta_i;
+
+	float R0 = pow((eta_i - eta_t) / (eta_i + eta_t), 2.0f);
+	float fresnel = R0 + (1.0f - R0) * pow(1.0f - cos_theta_i, 5.0f);
+
+	/* Check for total internal reflection */
+	if (sin_theta_t >= 1.0f)
+	{
+		return reflect(wi, n);
+	}
+
+	float cos_theta_t = std::sqrt(1.0f - sin_theta_t * sin_theta_t);
+
+	/* Calculating reflected light */
+	Vector3f refracted = eta * wi + (eta * cos_theta_i - cos_theta_t) * n;
+
+	return refracted;
 }
 
 float PathTracingMaterial::pdf(const Vector3f& wi, const Vector3f& wo, const Vector3f& normal) const
@@ -158,80 +169,66 @@ Vector3f PathTracingMaterial::evaluate(const Vector3f& wi,
 {
 	if (this->type == MaterialType::Diffuse)
 	{
-		if (glm::dot(normal, wo) <= 0.0f)
+		Vector3f shader_color;
+		if (this->texture_load_flag)
 		{
-			return Vector3f{0.0f};
+			shader_color = color;
 		}
 		else
 		{
-			if (this->texture_load_flag)
-			{
-				return color * Kd / glm::pi<float>();
-			}
-			else
-			{
-				return this->Kd / glm::pi<float>();
-			}
+			shader_color = this->Kd;
 		}
+		return std::max(glm::dot(normal, wo), 0.0f) * shader_color / glm::pi<float>();
 	}
 	else if (this->type == MaterialType::Glossy)
 	{
-		Vector3f diffuse = std::max(glm::dot(normal, wo), 0.0f) * this->Kd / pi;
-
+		Vector3f shader_color;
 		if (this->texture_load_flag)
 		{
-			diffuse = Vector3f{std::powf(color.x / 255.0f, 2.2f),
-							   std::powf(color.y / 255.0f, 2.2f),
-							   std::powf(color.z / 255.0f, 2.2f)} *
-					  std::max(glm::dot(normal, wo), 0.0f) / pi;
-
-			if (this->Kd != Vector3f{0.0f, 0.0f, 0.0f})
-			{
-				diffuse *= this->Kd;
-			}
+			shader_color = color;
+		}
+		else
+		{
+			shader_color = this->Kd;
 		}
 
-		Direction reflect_dir = glm::reflect(-wi, normal);
-		Vector3f specular = std::pow(std::max(glm::dot(reflect_dir, wo), 0.0f), this->Ns) * this->Ks;
+		Vector3f diffuse = std::max(glm::dot(normal, wo), 0.0f) * shader_color / glm::pi<float>();
+
+		Vector3f h = glm::normalize(wo + wi);
+		Vector3f specular = std::pow(std::max(glm::dot(normal, h), 0.0f), this->Ns) * this->Ks;
 
 		return diffuse + specular;
 	}
-	else if (this->type == MaterialType::Specular)
-	{
-		Direction half_direction = glm::normalize(wi + wo);
-		return std::pow(std::max(glm::dot(half_direction, normal), 0.0f), this->Ns) * this->Ks + Ka;
-	}
-	else if (this->type == MaterialType::Refraction)
-	{
-		return this->Kd / pi + Ka;
-	}
 	else
 	{
-		return this->Kd / pi + Ka;
+		return Vector3f{0.0f};
 	}
 }
 
 float PathTracingMaterial::fresnel(const Vector3f& wi, const Vector3f& normal, const float& ni) const
 {
-	float cos_i = clamp(-1.0f, 1.0f, glm::dot(wi, normal));
-	float eta_i = 1, eta_t = ni;
-	if (cos_i > 0)
+	float cos_i = glm::clamp(glm::dot(wi, normal), -1.0f, 1.0f);
+	float eta_i = 1.0f, eta_t = ni;
+
+	if (cos_i < 0)
+	{
+		cos_i = -cos_i;
+	}
+	else
 	{
 		std::swap(eta_i, eta_t);
 	}
 
-	float sin_t = eta_i / eta_t * std::sqrtf(std::max(0.0f, 1 - cos_i * cos_i));
+	float sin_t = (eta_i / eta_t) * sqrtf(std::max(0.0f, 1.0f - cos_i * cos_i));
 
-	if (sin_t >= 1)
+	if (sin_t >= 1.0f)
 	{
 		return 1.0f;
 	}
-	else
-	{
-		float cos_t = sqrtf(std::max(0.f, 1 - sin_t * sin_t));
-		cos_i = fabsf(cos_i);
-		float Rs = ((eta_t * cos_i) - (eta_i * cos_t)) / ((eta_t * cos_i) + (eta_i * cos_t));
-		float Rp = ((eta_i * cos_i) - (eta_t * cos_t)) / ((eta_i * cos_i) + (eta_t * cos_t));
-		return (Rs * Rs + Rp * Rp) / 2;
-	}
+
+	float cos_t = sqrtf(std::max(0.0f, 1.0f - sin_t * sin_t));
+	float Rs = ((eta_t * cos_i) - (eta_i * cos_t)) / ((eta_t * cos_i) + (eta_i * cos_t));
+	float Rp = ((eta_i * cos_i) - (eta_t * cos_t)) / ((eta_i * cos_i) + (eta_t * cos_t));
+
+	return (Rs * Rs + Rp * Rp) * 0.5f;
 }

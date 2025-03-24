@@ -62,6 +62,10 @@ public:
 		this->textureManager = TextureManager(pContentManager, pCommandManager);
 		this->textureManager.init();
 		auto pTextureManager = std::make_shared<TextureManager>(this->textureManager);
+		for (auto& texture_path : this->bufferManager.texture_paths)
+		{
+			this->textureManager.createTexture(texture_path);
+		}
 
 		createDescriptorSetLayout();
 		createDescriptorPool();
@@ -255,7 +259,7 @@ public:
 		vkCmdBindDescriptorSets(
 			commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
-		vkCmdDispatch(commandBuffer, this->bufferManager.scene.width / 8, this->bufferManager.scene.height / 8, 1);
+		vkCmdDispatch(commandBuffer, this->bufferManager.scene.width, this->bufferManager.scene.height, 1);
 
 		commandManager.endComputeCommands(commandBuffer);
 
@@ -432,7 +436,7 @@ public:
 	VkDescriptorSetLayout descriptorSetLayout;
 	void createDescriptorSetLayout()
 	{
-		std::array<VkDescriptorSetLayoutBinding, 10> layoutBindings{};
+		std::array<VkDescriptorSetLayoutBinding, 11> layoutBindings{};
 
 		/* Used for compute shader data input buffer */
 		for (size_t i = 0; i < 8; i++)
@@ -457,6 +461,13 @@ public:
 		layoutBindings[9].descriptorCount = 1;
 		layoutBindings[9].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		layoutBindings[9].pImmutableSamplers = nullptr;
+
+		/* Used For compute shader texture input */
+		layoutBindings[10].binding = 10;
+		layoutBindings[10].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		layoutBindings[10].descriptorCount = static_cast<uint32_t>(this->textureManager.imageViews.size());
+		layoutBindings[10].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		layoutBindings[10].pImmutableSamplers = nullptr;
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -483,7 +494,7 @@ public:
 		poolSizes[1].descriptorCount = 1;
 
 		poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[2].descriptorCount = 1;
+		poolSizes[2].descriptorCount = 2;
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -531,8 +542,17 @@ public:
 		imageInfo[1].sampler = this->textureManager.sampler;
 		imageInfo[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-		std::array<VkWriteDescriptorSet, 10> descriptorWrites{};
-		for (size_t i = 0; i < 10; i++)
+		std::vector<VkDescriptorImageInfo> textureInfo;
+		textureInfo.resize(this->textureManager.imageViews.size());
+		for (size_t i = 0; i < this->textureManager.imageViews.size(); i++)
+		{
+			textureInfo[i].imageView = textureManager.imageViews[i];
+			textureInfo[i].sampler = textureManager.sampler;
+			textureInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		}
+
+		std::array<VkWriteDescriptorSet, 11> descriptorWrites{};
+		for (size_t i = 0; i < 11; i++)
 		{
 			descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			descriptorWrites[i].pNext = nullptr;
@@ -559,6 +579,12 @@ public:
 		descriptorWrites[9].pBufferInfo = nullptr;
 		descriptorWrites[9].pImageInfo = &imageInfo[1];
 		descriptorWrites[9].pTexelBufferView = nullptr;
+
+		descriptorWrites[10].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[10].pBufferInfo = nullptr;
+		descriptorWrites[10].descriptorCount = static_cast<uint32_t> (textureInfo.size());
+		descriptorWrites[10].pImageInfo = textureInfo.data();
+		descriptorWrites[10].pTexelBufferView = nullptr;
 
 		vkUpdateDescriptorSets(
 			contentManager.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);

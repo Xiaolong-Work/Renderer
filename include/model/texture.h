@@ -58,13 +58,20 @@ public:
 	 */
 	void clear();
 
+	/**
+	 * @brief Get the path of the texture.
+	 * 
+	 * @return The texture path.
+	 */
+	std::string getPath() const;
+
 protected:
 	/**
 	 * @brief Retrieves the raw texture data.
 	 *
 	 * @return A pointer to the texture data array.
 	 */
-	stbi_uc* getData();
+	stbi_uc* getData() const;
 
 private:
 	/* The texture data stored as an array of unsigned bytes. */
@@ -72,4 +79,7 @@ private:
 
 	/* The width, height, and channel count of the texture. */
 	int width, height, channel;
+
+	/* The texture file path */
+	std::string texture_path;
 };

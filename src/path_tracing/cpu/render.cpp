@@ -67,9 +67,9 @@ void Renderer::saveResult(const Scene& scene)
 	for (auto i = 0; i < scene.camera.height * scene.camera.width; ++i)
 	{
 		static unsigned char color[3];
-		image_data[i * 3 + 0] = (unsigned char)(255 * std::pow(clamp(0, 1, this->frame_buffer[i].x), 0.6f));
-		image_data[i * 3 + 1] = (unsigned char)(255 * std::pow(clamp(0, 1, this->frame_buffer[i].y), 0.6f));
-		image_data[i * 3 + 2] = (unsigned char)(255 * std::pow(clamp(0, 1, this->frame_buffer[i].z), 0.6f));
+		image_data[i * 3 + 0] = (unsigned char)(255 * std::pow(clamp(0, 1, this->frame_buffer[i].x), 1.0f / 2.2f));
+		image_data[i * 3 + 1] = (unsigned char)(255 * std::pow(clamp(0, 1, this->frame_buffer[i].y), 1.0f / 2.2f));
+		image_data[i * 3 + 2] = (unsigned char)(255 * std::pow(clamp(0, 1, this->frame_buffer[i].z), 1.0f / 2.2f));
 	}
 
 	stbi_write_bmp(path.c_str(), width, height, 3, image_data.data());

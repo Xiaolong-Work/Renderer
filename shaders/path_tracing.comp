@@ -1,4 +1,5 @@
 #version 450 core
+#extension GL_EXT_nonuniform_qualifier : enable
 
 #ifdef _MSC_VER
 #define CPU
@@ -332,142 +333,7 @@ bool intersectTriangleRay(Triangle triangle, Ray ray, inout_float result[4])
         pdf = 1.0f / triangle.area;
     }
 
-    /* ==================== Object ==================== */
-    struct Object
-    {
-        BoundingBox box;
-        vec3 radiance;
-        float area;
-        int material_index;
-        int bvh_index;
-        bool is_light;
-    };
-
-#ifdef CPU
-    std::vector<Object> objects;
-#else
-layout(std430, binding = 3) readonly buffer ObjectIndexSSBO { Object objects[]; };
-#endif // CPU
-
-    struct IntersectResult
-    {
-        bool is_intersect;
-        Ray ray;
-        float t;
-        Point point;
-        int object_index;
-        Vector3f color;
-        Direction normal;
-    };
-
-    IntersectResult traverseObjectBVH(int index, Ray ray)
-    {
-        IntersectResult intersect_result;
-        intersect_result.t = MAX_FLOAT;
-        intersect_result.is_intersect = false;
-        intersect_result.color = vec3(0, 0, 0);
-
-        Stack task;
-        task.top = -1;
-        push(task, index);
-
-        while (!empty(task))
-        {
-            int now = pop(task);
-
-            BVH node = bvh[now];
-            BoundingBox box = node.box;
-
-            if (intersectBoxRay(box, ray))
-            {
-                if (node.index == -1)
-                {
-                    push(task, node.left);
-                    push(task, node.right);
-                }
-                else
-                {
-                    Triangle triangle = triangles[node.index];
-                    float result[4];
-                    if (intersectTriangleRay(triangle, ray, result))
-                    {
-                        intersect_result.is_intersect = true;
-                        float b1 = result[0];
-                        float b2 = result[1];
-                        float b3 = result[2];
-                        float t = result[3];
-
-                        if (t > intersect_result.t)
-                        {
-                            continue;
-                        }
-
-                        // if (material.material.texture_load_flag)
-                        // {
-                        // 	Coordinate2D coordinate = triangle.vertex1.texture * b1 + triangle.vertex2.texture * b2 +
-                        // triangle.vertex3.texture * b3; 	intersect_result.color =
-                        // material.material.texture.getColor(coordinate.x, coordinate.y);
-                        // }
-
-                        intersect_result.normal =
-                            triangle.vertex1.normal * b1 + triangle.vertex2.normal * b2 + triangle.vertex3.normal * b3;
-
-                        intersect_result.t = result[3];
-                        ray.t = min(intersect_result.t, ray.t);
-                        intersect_result.point = spread(ray, intersect_result.t);
-                        intersect_result.ray = ray;
-                        intersect_result.object_index = index;
-                    }
-                }
-            }
-        }
-
-        return intersect_result;
-    }
-
-    IntersectResult intersectObjectRay(Object object, Ray ray) { return traverseObjectBVH(object.bvh_index, ray); }
-
-    void traverseObjectSample(int index, float p, inout_IntersectResult result, inout_float pdf, inout uint random_seed)
-    {
-        BVH node = bvh[index];
-
-        while (true)
-        {
-            if (node.index != -1)
-            {
-                Point sample_point;
-
-                sampleTriangle(triangles[node.index], sample_point, pdf, random_seed);
-
-                result.point = sample_point;
-                result.normal = triangles[node.index].normal;
-                pdf *= node.area;
-                return;
-            }
-            else
-            {
-                if (p < bvh[node.left].area)
-                {
-                    node = bvh[node.left];
-                }
-                else
-                {
-                    node = bvh[node.right];
-                }
-            }
-        }
-    }
-
-    void sampleObject(Object object, inout_IntersectResult result, inout_float pdf, inout uint random_seed)
-    {
-        BVH root = bvh[object.bvh_index];
-        float p = rand(random_seed) * root.area;
-        traverseObjectSample(object.bvh_index, p, result, pdf, random_seed);
-        pdf /= root.area;
-        return;
-    }
-
-    /* ==================== Material ==================== */
+	    /* ==================== Material ==================== */
     struct Material
     {
         vec3 Ka;
@@ -484,6 +350,7 @@ layout(std430, binding = 3) readonly buffer ObjectIndexSSBO { Object objects[]; 
     std::vector<Material> materials;
 #else
 layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[]; };
+layout(binding = 10) uniform sampler2D textures[]; 
 #endif // CPU
 
     float fresnel(Vector3f wi, Vector3f normal, float ni)
@@ -633,32 +500,25 @@ layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[];
             {
                 if (material.texture_index != -1)
                 {
-                    // return Vector3f(powf(color.x / 255.0f, 1.0f / 0.6f),
-                    //                 powf(color.y / 255.0f, 1.0f / 0.6f),
-                    //                 powf(color.z / 255.0f, 1.0f / 0.6f)) /
-                    //            pi +
-                    //        material.Ka;
+                    return color * material.Kd / pi;
                 }
                 else
                 {
-                    return material.Kd / pi + material.Ka;
+                    return material.Kd / pi;
                 }
             }
         }
         else if (material.type == Glossy)
         {
-            Vector3f diffuse = max(dot(normal, wo), 0.0f) * material.Kd;
+            Vector3f diffuse ;
 
             if (material.texture_index != -1)
             {
-                // diffuse = Vector3f{powf(color.x / 255.0f, 1.0f / 0.6f),
-                //                    powf(color.y / 255.0f, 1.0f / 0.6f),
-                //                    powf(color.z / 255.0f, 1.0f / 0.6f)} *
-                //           max(dot(normal, wo), 0.0f) / pi;
-                // if (material.Kd != Vector3f{0.0f, 0.0f, 0.0f})
-                // {
-                //     diffuse *= material.Kd;
-                // }
+                diffuse = color * max(dot(normal, wo), 0.0f) / pi;
+                if (material.Kd != Vector3f(0.0f, 0.0f, 0.0f))
+                {
+                    diffuse *= material.Kd;
+                }
             }
 
             Direction half_direction = normalize(wi + wo);
@@ -698,6 +558,147 @@ layout(std430, binding = 4) readonly buffer MaterialSSBO { Material materials[];
         {
             return diffuseSample(normal, random_seed);
         }
+    }
+
+    /* ==================== Object ==================== */
+    struct Object
+    {
+        BoundingBox box;
+        vec3 radiance;
+        float area;
+        int material_index;
+        int bvh_index;
+        bool is_light;
+    };
+
+#ifdef CPU
+    std::vector<Object> objects;
+#else
+layout(std430, binding = 3) readonly buffer ObjectIndexSSBO { Object objects[]; };
+#endif // CPU
+
+    struct IntersectResult
+    {
+        bool is_intersect;
+        Ray ray;
+        float t;
+        Point point;
+        int object_index;
+        Vector3f color;
+        Direction normal;
+    };
+
+    IntersectResult traverseObjectBVH(int index, Ray ray, int material_index)
+    {
+        IntersectResult intersect_result;
+        intersect_result.t = MAX_FLOAT;
+        intersect_result.is_intersect = false;
+        intersect_result.color = vec3(0, 0, 0);
+
+        Stack task;
+        task.top = -1;
+        push(task, index);
+
+        while (!empty(task))
+        {
+            int now = pop(task);
+
+            BVH node = bvh[now];
+            BoundingBox box = node.box;
+
+            if (intersectBoxRay(box, ray))
+            {
+                if (node.index == -1)
+                {
+                    push(task, node.left);
+                    push(task, node.right);
+                }
+                else
+                {
+                    Triangle triangle = triangles[node.index];
+                    float result[4];
+                    if (intersectTriangleRay(triangle, ray, result))
+                    {
+                        intersect_result.is_intersect = true;
+                        float b1 = result[0];
+                        float b2 = result[1];
+                        float b3 = result[2];
+                        float t = result[3];
+
+                        if (t > intersect_result.t)
+                        {
+                            continue;
+                        }
+
+						Material material = materials[material_index];
+						int texture_index = material.texture_index;
+                        if (texture_index != -1)
+                        {
+							
+                        	Coordinate2D coordinate = triangle.vertex1.texture * b1 + triangle.vertex2.texture * b2 + triangle.vertex3.texture * b3; 	
+							intersect_result.color = texture(textures[texture_index], coordinate).xyz;
+                        }
+						else
+						{
+							intersect_result.color = material.Kd;
+						}
+
+                        intersect_result.normal =
+                            triangle.vertex1.normal * b1 + triangle.vertex2.normal * b2 + triangle.vertex3.normal * b3;
+
+                        intersect_result.t = result[3];
+                        ray.t = min(intersect_result.t, ray.t);
+                        intersect_result.point = spread(ray, intersect_result.t);
+                        intersect_result.ray = ray;
+                        intersect_result.object_index = index;
+                    }
+                }
+            }
+        }
+
+        return intersect_result;
+    }
+
+    IntersectResult intersectObjectRay(Object object, Ray ray) { return traverseObjectBVH(object.bvh_index, ray, object.material_index); }
+
+    void traverseObjectSample(int index, float p, inout_IntersectResult result, inout_float pdf, inout uint random_seed)
+    {
+        BVH node = bvh[index];
+
+        while (true)
+        {
+            if (node.index != -1)
+            {
+                Point sample_point;
+
+                sampleTriangle(triangles[node.index], sample_point, pdf, random_seed);
+
+                result.point = sample_point;
+                result.normal = triangles[node.index].normal;
+                pdf *= node.area;
+                return;
+            }
+            else
+            {
+                if (p < bvh[node.left].area)
+                {
+                    node = bvh[node.left];
+                }
+                else
+                {
+                    node = bvh[node.right];
+                }
+            }
+        }
+    }
+
+    void sampleObject(Object object, inout_IntersectResult result, inout_float pdf, inout uint random_seed)
+    {
+        BVH root = bvh[object.bvh_index];
+        float p = rand(random_seed) * root.area;
+        traverseObjectSample(object.bvh_index, p, result, pdf, random_seed);
+        pdf /= root.area;
+        return;
     }
 
     /* ==================== Scene ==================== */
@@ -748,7 +749,6 @@ layout(std430, binding = 7) readonly buffer Scene{ SceneUBO scene; };
 #else
 layout(std430, binding = 5) readonly buffer SeeneBVHSSBO { BVH scene_bvh[]; };
 layout(std430, binding = 6) readonly buffer LightObjectIndex { int light_object_index[]; };
-layout(std430, binding = 10) buffer OutScene{ SceneUBO out_scene; };
 #endif // CPU
 
     IntersectResult traverseScene(int index, inout_Ray ray)
@@ -906,6 +906,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
             Direction wo = result.ray.direction;
             Vector3f color = result.color;
             Material material = materials[object.material_index];
+			// return result.color;
 
             /* 对于光源进行采样 */
             float pdf;
@@ -925,7 +926,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
             /* 检查是否被阻挡 */
             float distance1 = length(light_point - object_point);
             Ray object_to_light;
-            object_to_light.origin = object_point;
+            object_to_light.origin = object_point + 1e-4 * object_normal;
             object_to_light.direction = ws;
 
             object_to_light.t = MAX_FLOAT;
@@ -957,6 +958,11 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
 			else
 			{
 				last = 0.0f;
+			}
+
+			if (material.type == Specular || material.type == Refraction)
+			{
+				continue;
 			}
 
             pushShader(task, result_color, evaluate * cos_theta / pdf_O);
@@ -1079,7 +1085,7 @@ void sampleLight(inout_IntersectResult result, inout_float pdf, inout uint rando
 #endif // CPU
 
 #ifndef CPU
-layout(local_size_x = 8, local_size_y = 8) in;
+layout(local_size_x = 1, local_size_y = 1) in;
 layout(binding = 8, rgba32f) uniform image2D outputImage;
 #endif // !CPU
 

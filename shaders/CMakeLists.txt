@@ -20,24 +20,24 @@ set(SPV_FILES "")
 
 # Iterate over all shader types
 foreach(EXT ${SHADER_EXTS})
-    file(GLOB SHADERS "*.${EXT}")
+	file(GLOB SHADERS "*.${EXT}")
 
-    foreach(SHADER ${SHADERS})
-        get_filename_component(SHADER_NAME ${SHADER} NAME_WE)
+	foreach(SHADER ${SHADERS})
+		get_filename_component(SHADER_NAME ${SHADER} NAME_WE)
 
-        # Generates a file name in the format _ext.spv
-        set(SPV_OUTPUT "${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME}_${EXT}.spv")
+		# Generates a file name in the format _ext.spv
+		set(SPV_OUTPUT "${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME}_${EXT}.spv")
 
         add_custom_command(
-            OUTPUT ${SPV_OUTPUT}
-            COMMAND ${SHADER_COMPILING} -O --target-env=vulkan1.3 ${SHADER} -o ${SPV_OUTPUT}
-            DEPENDS ${SHADER}
-            COMMENT "Compiling ${SHADER} to ${SPV_OUTPUT}"
-            VERBATIM
-        )
+			OUTPUT ${SPV_OUTPUT}
+			COMMAND ${SHADER_COMPILING} -O --target-env=vulkan1.3 ${SHADER} -o ${SPV_OUTPUT}
+			DEPENDS ${SHADER}
+			COMMENT "Compiling ${SHADER} to ${SPV_OUTPUT}"
+			VERBATIM
+		)
 
-        list(APPEND SPV_FILES ${SPV_OUTPUT})
-    endforeach()
+		list(APPEND SPV_FILES ${SPV_OUTPUT})
+	endforeach()
 endforeach()
 
 

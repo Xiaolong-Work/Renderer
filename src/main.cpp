@@ -52,7 +52,7 @@ void pathTracingRender()
 
 	Scene scene;
 
-	int scene_index = 2;
+	int scene_index = 0;
 	scene.name = name[scene_index];
 	scene.max_depth = max_depth;
 	renderer.spp = spp;

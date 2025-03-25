@@ -296,10 +296,11 @@ bool ContentManager::checkValidationLayerSupport()
 std::vector<const char*> ContentManager::getRequiredDeviceExtensions()
 {
 	std::vector<const char*> deviceExtensions{};
-	if (this->enablePathTracing)
+	if (this->enableRayTracing)
 	{
 		deviceExtensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
 		deviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+		deviceExtensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
 		deviceExtensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
 	}
 	deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);

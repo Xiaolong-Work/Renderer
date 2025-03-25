@@ -24,7 +24,10 @@ public:
 	void init();
 	void clear();
 
+protected:
 	void getFeatureProperty();
+
+	void createAcceleration();
 
 private:
 	ContentManager contentManager{};
@@ -53,6 +56,7 @@ private:
 
 	PipelineManager graphicsPipelineManager{};
 
-	VkPhysicalDeviceRayTracingPipelineFeaturesKHR feature{};
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR property{};
+
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR feature{};
 };

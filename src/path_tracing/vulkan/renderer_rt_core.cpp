@@ -12,7 +12,7 @@ VulkanPathTracingRenderRTCore::~VulkanPathTracingRenderRTCore()
 
 void VulkanPathTracingRenderRTCore::init()
 {
-	this->contentManager.enablePathTracing = true;
+	this->contentManager.enableRayTracing = true;
 	this->contentManager.init();
 	auto pContentManager = std::make_shared<ContentManager>(this->contentManager);
 
@@ -44,15 +44,20 @@ void VulkanPathTracingRenderRTCore::clear()
 
 void VulkanPathTracingRenderRTCore::getFeatureProperty()
 {
-	this->feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-	VkPhysicalDeviceFeatures2 deviceFeatures2{};
-	deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	deviceFeatures2.pNext = &this->feature;
-	vkGetPhysicalDeviceFeatures2(this->contentManager.physicalDevice, &deviceFeatures2);
-
 	this->property.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
 	VkPhysicalDeviceProperties2 deviceProperties{};
 	deviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 	deviceProperties.pNext = &this->property;
 	vkGetPhysicalDeviceProperties2(this->contentManager.physicalDevice, &deviceProperties);
+
+	this->feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+	VkPhysicalDeviceFeatures2 deviceFeatures2{};
+	deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	deviceFeatures2.pNext = &this->feature;
+	vkGetPhysicalDeviceFeatures2(this->contentManager.physicalDevice, &deviceFeatures2);
+}
+
+void VulkanPathTracingRenderRTCore::createAcceleration()
+{
+	VkAccelerationStructureCreateInfoKHR;
 }

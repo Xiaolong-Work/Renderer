@@ -35,7 +35,7 @@ public:
     uint32_t presentFamily;
     uint32_t computeFamily;
 
-	bool enablePathTracing{false};
+	bool enableRayTracing{false};
 
 protected:
     void createWindow();

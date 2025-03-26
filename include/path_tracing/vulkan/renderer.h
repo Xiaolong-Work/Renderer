@@ -13,6 +13,7 @@
 #include <swap_chain_manager.h>
 #include <texture_manager.h>
 
+#define MAX_FRAMES_IN_FLIGHT 2
 class VulkanPathTracingRender
 {
 public:

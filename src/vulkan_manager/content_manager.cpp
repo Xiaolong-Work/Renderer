@@ -1,5 +1,4 @@
 #include <content_manager.h>
-#include <set>
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 													VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -12,12 +11,6 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
 	}
 
 	return VK_FALSE;
-}
-
-void ContentManager::setExtent(const VkExtent2D& extent)
-{
-	this->windowWidth = extent.width;
-	this->windowHeight = extent.height;
 }
 
 void ContentManager::init()
@@ -55,6 +48,19 @@ void ContentManager::clear()
 
 	glfwDestroyWindow(this->window);
 	glfwTerminate();
+}
+
+void ContentManager::setExtent(const VkExtent2D& extent)
+{
+	this->windowWidth = extent.width;
+	this->windowHeight = extent.height;
+}
+
+void ContentManager::createWindow()
+{
+	glfwInit();
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	this->window = glfwCreateWindow(this->windowWidth, this->windowHeight, "Vulkan", nullptr, nullptr);
 }
 
 void ContentManager::createInstance()
@@ -113,91 +119,6 @@ void ContentManager::createInstance()
 	}
 }
 
-void ContentManager::choosePhysicalDevice()
-{
-	/* Get the number of physical devices */
-	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(this->instance, &deviceCount, nullptr);
-	if (deviceCount == 0)
-	{
-		throw std::runtime_error("Failed to find GPUs with Vulkan support!");
-	}
-
-	/* Get all physical devices */
-	std::vector<VkPhysicalDevice> devices(deviceCount);
-	vkEnumeratePhysicalDevices(this->instance, &deviceCount, devices.data());
-
-	/* Find physical devices that meet requirements */
-	for (const auto& device : devices)
-	{
-		if (isDeviceSuitable(device))
-		{
-			this->physicalDevice = device;
-			break;
-		}
-	}
-	if (this->physicalDevice == VK_NULL_HANDLE)
-	{
-		throw std::runtime_error("Failed to find a suitable GPU!");
-	}
-}
-
-bool ContentManager::isDeviceSuitable(VkPhysicalDevice physicalDevice)
-{
-	if (!checkDeviceExtensionSupport(physicalDevice))
-	{
-		return false;
-	}
-
-	/* Get the number of queue families */
-	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
-
-	/* Get queue family details */
-	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
-
-	int graphics = -1;
-	int transfer = -1;
-	int present = -1;
-	int compute = -1;
-	for (int i = 0; i < queueFamilyCount; i++)
-	{
-		if (graphics == -1 && queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-		{
-			graphics = i;
-		}
-		if (transfer == -1 && queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
-		{
-			transfer = i;
-		}
-		if (queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
-		{
-			compute = i;
-		}
-
-		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, this->surface, &presentSupport);
-		if (present == -1 && presentSupport)
-		{
-			present = i;
-		}
-	}
-
-	if (graphics != -1 && transfer != -1 && present != -1 && compute != -1)
-	{
-		this->graphicsFamily = static_cast<uint32_t>(graphics);
-		this->transferFamily = static_cast<uint32_t>(transfer);
-		this->presentFamily = static_cast<uint32_t>(present);
-		this->computeFamily = static_cast<uint32_t>(compute);
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
 std::vector<const char*> ContentManager::getRequiredInstanceExtensions()
 {
 	/* Get the required extensions for GLFW */
@@ -253,13 +174,6 @@ std::vector<const char*> ContentManager::getRequiredValidationLayers()
 	return validationLayers;
 }
 
-void ContentManager::createWindow()
-{
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	this->window = glfwCreateWindow(this->windowWidth, this->windowHeight, "Vulkan", nullptr, nullptr);
-}
-
 bool ContentManager::checkValidationLayerSupport()
 {
 	/* Get the number of available validation layers */
@@ -291,6 +205,129 @@ bool ContentManager::checkValidationLayerSupport()
 	}
 
 	return true;
+}
+
+void ContentManager::createDebugMessenger()
+{
+	if (!this->enableValidationLayers)
+	{
+		return;
+	}
+
+	VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	createInfo.pNext = nullptr;
+	createInfo.flags = 0;
+	createInfo.messageSeverity =
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+							 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+							 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	createInfo.pfnUserCallback = debugCallback;
+	createInfo.pUserData = nullptr;
+
+	auto function =
+		(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(this->instance, "vkCreateDebugUtilsMessengerEXT");
+	if (function != nullptr)
+	{
+		function(this->instance, &createInfo, nullptr, &this->debugMessenger);
+	}
+	else
+	{
+		throw std::runtime_error("Failed to set up debug messenger!");
+	}
+}
+
+void ContentManager::choosePhysicalDevice()
+{
+	/* Get the number of physical devices */
+	uint32_t deviceCount = 0;
+	vkEnumeratePhysicalDevices(this->instance, &deviceCount, nullptr);
+	if (deviceCount == 0)
+	{
+		throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+	}
+
+	/* Get all physical devices */
+	std::vector<VkPhysicalDevice> devices(deviceCount);
+	vkEnumeratePhysicalDevices(this->instance, &deviceCount, devices.data());
+
+	/* Find physical devices that meet requirements */
+	for (const auto& device : devices)
+	{
+		if (isDeviceSuitable(device))
+		{
+			this->physicalDevice = device;
+			break;
+		}
+	}
+	if (this->physicalDevice == VK_NULL_HANDLE)
+	{
+		throw std::runtime_error("Failed to find a suitable GPU!");
+	}
+}
+
+bool ContentManager::isDeviceSuitable(VkPhysicalDevice physicalDevice)
+{
+	if (!checkDeviceExtensionSupport(physicalDevice))
+	{
+		return false;
+	}
+
+	/* Get the number of queue families */
+	uint32_t queueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
+
+	/* Get queue family details */
+	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+
+	VkPhysicalDeviceFeatures supportedFeatures;
+	vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
+	if (!supportedFeatures.samplerAnisotropy)
+	{
+		return false;
+	}
+
+	int graphics = -1;
+	int transfer = -1;
+	int present = -1;
+	int compute = -1;
+	for (int i = 0; i < queueFamilyCount; i++)
+	{
+		if (graphics == -1 && queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			graphics = i;
+		}
+		if (transfer == -1 && queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
+		{
+			transfer = i;
+		}
+		if (queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
+		{
+			compute = i;
+		}
+
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, this->surface, &presentSupport);
+		if (present == -1 && presentSupport)
+		{
+			present = i;
+		}
+	}
+
+	if (graphics != -1 && transfer != -1 && present != -1 && compute != -1)
+	{
+		this->graphicsFamily = static_cast<uint32_t>(graphics);
+		this->transferFamily = static_cast<uint32_t>(transfer);
+		this->presentFamily = static_cast<uint32_t>(present);
+		this->computeFamily = static_cast<uint32_t>(compute);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 std::vector<const char*> ContentManager::getRequiredDeviceExtensions()
@@ -338,37 +375,6 @@ bool ContentManager::checkDeviceExtensionSupport(VkPhysicalDevice physicalDevice
 	}
 
 	return true;
-}
-
-void ContentManager::createDebugMessenger()
-{
-	if (!this->enableValidationLayers)
-	{
-		return;
-	}
-
-	VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	createInfo.pNext = nullptr;
-	createInfo.flags = 0;
-	createInfo.messageSeverity =
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-							 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-							 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	createInfo.pfnUserCallback = debugCallback;
-	createInfo.pUserData = nullptr;
-
-	auto function =
-		(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(this->instance, "vkCreateDebugUtilsMessengerEXT");
-	if (function != nullptr)
-	{
-		function(this->instance, &createInfo, nullptr, &this->debugMessenger);
-	}
-	else
-	{
-		throw std::runtime_error("Failed to set up debug messenger!");
-	}
 }
 
 void ContentManager::createLogicalDevice()

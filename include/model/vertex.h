@@ -100,7 +100,7 @@ public:
 	 */
 	Vector4f getHomogeneous() const;
 
-	/* @brief The position of the vertex in 3D space. */
+	/* The position of the vertex in 3D space. */
 	Point position;
 
 	/* The normal vector at the vertex, used for shading calculations. */

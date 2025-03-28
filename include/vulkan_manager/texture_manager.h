@@ -19,6 +19,9 @@ public:
 	void clear();
 
 	void createTexture(const std::string& imagePath);
+
+	void createEmptyTexture();
+
 	void createSampler();
 
 	std::vector<VkImage> images;

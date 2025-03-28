@@ -6,6 +6,7 @@
 #include <random>
 #include <vector>
 
+#include <glm/ext/scalar_constants.hpp>
 #include <glm/glm.hpp>
 
 typedef glm::ivec2 Vector2i;
@@ -28,7 +29,7 @@ typedef Vector3f Direction;
 typedef Vector3f Coordinate3D;
 typedef Vector2f Coordinate2D;
 
-constexpr float pi = 3.14159265358979;
+constexpr float pi = glm::pi<float>();
 
 /**
  * @brief Clamps a value within a specified range.
@@ -59,3 +60,9 @@ void outputProgress(float progress);
  * @param[in] duration The time duration of the task.
  */
 void outputTimeUse(std::string name, std::chrono::system_clock::duration duration);
+
+/**
+ * @brief Outputs the fps of a task.
+ * @param[in] duration The time duration of the task.
+ */
+void outputFrameRate(std::chrono::system_clock::duration duration);

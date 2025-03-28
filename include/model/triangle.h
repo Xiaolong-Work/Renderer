@@ -47,9 +47,9 @@ public:
 	/* The normal vector of the triangle. */
 	Direction normal;
 
-	/* The area of the triangle. */
-	float area;
-
 	/* The bounding box of the triangle. */
 	BoundingBox bounding_box;
+
+	/* The area of the triangle. */
+	float area;
 };

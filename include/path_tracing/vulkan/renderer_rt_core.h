@@ -32,9 +32,9 @@ protected:
 private:
 	ContentManager contentManager{};
 
-	SwapChainManager swapChainManager{};
+	SwapChainManager swap_chain_manager{};
 
-	TextureManager textureManager{};
+	TextureManager texture_manager{};
 
 	CommandManager commandManager{};
 
@@ -48,13 +48,13 @@ private:
 
 	DepthImageManager depthImageManager{};
 
-	DescriptorManager descriptorManager{};
+	DescriptorManager descriptor_manager{};
 
-	ShaderManager vertexShaderManager{};
+	ShaderManager vertex_shader_manager{};
 
-	ShaderManager fragmentShaderManager{};
+	ShaderManager fragment_shader_manager{};
 
-	PipelineManager graphicsPipelineManager{};
+	PipelineManager graphics_pipeline_manager{};
 
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR property{};
 

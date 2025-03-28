@@ -30,8 +30,8 @@ public:
 
 private:
 	std::vector<Vector3f> vertexs;
-	std::vector<Vector2f> textures;
 	std::vector<Vector3f> normals;
+	std::vector<Vector2f> textures;
 
 	bool vertex_loaded = false;
 	bool texture_loaded = false;

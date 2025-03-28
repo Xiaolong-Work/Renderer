@@ -79,27 +79,6 @@ public:
 	 */
 	float& z();
 
-	/**
-	 * @brief Gets the W coordinate in the homogeneous coordinate system (read-only).
-	 *
-	 * @return The W component of the homogeneous coordinate.
-	 */
-	float w() const;
-
-	/**
-	 * @brief Gets a modifiable reference to the W coordinate.
-	 *
-	 * @return A reference to the W component of the homogeneous coordinate.
-	 */
-	float& w();
-
-	/**
-	 * @brief Converts the vertex position to homogeneous coordinates.
-	 *
-	 * @return A 4D vector representing the vertex in homogeneous coordinates.
-	 */
-	Vector4f getHomogeneous() const;
-
 	/* The position of the vertex in 3D space. */
 	Point position;
 
@@ -108,10 +87,4 @@ public:
 
 	/* The 2D texture coordinates associated with the vertex.*/
 	Coordinate2D texture;
-
-	/* The weight in the secondary coordinate system. */
-	float weight = 1.0f;
-
-	/* The color of the vertex */
-	Vector3f color;
 };

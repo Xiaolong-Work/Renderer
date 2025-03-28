@@ -46,7 +46,7 @@ bool Model::loadObject(const std::string& object_filename)
 		{
 			float u, v;
 			iss >> u >> v;
-			Vector2f temp{u, v};
+			Vector2f temp{u, 1.0f - v};
 			this->textures.push_back(temp);
 			this->texture_loaded = true;
 		}
@@ -62,7 +62,6 @@ bool Model::loadObject(const std::string& object_filename)
 		/* Face data */
 		else if (taget == "f")
 		{
-			;
 			std::vector<Vertex> vertics;
 			vertics.clear();
 			int vertex_index, texture_index, normal_index;

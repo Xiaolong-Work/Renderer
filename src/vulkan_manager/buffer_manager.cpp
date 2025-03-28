@@ -189,3 +189,28 @@ void StorageBufferManager::clear()
 	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
 	vkFreeMemory(pContentManager->device, this->memory, nullptr);
 }
+
+StagingBufferManager::StagingBufferManager(const ContentManagerSPtr& pContentManager,
+										   const CommandManagerSPtr& pCommandManager)
+{
+	this->pContentManager = pContentManager;
+	this->pCommandManager = pCommandManager;
+}
+
+void StagingBufferManager::init()
+{
+	createBuffer(this->size,
+				 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				 this->buffer,
+				 this->memory);
+
+	vkMapMemory(pContentManager->device, this->memory, 0, this->size, 0, &this->mapped);
+}
+
+void StagingBufferManager::clear()
+{
+	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
+	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+}
+

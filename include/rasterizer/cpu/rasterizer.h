@@ -14,6 +14,7 @@
 class Rasterizer
 {
 public:
+	Rasterizer() = default;
 	Rasterizer(int width, int height);
 
 	/* Set the pixel */
@@ -25,20 +26,21 @@ public:
 	/* Display the wireframe model */
 	void drawWireframe(Model model);
 
+	/* Converts the vertex position to homogeneous coordinates.*/
+	Vector4f getHomogeneous(const Point& point);
+
 	/* Determine if a point is inside a triangle */
-	bool isInsideTriangle(int x, int y, Triangle triangle);
+	bool isInsideTriangle(int x, int y, const std::array<Vector4f, 3>& position);
 
 	/* Calculate the center of gravity coordinates */
-	static std::tuple<float, float, float> get2DBarycentric(float x, float y, Triangle triangle);
-
-	/* Draw a triangle */
-	void drawTriangle(Triangle triangle);
-
-	/* Display triangle model */
-	void drawTriangleframe(Model model);
+	Vector3f get2DBarycentric(float x, float y, const std::array<Vector4f, 3>& position);
 
 	/* Draw a shaded triangle */
-	void drawShaderTriangle(Triangle triangle, const std::array<Vector3f, 3>& view_pos, Texture texture);
+	void drawShaderTriangle(const std::array<Vector4f, 3>& position,
+							const std::array<Direction, 3>& normal,
+							const std::array<Coordinate2D, 3>& texture_coordinate,
+							const std::array<Vector3f, 3>& viewspace_positions,
+							Texture texture);
 
 	/* Display the shaded triangle model */
 	void drawShaderTriangleframe(Model model);
@@ -67,7 +69,7 @@ public:
 	std::vector<float> depth_buffer;
 
 	/* Screen buffer */
-	std::vector<Vector3f> screen_buffer;
+	std::vector<Vector4f> screen_buffer;
 
 	/* shader */
 	std::function<Vector3f(Shader)> shader;

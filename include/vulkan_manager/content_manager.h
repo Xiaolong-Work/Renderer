@@ -37,6 +37,7 @@ public:
 	VkSurfaceKHR surface;
 
 	bool enableRayTracing{false};
+	bool enable_window_resize{true};
 
 protected:
 	void createWindow();

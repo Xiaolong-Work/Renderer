@@ -20,9 +20,33 @@ void TextureManager::createTexture(const std::string& imagePath)
 	this->imageViews.push_back(imageView);
 }
 
+void TextureManager::createEmptyTexture()
+{
+	VkImage image;
+	VkDeviceMemory imageMemory;
+	VkImageView imageView;
+
+	createImage(this->extent,
+				VK_FORMAT_R32G32B32A32_SFLOAT,
+				VK_IMAGE_TILING_OPTIMAL,
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				image,
+				imageMemory);
+
+	imageView = createView(image, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	transformLayout(
+		image, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	this->images.push_back(image);
+	this->imageMemories.push_back(imageMemory);
+	this->imageViews.push_back(imageView);
+}
+
 void TextureManager::createSampler()
 {
-    VkPhysicalDeviceProperties properties{};
+	VkPhysicalDeviceProperties properties{};
 	vkGetPhysicalDeviceProperties(pContentManager->physicalDevice, &properties);
 
 	VkSamplerCreateInfo samplerInfo{};
@@ -53,6 +77,7 @@ void TextureManager::createSampler()
 
 void TextureManager::init()
 {
+	this->extent = {1, 1, 1};
 	createSampler();
 }
 
@@ -72,4 +97,8 @@ void TextureManager::clear()
 	{
 		vkFreeMemory(pContentManager->device, imageMemory, nullptr);
 	}
+
+	this->imageViews.clear();
+	this->images.clear();
+	this->imageMemories.clear();
 }

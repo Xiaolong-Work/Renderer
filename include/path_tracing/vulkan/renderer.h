@@ -42,16 +42,16 @@ public:
 		this->commandManager.init();
 		auto pCommandManager = std::make_shared<CommandManager>(this->commandManager);
 
-		this->swapChainManager = SwapChainManager(pContentManager, pCommandManager);
-		this->swapChainManager.init();
+		this->swap_chain_manager = SwapChainManager(pContentManager, pCommandManager);
+		this->swap_chain_manager.init();
 
-		this->vertexShaderManager = ShaderManager(pContentManager);
-		this->vertexShaderManager.setShaderName("path_tracing_vert.spv");
-		this->vertexShaderManager.init();
+		this->vertex_shader_manager = ShaderManager(pContentManager);
+		this->vertex_shader_manager.setShaderName("path_tracing_vert.spv");
+		this->vertex_shader_manager.init();
 
-		this->fragmentShaderManager = ShaderManager(pContentManager);
-		this->fragmentShaderManager.setShaderName("path_tracing_frag.spv");
-		this->fragmentShaderManager.init();
+		this->fragment_shader_manager = ShaderManager(pContentManager);
+		this->fragment_shader_manager.setShaderName("path_tracing_frag.spv");
+		this->fragment_shader_manager.init();
 
 		this->computeShaderManager = ShaderManager(pContentManager);
 		this->computeShaderManager.setShaderName("path_tracing_comp.spv");
@@ -65,12 +65,12 @@ public:
 		this->storageImageManager.setExtent(VkExtent2D{scene.camera.width, scene.camera.height});
 		this->storageImageManager.init();
 
-		this->textureManager = TextureManager(pContentManager, pCommandManager);
-		this->textureManager.init();
-		auto pTextureManager = std::make_shared<TextureManager>(this->textureManager);
+		this->texture_manager = TextureManager(pContentManager, pCommandManager);
+		this->texture_manager.init();
+
 		for (auto& texture_path : this->bufferManager.texture_paths)
 		{
-			this->textureManager.createTexture(texture_path);
+			this->texture_manager.createTexture(texture_path);
 		}
 
 		createDescriptorSetLayout();
@@ -82,9 +82,9 @@ public:
 		createRenderPass();
 		createFramebuffers();
 
-		this->graphicsPipelineManager = PipelineManager(pContentManager);
+		this->graphics_pipeline_manager = PipelineManager(pContentManager);
 		this->setupGraphicsPipelines();
-		this->graphicsPipelineManager.init();
+		this->graphics_pipeline_manager.init();
 
 		createSyncObjects();
 	}
@@ -96,7 +96,7 @@ public:
 		vertShaderStageInfo.pNext = nullptr;
 		vertShaderStageInfo.flags = 0;
 		vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertShaderStageInfo.module = vertexShaderManager.module;
+		vertShaderStageInfo.module = vertex_shader_manager.module;
 		vertShaderStageInfo.pName = "main";
 		vertShaderStageInfo.pSpecializationInfo = nullptr;
 
@@ -105,7 +105,7 @@ public:
 		fragShaderStageInfo.pNext = nullptr;
 		fragShaderStageInfo.flags = 0;
 		fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragShaderStageInfo.module = fragmentShaderManager.module;
+		fragShaderStageInfo.module = fragment_shader_manager.module;
 		fragShaderStageInfo.pName = "main";
 		vertShaderStageInfo.pSpecializationInfo = nullptr;
 
@@ -114,13 +114,13 @@ public:
 		VkViewport viewport{};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = (float)swapChainManager.extent.width;
-		viewport.height = (float)swapChainManager.extent.height;
+		viewport.width = (float)swap_chain_manager.extent.width;
+		viewport.height = (float)swap_chain_manager.extent.height;
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 		VkRect2D scissor{};
 		scissor.offset = {0, 0};
-		scissor.extent = swapChainManager.extent;
+		scissor.extent = swap_chain_manager.extent;
 
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -129,15 +129,15 @@ public:
 		pipelineLayoutInfo.pushConstantRangeCount = 0;
 		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
-		graphicsPipelineManager.setRequiredValue(shaderStages, viewport, scissor, pipelineLayoutInfo, renderPass);
-		graphicsPipelineManager.enableVertexInpute = false;
+		graphics_pipeline_manager.setRequiredValue(shaderStages, viewport, scissor, pipelineLayoutInfo, renderPass);
+		graphics_pipeline_manager.enableVertexInpute = false;
 	}
 
 	void createRenderPass()
 	{
 		VkAttachmentDescription colorAttachment{};
 		colorAttachment.flags = 0;
-		colorAttachment.format = swapChainManager.format;
+		colorAttachment.format = swap_chain_manager.format;
 		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -191,9 +191,9 @@ public:
 
 	void createFramebuffers()
 	{
-		this->framebuffers.resize(this->swapChainManager.imageViews.size());
+		this->framebuffers.resize(this->swap_chain_manager.imageViews.size());
 
-		for (size_t i = 0; i < this->swapChainManager.imageViews.size(); i++)
+		for (size_t i = 0; i < this->swap_chain_manager.imageViews.size(); i++)
 		{
 			VkFramebufferCreateInfo framebufferInfo{};
 			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -201,9 +201,9 @@ public:
 			framebufferInfo.flags = 0;
 			framebufferInfo.renderPass = renderPass;
 			framebufferInfo.attachmentCount = 1;
-			framebufferInfo.pAttachments = &swapChainManager.imageViews[i];
-			framebufferInfo.width = swapChainManager.extent.width;
-			framebufferInfo.height = swapChainManager.extent.height;
+			framebufferInfo.pAttachments = &swap_chain_manager.imageViews[i];
+			framebufferInfo.width = swap_chain_manager.extent.width;
+			framebufferInfo.height = swap_chain_manager.extent.height;
 			framebufferInfo.layers = 1;
 
 			if (vkCreateFramebuffer(contentManager.device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
@@ -216,12 +216,12 @@ public:
 	std::vector<VkFramebuffer> framebuffers;
 	VkRenderPass renderPass;
 
-	ShaderManager vertexShaderManager{};
-	ShaderManager fragmentShaderManager{};
+	ShaderManager vertex_shader_manager{};
+	ShaderManager fragment_shader_manager{};
 
 	VkPipeline graphicsPipeline;
 
-	PipelineManager graphicsPipelineManager{};
+	PipelineManager graphics_pipeline_manager{};
 
 	void createComputePipeline()
 	{
@@ -325,18 +325,18 @@ public:
 		renderPassInfo.renderPass = renderPass;
 		renderPassInfo.framebuffer = framebuffers[imageIndex];
 		renderPassInfo.renderArea.offset = {0, 0};
-		renderPassInfo.renderArea.extent = swapChainManager.extent;
+		renderPassInfo.renderArea.extent = swap_chain_manager.extent;
 		VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
 		renderPassInfo.clearValueCount = 1;
 		renderPassInfo.pClearValues = &clearColor;
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->graphicsPipelineManager.pipeline);
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->graphics_pipeline_manager.pipeline);
 
 		vkCmdBindDescriptorSets(commandBuffer,
 								VK_PIPELINE_BIND_POINT_GRAPHICS,
-								this->graphicsPipelineManager.layout,
+								this->graphics_pipeline_manager.layout,
 								0,
 								1,
 								&descriptorSet,
@@ -365,7 +365,7 @@ public:
 		/* »ñÈ¡½»»»Á´Í¼Ïñ */
 		uint32_t imageIndex;
 		VkResult result = vkAcquireNextImageKHR(contentManager.device,
-												this->swapChainManager.swapChain,
+												this->swap_chain_manager.swapChain,
 												UINT64_MAX,
 												imageAvailableSemaphores[currentFrame],
 												VK_NULL_HANDLE,
@@ -417,7 +417,7 @@ public:
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pWaitSemaphores = signalSemaphores;
 
-		VkSwapchainKHR swapChains[] = {this->swapChainManager.swapChain};
+		VkSwapchainKHR swapChains[] = {this->swap_chain_manager.swapChain};
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = swapChains;
 		presentInfo.pImageIndices = &imageIndex;
@@ -471,7 +471,7 @@ public:
 		/* Used For compute shader texture input */
 		layoutBindings[10].binding = 10;
 		layoutBindings[10].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		layoutBindings[10].descriptorCount = static_cast<uint32_t>(this->textureManager.imageViews.size());
+		layoutBindings[10].descriptorCount = static_cast<uint32_t>(this->texture_manager.imageViews.size());
 		layoutBindings[10].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 		layoutBindings[10].pImmutableSamplers = nullptr;
 
@@ -545,15 +545,15 @@ public:
 		imageInfo[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		imageInfo[1].imageView = storageImageManager.imageView;
-		imageInfo[1].sampler = this->textureManager.sampler;
+		imageInfo[1].sampler = this->texture_manager.sampler;
 		imageInfo[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		std::vector<VkDescriptorImageInfo> textureInfo;
-		textureInfo.resize(this->textureManager.imageViews.size());
-		for (size_t i = 0; i < this->textureManager.imageViews.size(); i++)
+		textureInfo.resize(this->texture_manager.imageViews.size());
+		for (size_t i = 0; i < this->texture_manager.imageViews.size(); i++)
 		{
-			textureInfo[i].imageView = textureManager.imageViews[i];
-			textureInfo[i].sampler = textureManager.sampler;
+			textureInfo[i].imageView = texture_manager.imageViews[i];
+			textureInfo[i].sampler = texture_manager.sampler;
 			textureInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		}
 
@@ -603,7 +603,7 @@ public:
 	void clear()
 	{
 
-		this->textureManager.clear();
+		this->texture_manager.clear();
 
 		for (auto framebuffer : framebuffers)
 		{
@@ -617,16 +617,16 @@ public:
 			vkDestroyFence(contentManager.device, inFlightFences[i], nullptr);
 		}
 
-		this->graphicsPipelineManager.clear();
+		this->graphics_pipeline_manager.clear();
 
 		vkDestroyRenderPass(contentManager.device, renderPass, nullptr);
 
-		this->swapChainManager.clear();
+		this->swap_chain_manager.clear();
 
 		this->commandManager.clear();
 
-		this->vertexShaderManager.clear();
-		this->fragmentShaderManager.clear();
+		this->vertex_shader_manager.clear();
+		this->fragment_shader_manager.clear();
 
 		this->contentManager.clear();
 	}
@@ -634,6 +634,6 @@ public:
 	ContentManager contentManager{};
 	CommandManager commandManager{};
 	SSBOBufferManager bufferManager{};
-	TextureManager textureManager{};
-	SwapChainManager swapChainManager;
+	TextureManager texture_manager{};
+	SwapChainManager swap_chain_manager;
 };

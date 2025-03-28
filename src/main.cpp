@@ -12,11 +12,21 @@
 
 #include <renderer_rt_core.h>
 #include <vulkan_rasterizer_render.h>
+#include <cpu_rasterizer_renderer.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
 std::map<int, std::string> name = {{0, "cornell-box"}, {1, "veach-mis"}, {2, "bathroom"}};
+
+
+void rasterRenderCPU()
+{
+	CPURasterizerRenderer r{};
+	r.init();
+	r.draw();
+	r.clear();
+}
 
 void rasterRender()
 {
@@ -82,6 +92,8 @@ void pathTracingRender()
 
 int main()
 {
+	rasterRenderCPU();
+
 	rasterRender();
 	pathTracingRender();
 	pathTracingRTCore();

@@ -22,20 +22,20 @@ void VulkanPathTracingRenderRTCore::init()
 	this->commandManager.init();
 	auto pCommandManager = std::make_shared<CommandManager>(this->commandManager);
 
-	this->swapChainManager = SwapChainManager(pContentManager, pCommandManager);
-	this->swapChainManager.init();
+	this->swap_chain_manager = SwapChainManager(pContentManager, pCommandManager);
+	this->swap_chain_manager.init();
 
 	this->depthImageManager = DepthImageManager(pContentManager, pCommandManager);
-	this->depthImageManager.setExtent(this->swapChainManager.extent);
+	this->depthImageManager.setExtent(this->swap_chain_manager.extent);
 	this->depthImageManager.init();
 
-	this->vertexShaderManager = ShaderManager(pContentManager);
-	this->vertexShaderManager.setShaderName("rasterize_vert.spv");
-	this->vertexShaderManager.init();
+	this->vertex_shader_manager = ShaderManager(pContentManager);
+	this->vertex_shader_manager.setShaderName("rasterize_vert.spv");
+	this->vertex_shader_manager.init();
 
-	this->fragmentShaderManager = ShaderManager(pContentManager);
-	this->fragmentShaderManager.setShaderName("rasterize_frag.spv");
-	this->fragmentShaderManager.init();
+	this->fragment_shader_manager = ShaderManager(pContentManager);
+	this->fragment_shader_manager.setShaderName("rasterize_frag.spv");
+	this->fragment_shader_manager.init();
 }
 
 void VulkanPathTracingRenderRTCore::clear()

@@ -147,3 +147,19 @@ public:
 	VkBuffer buffer;
 	VkDeviceMemory memory;
 };
+
+class StagingBufferManager : public BufferManager
+{
+public:
+	StagingBufferManager() = default;
+	StagingBufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+
+	void init() override;
+	void clear() override;
+
+	VkBuffer buffer{};
+	VkDeviceMemory memory{};
+	void* mapped = nullptr;
+
+	VkDeviceSize size{0};
+};

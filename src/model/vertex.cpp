@@ -49,18 +49,3 @@ float& Vertex::z()
 {
 	return position.z;
 }
-
-float Vertex::w() const
-{
-	return weight;
-}
-
-float& Vertex::w()
-{
-	return weight;
-}
-
-Vector4f Vertex::getHomogeneous() const
-{
-	return Vector4f{this->position, this->weight};
-}

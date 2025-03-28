@@ -60,6 +60,10 @@ void ContentManager::createWindow()
 {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	if (!this->enable_window_resize)
+	{
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);  
+	}
 	this->window = glfwCreateWindow(this->windowWidth, this->windowHeight, "Vulkan", nullptr, nullptr);
 }
 

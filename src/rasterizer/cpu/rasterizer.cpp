@@ -1,4 +1,40 @@
+
 #include <rasterizer.h>
+#include <stb_image_write.h>
+
+void saveDepth(const std::vector<float>& data, const int index)
+{
+	std::string path = std::string(ROOT_DIR) + "/results/" + std::to_string(index) + ".bmp";
+
+	std::vector<unsigned char> image_data(1024 * 1024 * 3);
+
+	float min = std::numeric_limits<float>::infinity();
+	float max = 0;
+
+	for (auto& index : data)
+	{
+		if (index < min)
+		{
+			min = index;
+		}
+		if (index > max && index < std::numeric_limits<float>::infinity())
+		{
+			max = index;
+		}
+	}
+
+	auto length = max - min;
+
+	for (auto i = 0; i < 1024 * 1024; ++i)
+	{
+		static unsigned char color[3];
+		image_data[i * 3 + 0] = (unsigned char)(255 * (data[i] - min) / length);
+		image_data[i * 3 + 1] = (unsigned char)(255 * (data[i] - min) / length);
+		image_data[i * 3 + 2] = (unsigned char)(255 * (data[i] - min) / length);
+	}
+
+	stbi_write_bmp(path.c_str(), 1024, 1024, 3, image_data.data());
+}
 
 Vector4f Rasterizer::getHomogeneous(const Point& point)
 {
@@ -11,6 +47,8 @@ Rasterizer::Rasterizer(int width, int height)
 	this->height = height;
 	this->screen_buffer.resize(width * height);
 	this->depth_buffer.resize(width * height);
+	this->g_buffer.resize(width * height);
+	this->shadow_maps.resize(this->lights.size());
 }
 
 void Rasterizer::setPixel(Vector2i point, Vector3f color)
@@ -70,11 +108,13 @@ void Rasterizer::drawWireframe(Model model)
 	Matrix4f mvp = this->projection * this->view * this->model;
 
 #pragma omp parallel for
-	for (auto& trangle : model.faces)
+	for (int i = 0; i < model.faces.size(); i++)
 	{
-		Vector4f a = getHomogeneous(trangle.vertex1.position);
-		Vector4f b = getHomogeneous(trangle.vertex2.position);
-		Vector4f c = getHomogeneous(trangle.vertex3.position);
+		auto& triangle = model.faces[1];
+
+		Vector4f a = getHomogeneous(triangle.vertex1.position);
+		Vector4f b = getHomogeneous(triangle.vertex2.position);
+		Vector4f c = getHomogeneous(triangle.vertex3.position);
 
 		a = mvp * a;
 		b = mvp * b;
@@ -151,31 +191,39 @@ void Rasterizer::drawShaderTriangle(const std::array<Vector4f, 3>& position,
 									const std::array<Direction, 3>& normal,
 									const std::array<Coordinate2D, 3>& texture_coordinate,
 									const std::array<Vector3f, 3>& viewspace_positions,
-									Texture texture)
+									const std::array<Point, 3> world_position,
+									Texture* texture,
+									const std::vector<Light>& lights)
 {
 	auto& v0 = position[0];
 	auto& v1 = position[1];
 	auto& v2 = position[2];
 
 	/* Calculate the bounding box of the triangle */
-	auto x_max = std::max(v0.x, std::max(v1.x, v2.x));
-	auto x_min = std::ceil(std::min(v0.x, std::min(v1.x, v2.x)));
-	auto y_max = std::ceil(std::max(v0.y, std::max(v1.y, v2.y)));
-	auto y_min = std::min(v0.y, std::min(v1.y, v2.y));
+	int x_max = std::max(v0.x, std::max(v1.x, v2.x));
+	int x_min = std::ceil(std::min(v0.x, std::min(v1.x, v2.x)));
+	int y_max = std::ceil(std::max(v0.y, std::max(v1.y, v2.y)));
+	int y_min = std::min(v0.y, std::min(v1.y, v2.y));
+
+	x_max = std::min(x_max, width - 1);
+	x_min = std::max(0, x_min);
+	y_max = std::min(y_max, height - 1);
+	y_min = std::max(0, y_min);
 
 	/* For each pixel in the bounding box, determine whether it is inside the triangle and rasterize the triangle */
-#pragma omp parallel for
-	for (int y = std::min((int)y_max, height - 1); y >= y_min && y >= 0; y--)
+#pragma omp parallel for collapse(2)
+	for (int y = y_min; y <= y_max; y++)
 	{
-		for (int x = std::max(0, (int)x_min); x <= x_max && x <= width; x++)
+		for (int x = x_min; x <= x_max; x++)
 		{
 			/* Check if it is inside the triangle */
 			if (isInsideTriangle(x, y, position))
 			{
 				/* Get the center of gravity coordinates */
-				float alpha = get2DBarycentric(x, y, position).x;
-				float beta = get2DBarycentric(x, y, position).y;
-				float gamma = get2DBarycentric(x, y, position).z;
+				auto barycentric = get2DBarycentric(x, y, position);
+				float alpha = barycentric.x;
+				float beta = barycentric.y;
+				float gamma = barycentric.z;
 
 				/* Perform interpolation on depth */
 				float w_reciprocal = 1.0 / (alpha / v0.w + beta / v1.w + gamma / v2.w);
@@ -193,18 +241,18 @@ void Rasterizer::drawShaderTriangle(const std::array<Vector4f, 3>& position,
 						alpha * texture_coordinate[0] + beta * texture_coordinate[1] + gamma * texture_coordinate[2];
 					auto interpolated_shading_point =
 						alpha * viewspace_positions[0] + beta * viewspace_positions[1] + gamma * viewspace_positions[2];
+					Vector3f interpolated_world_point =
+						(alpha * (world_position[0] / v0.w) + beta * (world_position[1] / v1.w) +
+						 gamma * (world_position[2] / v2.w)) *
+						w_reciprocal;
 
-					/* Load shading data */
-					Shader shader{};
-					shader.normal = glm::normalize(interpolated_normal);
-					shader.texture_coordinate = interpolated_texture_coordinate;
-					shader.shading_point = interpolated_shading_point;
-					shader.texture = &texture;
-
-					/* Shader calculation shading */
-					auto pixel_color = this->shader(shader);
-					Vector2i point{x, y};
-					setPixel(point, pixel_color);
+					GBuffer buffer;
+					buffer.normal = glm::normalize(interpolated_normal);
+					buffer.texture_coordinate = interpolated_texture_coordinate;
+					buffer.shading_point = interpolated_shading_point;
+					buffer.world_point = interpolated_world_point;
+					buffer.flag = true;
+					this->g_buffer[(height - 1 - y) * width + x] = buffer;
 				}
 			}
 		}
@@ -213,6 +261,8 @@ void Rasterizer::drawShaderTriangle(const std::array<Vector4f, 3>& position,
 
 void Rasterizer::drawShaderTriangleframe(Model model)
 {
+	updateShadowMaps(model);
+
 	Matrix4f mvp = this->projection * this->view * this->model;
 	Matrix4f mv = this->view * this->model;
 
@@ -220,15 +270,17 @@ void Rasterizer::drawShaderTriangleframe(Model model)
 	std::vector<std::array<Direction, 3>> normals;
 	std::vector<std::array<Coordinate2D, 3>> texture_coordinates;
 	std::vector<std::array<Point, 3>> viewspace_positions;
+	std::vector<std::array<Point, 3>> world_positions;
 
 	size_t size = model.faces.size();
 	positions.resize(size);
 	normals.resize(size);
 	texture_coordinates.resize(size);
 	viewspace_positions.resize(size);
+	world_positions.resize(size);
 
 #pragma omp parallel for
-	for (size_t i = 0; i < size; i++)
+	for (int i = 0; i < size; i++)
 	{
 		auto& triangle = model.faces[i];
 
@@ -244,7 +296,7 @@ void Rasterizer::drawShaderTriangleframe(Model model)
 		/* Transform the normal vector */
 		Matrix4f inverse_transform = glm::transpose(glm::inverse(mv));
 		auto trans_normal = [inverse_transform](const Direction& normal) {
-			return Vector3f(inverse_transform * Vector4f(normal, 0.0f));
+			return Vector3f(inverse_transform * Vector4f(normal, 1.0f));
 		};
 		normals[i] = {trans_normal(a.normal), trans_normal(b.normal), trans_normal(c.normal)};
 
@@ -257,12 +309,143 @@ void Rasterizer::drawShaderTriangleframe(Model model)
 		};
 		positions[i] = {trans_position(a.position), trans_position(b.position), trans_position(c.position)};
 
+		auto get_world_coordinate = [this](const Point& point) {
+			return Vector3f(this->model * Vector4f(point, 1.0f));
+		};
+		world_positions[i] = {
+			get_world_coordinate(a.position), get_world_coordinate(b.position), get_world_coordinate(c.position)};
+
 		texture_coordinates[i] = {a.texture, b.texture, c.texture};
+	}
+
+	Texture* temp = &model.texture;
+	if (!model.texture_flag)
+	{
+		temp = nullptr;
+	}
+
+	std::vector<Light> lights;
+	for (auto& light : model.lights)
+	{
+		auto temp = getHomogeneous(light.position);
+
+		// temp = mv * temp;
+		// temp /= temp.w;
+
+		lights.push_back(Light{Vector3f(temp), light.intensity});
 	}
 
 	for (size_t i = 0; i < size; i++)
 	{
-		drawShaderTriangle(positions[i], normals[i], texture_coordinates[i], viewspace_positions[i], model.texture);
+		drawShaderTriangle(
+			positions[i], normals[i], texture_coordinates[i], viewspace_positions[i], world_positions[i], temp, lights);
+	}
+
+	/* Deferred Rendering */
+#pragma omp parallel for collapse(2)
+	for (int y = 0; y <= height - 1; y++)
+	{
+		for (int x = 0; x <= width - 1; x++)
+		{
+			auto& buffer = this->g_buffer[(height - 1 - y) * width + x];
+
+			if (!buffer.flag)
+			{
+				continue;
+			}
+
+			/* Load shading data */
+			Shader shader{};
+			shader.normal = buffer.normal;
+			shader.texture_coordinate = buffer.texture_coordinate;
+			shader.shading_point = buffer.shading_point;
+			shader.world_point = buffer.world_point;
+			shader.texture = temp;
+			shader.lights = lights;
+
+			/* Shader calculation shading */
+			Vector3f ka = Vector3f(0.005, 0.005, 0.005);
+			Vector3f kd = Vector3f(0.6);
+			Vector3f ks = Vector3f(0, 0, 0);
+
+			Vector3f amb_light_intensity{10, 10, 10};
+			Vector3f eye_pos{0, 0, 0};
+
+			float p = 150;
+
+			Vector3f color = Vector3f(0);
+			Vector3f point = shader.shading_point;
+			Vector3f normal = shader.normal;
+
+			Vector3f result_color = {0, 0, 0};
+
+			float con = 0;
+			int count = 0;
+			for (size_t i = 0; i < shader.lights.size(); i++)
+			{
+				auto& light = shader.lights[i];
+				auto& light_position = light.position;
+
+				Vector3f point_to_light = normalize(shader.world_point - light_position);
+				auto faceIndex = getCubemapFace(point_to_light);
+
+				auto view = glm::lookAt(light_position, light_position + looks[faceIndex], ups[faceIndex]);
+				auto project = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 20.0f);
+
+				Vector4f P_light = project * view * Vector4f(shader.world_point, 1.0);
+				P_light /= P_light.w;
+
+				int x = (P_light.x + 1.0) * 0.5 * (1024 - 1);
+				int y = (P_light.y + 1.0) * 0.5 * (1024 - 1);
+
+				
+				for (int k = std::max(0, x - 2); k <= std::min(1023, x + 2); k++)
+				{
+					for (int l = std::max(0, y - 2); l <= std::min(1023, y + 2); l++)
+					{
+						float shadowDepth = shadow_maps[i][faceIndex][(height - 1 - l) * width + k];
+						float bias = 0.0001;
+						con += (P_light.z - bias) < shadowDepth ? 1.0f : 0.1f;
+						count++;
+					}
+				}
+				
+
+				//float shadowDepth = shadow_maps[i][faceIndex][(height - 1 - y) * width + x];
+				//float bias = 0.0001 * (1.0 - P_light.z / 20.0f);
+				//float con = (P_light.z - bias) < shadowDepth ? 1.0f : 0.1f;
+
+				auto view_light_position = Vector3f(this->view * Vector4f(light_position, 1.0));
+
+				auto l = glm::normalize(view_light_position - point);
+				auto v = glm::normalize(eye_pos - point);
+				auto n = normal;
+
+				auto r2 = glm::dot((view_light_position - point), (view_light_position - point));
+				auto Ld = kd * ((light.intensity) / r2) * std::max(0.0f, glm::dot(normal, l));
+
+				auto h = glm::normalize(v + l);
+				auto Ls = ks * ((light.intensity) / r2) * pow(std::max(0.0f, glm::dot(normal, h)), p);
+
+				result_color += Ls + Ld;
+
+				
+			}
+
+			con /= (float)count;
+			result_color *= con;
+
+			auto La = ka * (amb_light_intensity);
+			result_color += La;
+
+			Vector2i c{x, y};
+			// setPixel(point, pixel_color);
+			setPixel(c, result_color);
+
+			
+		}
+
+		
 	}
 }
 
@@ -270,6 +453,7 @@ void Rasterizer::clear()
 {
 	std::fill(screen_buffer.begin(), screen_buffer.end(), Vector4f{0, 0, 0, 0});
 	std::fill(depth_buffer.begin(), depth_buffer.end(), std::numeric_limits<float>::infinity());
+	std::fill(g_buffer.begin(), g_buffer.end(), GBuffer{});
 }
 
 void Rasterizer::setModel(Matrix4f model)
@@ -287,4 +471,114 @@ void Rasterizer::setProjection(Matrix4f projection)
 	this->projection = projection;
 }
 
+void Rasterizer::updateShadowMaps(Model model)
+{
+	/* For each light */
+	for (size_t i = 0; i < this->shadow_maps.size(); i++)
+	{
+		/* For each face */
+		for (size_t j = 0; j < 6; j++)
+		{
+			auto& shadow_map = this->shadow_maps[i][j];
+			std::fill(shadow_map.begin(), shadow_map.end(), std::numeric_limits<float>::infinity());
 
+			auto& light_position = this->lights[i].position;
+
+			auto view = glm::lookAt(light_position, light_position + looks[j], ups[j]);
+			auto project = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 20.0f);
+
+			auto mvp = project * view * this->model;
+
+			std::vector<std::array<Vector4f, 3>> positions;
+
+			size_t size = model.faces.size();
+			positions.resize(size);
+
+#pragma omp parallel for
+			for (int i = 0; i < size; i++)
+			{
+				auto& triangle = model.faces[i];
+
+				auto& a = triangle.vertex1;
+				auto& b = triangle.vertex2;
+				auto& c = triangle.vertex3;
+
+				/* Transform the position */
+				auto trans_position = [mvp, this](const Point point) {
+					Vector4f result = mvp * this->getHomogeneous(point);
+					result /= result.w;
+					result.x = (result.x + 1.0) * 0.5 * (1024 - 1);
+					result.y = (result.y + 1.0) * 0.5 * (1024 - 1);
+					return result;
+				};
+				positions[i] = {trans_position(a.position), trans_position(b.position), trans_position(c.position)};
+			}
+
+			for (int i = 0; i < size; i++)
+			{
+				auto& position = positions[i];
+
+				auto& v0 = position[0];
+				auto& v1 = position[1];
+				auto& v2 = position[2];
+
+				/* Calculate the bounding box of the triangle */
+				int x_max = std::ceil(std::max(v0.x, std::max(v1.x, v2.x)));
+				int x_min = std::ceil(std::min(v0.x, std::min(v1.x, v2.x)));
+				int y_max = std::ceil(std::max(v0.y, std::max(v1.y, v2.y)));
+				int y_min = std::ceil(std::min(v0.y, std::min(v1.y, v2.y)));
+
+				x_max = std::min(x_max, 1023);
+				x_min = std::max(0, x_min);
+				y_max = std::min(y_max, 1023);
+				y_min = std::max(0, y_min);
+
+				/* For each pixel in the bounding box, determine whether it is inside the triangle and rasterize the
+				 * triangle */
+#pragma omp parallel for collapse(2)
+				for (int y = y_min; y <= y_max; y++)
+				{
+					for (int x = x_min; x <= x_max; x++)
+					{
+						/* Check if it is inside the triangle */
+						if (isInsideTriangle(x, y, position))
+						{
+							/* Get the center of gravity coordinates */
+							auto barycentric = get2DBarycentric(x, y, position);
+							float alpha = barycentric.x;
+							float beta = barycentric.y;
+							float gamma = barycentric.z;
+
+							/* Perform interpolation on depth */
+							float z_interpolated = alpha * v0.z + beta * v1.z + gamma * v2.z;
+
+							/* Depth buffer */
+							if (z_interpolated < shadow_map[(height - 1 - y) * width + x])
+							{
+								shadow_map[(height - 1 - y) * width + x] = z_interpolated;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void Rasterizer::genetareShadowMaps(Model model)
+{
+	this->lights = model.lights;
+	this->shadow_maps.resize(this->lights.size());
+
+	/* For each light */
+	for (size_t i = 0; i < this->shadow_maps.size(); i++)
+	{
+		this->shadow_maps[i].resize(6);
+
+		/* For each face */
+		for (size_t j = 0; j < 6; j++)
+		{
+			this->shadow_maps[i][j].resize(1024 * 1024, std::numeric_limits<float>::infinity());
+		}
+	}
+}

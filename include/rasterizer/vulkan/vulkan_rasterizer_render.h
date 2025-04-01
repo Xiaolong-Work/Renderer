@@ -14,6 +14,7 @@
 #include <swap_chain_manager.h>
 #include <texture_manager.h>
 
+#include <model.h>
 #include <tiny_obj_loader.h>
 
 const std::string MODEL_PATH = std::string(ROOT_DIR) + "/models/viking_room/viking_room.obj";
@@ -256,6 +257,172 @@ protected:
 			contentManager.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 
+	void setupShadowMapRenderPass()
+	{
+		/* Shadow calculation subpass configurationt */
+		VkAttachmentDescription shadow_map_attachment{};
+		shadow_map_attachment.flags = 0;
+		shadow_map_attachment.format = VK_FORMAT_D32_SFLOAT;
+		shadow_map_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		shadow_map_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		shadow_map_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		shadow_map_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		shadow_map_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		shadow_map_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		shadow_map_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+		VkAttachmentReference shadow_map_attachment_reference{};
+		shadow_map_attachment_reference.attachment = 0;
+		shadow_map_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription subpass{};
+		subpass.flags = 0;
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.inputAttachmentCount = 0;
+		subpass.pInputAttachments = nullptr;
+		subpass.colorAttachmentCount = 0;
+		subpass.pColorAttachments = nullptr;
+		subpass.pResolveAttachments = nullptr;
+		subpass.pDepthStencilAttachment = &shadow_map_attachment_reference;
+		subpass.preserveAttachmentCount = 0;
+		subpass.pPreserveAttachments = nullptr;
+
+		VkSubpassDependency dependency{};
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependency.dstSubpass = 0;
+		dependency.srcStageMask =
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.srcAccessMask = 0;
+		dependency.dstStageMask =
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		dependency.dependencyFlags = 0;
+	}
+
+	void setupRenderPass()
+	{
+		int attachment_count = 0;
+		int subpass_count = 0;
+		std::vector<VkAttachmentDescription> attachments;
+		std::vector<VkSubpassDescription> subpasses;
+
+		/* Geometry Processing Subpass Configuration */
+		std::vector<VkAttachmentDescription> geometry_buffer_attachments{};
+		geometry_buffer_attachments.resize(6);
+
+		for (size_t i = 0; i < geometry_buffer_attachments.size(); i++)
+		{
+			geometry_buffer_attachments[i].flags = 0;
+			geometry_buffer_attachments[i].samples = VK_SAMPLE_COUNT_1_BIT;
+			geometry_buffer_attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			geometry_buffer_attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			geometry_buffer_attachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			geometry_buffer_attachments[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			geometry_buffer_attachments[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			geometry_buffer_attachments[i].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		}
+		/* Position attachment */
+		geometry_buffer_attachments[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		/* Normal Attachment */
+		geometry_buffer_attachments[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		/* Albedo Attachment */
+		geometry_buffer_attachments[2].format = VK_FORMAT_R8G8B8A8_UNORM;
+		/* Roughness Attachment */
+		geometry_buffer_attachments[3].format = VK_FORMAT_R8G8_UNORM;
+		/* Material Index Attachment */
+		geometry_buffer_attachments[4].format = VK_FORMAT_R8_UINT;
+		/* Depth Buffer Attachment */
+		geometry_buffer_attachments[5].format = VK_FORMAT_D32_SFLOAT;
+		geometry_buffer_attachments[5].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		attachments.insert(attachments.end(), geometry_buffer_attachments.begin(), geometry_buffer_attachments.end());
+
+		std::vector<VkAttachmentReference> geometry_buffer_color_attachment_reference(5);
+		for (int i = 0; i < 5; i++)
+		{
+			geometry_buffer_color_attachment_reference[i].attachment = attachment_count++;
+			geometry_buffer_color_attachment_reference[i].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		}
+		VkAttachmentReference geometry_buffer_depth_attachment_reference{};
+		geometry_buffer_depth_attachment_reference.attachment = attachment_count++;
+		geometry_buffer_depth_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription geometry_buffer_subpass{};
+		geometry_buffer_subpass.flags = 0;
+		geometry_buffer_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		geometry_buffer_subpass.inputAttachmentCount = static_cast<uint32_t>(0);
+		geometry_buffer_subpass.pInputAttachments = nullptr;
+		geometry_buffer_subpass.colorAttachmentCount =
+			static_cast<uint32_t>(geometry_buffer_color_attachment_reference.size());
+		geometry_buffer_subpass.pColorAttachments = geometry_buffer_color_attachment_reference.data();
+		geometry_buffer_subpass.pResolveAttachments = nullptr;
+		geometry_buffer_subpass.pDepthStencilAttachment = &geometry_buffer_depth_attachment_reference;
+		geometry_buffer_subpass.preserveAttachmentCount = static_cast<uint32_t>(0);
+		geometry_buffer_subpass.pPreserveAttachments = nullptr;
+		subpasses.push_back(geometry_buffer_subpass);
+
+		/* Framebuffer image color attachment */
+		VkAttachmentDescription frame_color_attachment{};
+		frame_color_attachment.flags = 0;
+		frame_color_attachment.format = swap_chain_manager.format;
+		frame_color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		frame_color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		frame_color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		frame_color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		frame_color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		frame_color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		frame_color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		attachments.push_back(frame_color_attachment);
+
+		VkAttachmentReference frame_color_attachment_reference{};
+		frame_color_attachment_reference.attachment = attachment_count++;
+		frame_color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription light_compute_subpass{};
+		light_compute_subpass.flags = 0;
+		light_compute_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		light_compute_subpass.inputAttachmentCount = 0;	   // TODO
+		light_compute_subpass.pInputAttachments = nullptr; // TODO
+		light_compute_subpass.colorAttachmentCount = 1;
+		light_compute_subpass.pColorAttachments = &frame_color_attachment_reference;
+		light_compute_subpass.pResolveAttachments = nullptr;
+		light_compute_subpass.pDepthStencilAttachment = nullptr;
+		light_compute_subpass.preserveAttachmentCount = 0;
+		light_compute_subpass.pPreserveAttachments = nullptr;
+		subpasses.push_back(light_compute_subpass);
+
+		VkSubpassDescription subpass{};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &frame_color_attachment_reference;
+		subpass.pDepthStencilAttachment = nullptr;
+
+		VkSubpassDependency dependency{};
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependency.dstSubpass = 0;
+		dependency.srcStageMask =
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.srcAccessMask = 0;
+		dependency.dstStageMask =
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		dependency.dependencyFlags = 0;
+
+		// std::array<VkAttachmentDescription, 2> attachments = {frame_color_attachment, depthAttachment};
+		// VkRenderPassCreateInfo renderPassInfo{};
+		// renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		// renderPassInfo.attachmentCount = 2;
+		// renderPassInfo.pAttachments = attachments.data();
+		// renderPassInfo.subpassCount = 1;
+		// renderPassInfo.pSubpasses = &subpass;
+		// renderPassInfo.dependencyCount = 1;
+		// renderPassInfo.pDependencies = &dependency;
+
+		// if (vkCreateRenderPass(contentManager.device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
+		//{
+		//	throw std::runtime_error("Failed to create render pass!");
+		// }
+	}
+
 	void loadModel()
 	{
 		tinyobj::attrib_t attrib;
@@ -291,6 +458,9 @@ protected:
 
 	void init()
 	{
+		// temp
+		this->lights.push_back(Light{});
+
 		this->contentManager.init();
 		auto pContentManager = std::make_shared<ContentManager>(this->contentManager);
 
@@ -301,6 +471,10 @@ protected:
 		this->swap_chain_manager = SwapChainManager(pContentManager, pCommandManager);
 		this->swap_chain_manager.init();
 		auto pSwapChainManager = std::make_shared<SwapChainManager>(this->swap_chain_manager);
+
+		this->point_light_shadow_map_image_manager = PointLightShadowMapImageManager(pContentManager, pCommandManager);
+		this->point_light_shadow_map_image_manager.light_number = this->lights.size();
+		this->point_light_shadow_map_image_manager.init();
 
 		this->render_pass_manager = RenderPassManager(pContentManager, pSwapChainManager, pCommandManager);
 		this->render_pass_manager.init();
@@ -362,6 +536,8 @@ protected:
 		this->graphics_pipeline_manager.clear();
 
 		this->render_pass_manager.clear();
+
+		this->point_light_shadow_map_image_manager.clear();
 
 		this->swap_chain_manager.clear();
 
@@ -570,4 +746,8 @@ private:
 
 	bool windowResized = false;
 	double mousePositionX = 0.0f, mousePositionY = 0.0f;
+
+	std::vector<Light> lights;
+
+	PointLightShadowMapImageManager point_light_shadow_map_image_manager{};
 };

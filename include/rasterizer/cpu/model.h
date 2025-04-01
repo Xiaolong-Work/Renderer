@@ -9,10 +9,17 @@
 #include <utils.h>
 #include <vertex.h>
 
+struct Light
+{
+	Vector3f position;
+	Vector3f intensity;
+};
+
 class Model
 {
 public:
 	std::vector<Triangle> faces;
+	std::vector<Light> lights;
 	Texture texture;
 
 	Model();
@@ -24,6 +31,8 @@ public:
 
 	/* Loading the texture */
 	bool loadTexture(const std::string& texture_filepath);
+
+	bool texture_flag = false;
 
 	/* Clear data */
 	void clear();

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_transform.hpp>
+
 #include <algorithm>
 #include <array>
 #include <functional>
@@ -10,6 +13,16 @@
 #include <shader.h>
 #include <triangle.h>
 #include <utils.h>
+
+struct GBuffer
+{
+	Point shading_point;
+	Point world_point;
+	Direction normal;
+	Coordinate2D texture_coordinate;
+	unsigned int texture_index;
+	bool flag{false};
+};
 
 class Rasterizer
 {
@@ -40,7 +53,9 @@ public:
 							const std::array<Direction, 3>& normal,
 							const std::array<Coordinate2D, 3>& texture_coordinate,
 							const std::array<Vector3f, 3>& viewspace_positions,
-							Texture texture);
+							const std::array<Point, 3> world_position,
+							Texture* texture,
+							const std::vector<Light>& lights);
 
 	/* Display the shaded triangle model */
 	void drawShaderTriangleframe(Model model);
@@ -71,6 +86,46 @@ public:
 	/* Screen buffer */
 	std::vector<Vector4f> screen_buffer;
 
+	int getCubemapFace(Vector3f dir)
+	{
+		Vector3f absDir = abs(dir);
+		if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+		{
+			return (dir.x > 0) ? 0 : 1; // +X, -X
+		}
+		else if (absDir.y >= absDir.x && absDir.y >= absDir.z)
+		{
+			return (dir.y > 0) ? 2 : 3; // +Y, -Y
+		}
+		else
+		{
+			return (dir.z > 0) ? 4 : 5; // +Z, -Z
+		}
+	}
+
 	/* shader */
-	std::function<Vector3f(Shader)> shader;
+	std::function<Vector3f(Shader, const std::vector<std::vector<std::vector<float>>>&)> shader;
+
+	std::vector<Direction> ups = {Direction(0, -1, 0),
+								  Direction(0, -1, 0),
+								  Direction(0, 0, 1),
+								  Direction(0, 0, -1),
+								  Direction(0, -1, 0),
+								  Direction(0, -1, 0)};
+
+	std::vector<Vector3f> looks{Direction(1, 0, 0),
+								Direction(-1, 0, 0),
+								Direction(0, 1, 0),
+								Direction(0, -1, 0),
+								Direction(0, 0, 1),
+								Direction(0, 0, -1)};
+
+	void genetareShadowMaps(Model model);
+	void updateShadowMaps(Model model);
+
+	std::vector<std::vector<std::vector<float>>> shadow_maps;
+
+	std::vector<Light> lights;
+
+	std::vector<GBuffer> g_buffer;
 };

@@ -73,3 +73,28 @@ public:
 	VkDeviceMemory imageMemory;
 	VkImageView imageView;
 };
+
+class PointLightShadowMapImageManager : public ImageManager
+{
+public:
+	PointLightShadowMapImageManager() = default;
+	PointLightShadowMapImageManager(const ContentManagerSPtr& pContentManager,
+									const CommandManagerSPtr& pCommandManager);
+
+	void init();
+	void clear();
+
+	VkImage image{};
+	VkDeviceMemory memory{};
+	VkImageView view{};
+	VkSampler sampler{};
+
+	int light_number{0};
+	unsigned int width{1024};
+	unsigned int height{1024};
+
+protected:
+	void createImageResource();
+
+	void createSampler();
+};

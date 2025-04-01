@@ -40,9 +40,11 @@ target_link_libraries(Renderer glfw)
 # OpenMp support
 if (MSVC)
     target_compile_options(PathTracing PRIVATE /openmp)
+	target_compile_options(Rasterizer PRIVATE /openmp)
 else()
 	find_package(OpenMP REQUIRED)
     target_link_libraries(PathTracing PRIVATE OpenMP::OpenMP_CXX)
+	 target_link_libraries(Rasterizer PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
 # Macro Definition

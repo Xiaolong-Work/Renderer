@@ -361,3 +361,118 @@ void StorageImageManager::getData(VkBuffer& stagingBuffer, VkDeviceMemory& stagi
 
 	copyImageToBuffer(this->image, stagingBuffer, this->extent);
 }
+
+PointLightShadowMapImageManager::PointLightShadowMapImageManager(const ContentManagerSPtr& pContentManager,
+																 const CommandManagerSPtr& pCommandManager)
+{
+	this->pContentManager = pContentManager;
+	this->pCommandManager = pCommandManager;
+}
+
+void PointLightShadowMapImageManager::init()
+{
+	createImageResource();
+	createSampler();
+}
+
+void PointLightShadowMapImageManager::clear()
+{
+	vkDestroyImage(pContentManager->device, this->image, nullptr);
+	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+	vkDestroyImageView(pContentManager->device, this->view, nullptr);
+	vkDestroySampler(pContentManager->device, this->sampler, nullptr);
+}
+
+void PointLightShadowMapImageManager::createImageResource()
+{
+	VkImageCreateInfo image_information{};
+	image_information.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	image_information.pNext = nullptr;
+	image_information.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+	image_information.imageType = VK_IMAGE_TYPE_2D;
+	image_information.format = VK_FORMAT_D32_SFLOAT;
+	image_information.extent = VkExtent3D{this->width, this->height, 1};
+	image_information.mipLevels = static_cast<uint32_t>(1);
+	image_information.arrayLayers = static_cast<uint32_t>(6 * this->light_number);
+	image_information.samples = VK_SAMPLE_COUNT_1_BIT;
+	image_information.tiling = VK_IMAGE_TILING_OPTIMAL;
+	image_information.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	image_information.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	image_information.queueFamilyIndexCount = static_cast<uint32_t>(0);
+	image_information.pQueueFamilyIndices = nullptr;
+	image_information.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	if (vkCreateImage(pContentManager->device, &image_information, nullptr, &this->image) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create image!");
+	}
+
+	VkMemoryRequirements memory_requirements;
+	vkGetImageMemoryRequirements(pContentManager->device, this->image, &memory_requirements);
+
+	VkMemoryAllocateInfo alloc_information{};
+	alloc_information.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	alloc_information.allocationSize = memory_requirements.size;
+	alloc_information.memoryTypeIndex =
+		findMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	if (vkAllocateMemory(pContentManager->device, &alloc_information, nullptr, &this->memory) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to allocate image memory!");
+	}
+
+	vkBindImageMemory(pContentManager->device, this->image, this->memory, 0);
+
+	VkImageViewCreateInfo view_information{};
+	view_information.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	view_information.pNext = nullptr;
+	view_information.flags = 0;
+	view_information.image = this->image;
+	view_information.viewType = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+	view_information.format = VK_FORMAT_D32_SFLOAT;
+	view_information.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	view_information.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	view_information.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	view_information.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	view_information.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	view_information.subresourceRange.baseMipLevel = static_cast<uint32_t>(0);
+	view_information.subresourceRange.levelCount = static_cast<uint32_t>(1);
+	view_information.subresourceRange.baseArrayLayer = static_cast<uint32_t>(0);
+	view_information.subresourceRange.layerCount = static_cast<uint32_t>(6 * this->light_number);
+
+	if (vkCreateImageView(pContentManager->device, &view_information, nullptr, &this->view) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create image view!");
+	}
+
+	transformLayout(
+		this->image, VK_FORMAT_D32_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+}
+
+void PointLightShadowMapImageManager::createSampler()
+{
+	VkSamplerCreateInfo sampler_information{};
+	sampler_information.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	sampler_information.pNext = nullptr;
+	sampler_information.flags = 0;
+	sampler_information.magFilter = VK_FILTER_LINEAR;
+	sampler_information.minFilter = VK_FILTER_LINEAR;
+	sampler_information.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	sampler_information.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	sampler_information.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	sampler_information.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	sampler_information.mipLodBias = 0.0f;
+	sampler_information.anisotropyEnable = VK_FALSE;
+	sampler_information.maxAnisotropy = 1.0f;
+	sampler_information.compareEnable = VK_TRUE;
+	sampler_information.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	sampler_information.minLod = 0.0f;
+	sampler_information.maxLod = 0.0f;
+	sampler_information.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	sampler_information.unnormalizedCoordinates = VK_FALSE;
+
+	if (vkCreateSampler(pContentManager->device, &sampler_information, nullptr, &this->sampler) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create texture sampler!");
+	}
+}

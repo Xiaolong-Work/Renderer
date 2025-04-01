@@ -265,7 +265,7 @@ public:
 		vkCmdBindDescriptorSets(
 			commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
-		vkCmdDispatch(commandBuffer, this->bufferManager.scene.width / 16, this->bufferManager.scene.height / 16, 1);
+		vkCmdDispatch(commandBuffer, this->bufferManager.scene.width / 8, this->bufferManager.scene.height / 8, 1);
 
 		commandManager.endComputeCommands(commandBuffer);
 

@@ -18,12 +18,11 @@ enum class MaterialType
 };
 
 /**
- * @class Material
- * @brief A class representing a material in a rendering system.
+ * @struct Material
+ * @brief A struct representing a material in a rendering system.
  */
-class Material
+struct Material
 {
-public:
 	/* The name of the material. */
 	std::string name;
 
@@ -56,4 +55,8 @@ public:
 
 	/* The texture associated with the material. */
 	Texture texture;
+};
+
+class PBRMaterial
+{
 };

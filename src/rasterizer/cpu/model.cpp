@@ -101,6 +101,7 @@ bool Model::loadObject(const std::string& object_filename)
 bool Model::loadTexture(const std::string& texture_filepath)
 {
 	this->texture.setTexture(texture_filepath);
+	this->texture_flag = true;
 	return true;
 }
 

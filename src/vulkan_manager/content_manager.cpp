@@ -404,6 +404,7 @@ void ContentManager::createLogicalDevice()
 	/* Physical device characteristic information used by logical devices */
 	VkPhysicalDeviceFeatures deviceFeatures{};
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
+	deviceFeatures.imageCubeArray = VK_TRUE;
 
 	/* Logical device creation information */
 	VkDeviceCreateInfo createInfo{};

@@ -1,6 +1,6 @@
 #include <render_pass_manager.h>
 
-RenderPassManager::RenderPassManager(const ContentManagerSPtr& pContentManager,
+RenderPassManager::RenderPassManager(const ContextManagerSPtr& pContentManager,
 									 const SwapChainManagerSPtr& pSwapChainManager,
 									 const CommandManagerSPtr& pCommandManager)
 {

@@ -13,7 +13,7 @@ class TextureManager : public ImageManager
 {
 public:
 	TextureManager() = default;
-	TextureManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& commandManager);
+	TextureManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& command_manager);
 
 	void init();
 	void clear();

@@ -10,7 +10,7 @@ void VulkanPathTracingRender::saveResult()
 	this->storageImageManager.getData(stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(this->contentManager.device,
+	vkMapMemory(this->context_manager.device,
 				stagingBufferMemory,
 				0,
 				this->bufferManager.scene.height * this->bufferManager.scene.width * 4,
@@ -50,6 +50,6 @@ void VulkanPathTracingRender::saveResult()
 
 	std::cout << "The rendering result has been written to " << path << std::endl;
 
-	vkDestroyBuffer(contentManager.device, stagingBuffer, nullptr);
-	vkFreeMemory(contentManager.device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer(context_manager.device, stagingBuffer, nullptr);
+	vkFreeMemory(context_manager.device, stagingBufferMemory, nullptr);
 }

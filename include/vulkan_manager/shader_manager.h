@@ -2,13 +2,13 @@
 
 #include <fstream>
 
-#include <content_manager.h>
+#include <context_manager.h>
 
 class ShaderManager
 {
 public:
 	ShaderManager() = default;
-	ShaderManager(const ContentManagerSPtr& pContentManager);
+	ShaderManager(const ContextManagerSPtr& pContentManager);
 
 	void init();
 	void clear();
@@ -23,7 +23,7 @@ protected:
 	void createShaderModule();
 
 private:
-	ContentManagerSPtr pContentManager;
+	ContextManagerSPtr pContentManager;
 	std::vector<char> code;
 	std::string shaderName;
 };

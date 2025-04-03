@@ -1,4 +1,4 @@
-#include <content_manager.h>
+#include <context_manager.h>
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 													VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -13,7 +13,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
 	return VK_FALSE;
 }
 
-void ContentManager::init()
+void ContextManager::init()
 {
 	createWindow();
 
@@ -33,7 +33,7 @@ void ContentManager::init()
 	createLogicalDevice();
 }
 
-void ContentManager::clear()
+void ContextManager::clear()
 {
 	if (this->enableValidationLayers)
 	{
@@ -50,24 +50,24 @@ void ContentManager::clear()
 	glfwTerminate();
 }
 
-void ContentManager::setExtent(const VkExtent2D& extent)
+void ContextManager::setExtent(const VkExtent2D& extent)
 {
 	this->windowWidth = extent.width;
 	this->windowHeight = extent.height;
 }
 
-void ContentManager::createWindow()
+void ContextManager::createWindow()
 {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	if (!this->enable_window_resize)
 	{
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);  
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	}
 	this->window = glfwCreateWindow(this->windowWidth, this->windowHeight, "Vulkan", nullptr, nullptr);
 }
 
-void ContentManager::createInstance()
+void ContextManager::createInstance()
 {
 	/* Application Information */
 	VkApplicationInfo applicationInfo{};
@@ -123,7 +123,7 @@ void ContentManager::createInstance()
 	}
 }
 
-std::vector<const char*> ContentManager::getRequiredInstanceExtensions()
+std::vector<const char*> ContextManager::getRequiredInstanceExtensions()
 {
 	/* Get the required extensions for GLFW */
 	uint32_t glfwExtensionCount = 0;
@@ -138,7 +138,7 @@ std::vector<const char*> ContentManager::getRequiredInstanceExtensions()
 	return extensions;
 }
 
-bool ContentManager::checkInstanceExtensionSupport()
+bool ContextManager::checkInstanceExtensionSupport()
 {
 	/* Get the number of available extensions */
 	uint32_t extensionCount;
@@ -171,14 +171,14 @@ bool ContentManager::checkInstanceExtensionSupport()
 	return true;
 }
 
-std::vector<const char*> ContentManager::getRequiredValidationLayers()
+std::vector<const char*> ContextManager::getRequiredValidationLayers()
 {
 	std::vector<const char*> validationLayers{};
 	validationLayers.push_back("VK_LAYER_KHRONOS_validation");
 	return validationLayers;
 }
 
-bool ContentManager::checkValidationLayerSupport()
+bool ContextManager::checkValidationLayerSupport()
 {
 	/* Get the number of available validation layers */
 	uint32_t layerPropertyCount;
@@ -211,7 +211,7 @@ bool ContentManager::checkValidationLayerSupport()
 	return true;
 }
 
-void ContentManager::createDebugMessenger()
+void ContextManager::createDebugMessenger()
 {
 	if (!this->enableValidationLayers)
 	{
@@ -242,7 +242,7 @@ void ContentManager::createDebugMessenger()
 	}
 }
 
-void ContentManager::choosePhysicalDevice()
+void ContextManager::choosePhysicalDevice()
 {
 	/* Get the number of physical devices */
 	uint32_t deviceCount = 0;
@@ -261,33 +261,33 @@ void ContentManager::choosePhysicalDevice()
 	{
 		if (isDeviceSuitable(device))
 		{
-			this->physicalDevice = device;
+			this->physical_device = device;
 			break;
 		}
 	}
-	if (this->physicalDevice == VK_NULL_HANDLE)
+	if (this->physical_device == VK_NULL_HANDLE)
 	{
 		throw std::runtime_error("Failed to find a suitable GPU!");
 	}
 }
 
-bool ContentManager::isDeviceSuitable(VkPhysicalDevice physicalDevice)
+bool ContextManager::isDeviceSuitable(VkPhysicalDevice physical_device)
 {
-	if (!checkDeviceExtensionSupport(physicalDevice))
+	if (!checkDeviceExtensionSupport(physical_device))
 	{
 		return false;
 	}
 
 	/* Get the number of queue families */
 	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
+	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queueFamilyCount, nullptr);
 
 	/* Get queue family details */
 	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queueFamilyCount, queueFamilies.data());
 
 	VkPhysicalDeviceFeatures supportedFeatures;
-	vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
+	vkGetPhysicalDeviceFeatures(physical_device, &supportedFeatures);
 	if (!supportedFeatures.samplerAnisotropy)
 	{
 		return false;
@@ -313,7 +313,7 @@ bool ContentManager::isDeviceSuitable(VkPhysicalDevice physicalDevice)
 		}
 
 		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, this->surface, &presentSupport);
+		vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, this->surface, &presentSupport);
 		if (present == -1 && presentSupport)
 		{
 			present = i;
@@ -334,29 +334,29 @@ bool ContentManager::isDeviceSuitable(VkPhysicalDevice physicalDevice)
 	}
 }
 
-std::vector<const char*> ContentManager::getRequiredDeviceExtensions()
+std::vector<const char*> ContextManager::getRequiredDeviceExtensions()
 {
-	std::vector<const char*> deviceExtensions{};
-	if (this->enableRayTracing)
+	std::vector<const char*> device_extensions{};
+	if (this->enable_ray_tracing)
 	{
-		deviceExtensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-		deviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-		deviceExtensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
-		deviceExtensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+		device_extensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+		device_extensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+		device_extensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+		device_extensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
 	}
-	deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-	return deviceExtensions;
+	device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+	return device_extensions;
 }
 
-bool ContentManager::checkDeviceExtensionSupport(VkPhysicalDevice physicalDevice)
+bool ContextManager::checkDeviceExtensionSupport(VkPhysicalDevice physical_device)
 {
 	/* Get the number of extensions supported by the physical device */
 	uint32_t extensionCount;
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
+	vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensionCount, nullptr);
 
 	/* Get all extensions supported by the physical device */
 	std::vector<VkExtensionProperties> extensionProperties(extensionCount);
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, extensionProperties.data());
+	vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extensionCount, extensionProperties.data());
 
 	for (const char* extensionName : getRequiredDeviceExtensions())
 	{
@@ -381,7 +381,7 @@ bool ContentManager::checkDeviceExtensionSupport(VkPhysicalDevice physicalDevice
 	return true;
 }
 
-void ContentManager::createLogicalDevice()
+void ContextManager::createLogicalDevice()
 {
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 	std::set<uint32_t> uniqueQueueFamilies = {
@@ -431,7 +431,7 @@ void ContentManager::createLogicalDevice()
 	}
 
 	/* Creating a Logical Device */
-	if (vkCreateDevice(this->physicalDevice, &createInfo, nullptr, &this->device) != VK_SUCCESS)
+	if (vkCreateDevice(this->physical_device, &createInfo, nullptr, &this->device) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create logical device!");
 	}
@@ -443,7 +443,7 @@ void ContentManager::createLogicalDevice()
 	vkGetDeviceQueue(this->device, this->computeFamily, 0, &this->computeQueue);
 }
 
-void ContentManager::createSurface()
+void ContextManager::createSurface()
 {
 	if (glfwCreateWindowSurface(this->instance, this->window, nullptr, &this->surface) != VK_SUCCESS)
 	{

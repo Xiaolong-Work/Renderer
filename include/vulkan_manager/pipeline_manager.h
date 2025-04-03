@@ -7,13 +7,13 @@
 #include <vector>
 
 #include <buffer_manager.h>
-#include <content_manager.h>
+#include <context_manager.h>
 
 class PipelineManager
 {
 public:
 	PipelineManager() = default;
-	PipelineManager(const ContentManagerSPtr& pContentManager);
+	PipelineManager(const ContextManagerSPtr& pContentManager);
 
 	void init();
 	void clear();
@@ -51,5 +51,5 @@ private:
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	VkRenderPass renderPass;
 
-	ContentManagerSPtr pContentManager;
+	ContextManagerSPtr pContentManager;
 };

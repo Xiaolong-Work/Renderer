@@ -1,6 +1,6 @@
 #include <command_manager.h>
 
-CommandManager::CommandManager(const ContentManagerSPtr& pContentManager)
+CommandManager::CommandManager(const ContextManagerSPtr& pContentManager)
 {
 	this->pContentManager = pContentManager;
 }

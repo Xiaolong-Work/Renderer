@@ -2,7 +2,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 
-ImageManager::ImageManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
+ImageManager::ImageManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
 	this->pCommandManager = pCommandManager;
@@ -270,7 +270,7 @@ VkImageView ImageManager::createView(VkImage image, VkFormat format, VkImageAspe
 	return imageView;
 }
 
-DepthImageManager::DepthImageManager(const ContentManagerSPtr& pContentManager,
+DepthImageManager::DepthImageManager(const ContextManagerSPtr& pContentManager,
 									 const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
@@ -307,7 +307,7 @@ VkFormat DepthImageManager::findSupportedFormat(const std::vector<VkFormat>& can
 	for (VkFormat format : candidates)
 	{
 		VkFormatProperties props;
-		vkGetPhysicalDeviceFormatProperties(pContentManager->physicalDevice, format, &props);
+		vkGetPhysicalDeviceFormatProperties(pContentManager->physical_device, format, &props);
 
 		if ((props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) ==
 			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
@@ -320,7 +320,7 @@ VkFormat DepthImageManager::findSupportedFormat(const std::vector<VkFormat>& can
 	throw std::runtime_error("Failed to find supported format!");
 }
 
-StorageImageManager::StorageImageManager(const ContentManagerSPtr& pContentManager,
+StorageImageManager::StorageImageManager(const ContextManagerSPtr& pContentManager,
 										 const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
@@ -362,7 +362,7 @@ void StorageImageManager::getData(VkBuffer& stagingBuffer, VkDeviceMemory& stagi
 	copyImageToBuffer(this->image, stagingBuffer, this->extent);
 }
 
-PointLightShadowMapImageManager::PointLightShadowMapImageManager(const ContentManagerSPtr& pContentManager,
+PointLightShadowMapImageManager::PointLightShadowMapImageManager(const ContextManagerSPtr& pContentManager,
 																 const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;

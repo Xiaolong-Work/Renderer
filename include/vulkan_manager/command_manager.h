@@ -4,13 +4,13 @@
 #include <stdexcept>
 #include <vector>
 
-#include <content_manager.h>
+#include <context_manager.h>
 
 class CommandManager
 {
 public:
 	CommandManager() = default;
-	CommandManager(const ContentManagerSPtr& pContentManager);
+	CommandManager(const ContextManagerSPtr& pContentManager);
 
 	void init();
 	void clear();
@@ -33,7 +33,7 @@ private:
 	VkCommandPool transferCommandPool = VK_NULL_HANDLE;
 	VkCommandPool computeCommandPool = VK_NULL_HANDLE;
 
-	ContentManagerSPtr pContentManager;
+	ContextManagerSPtr pContentManager;
 };
 
 typedef std::shared_ptr<CommandManager> CommandManagerSPtr;

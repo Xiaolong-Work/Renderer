@@ -255,7 +255,7 @@ public:
 	VkFence inFlightFences;
 
 protected:
-	ContentManager content_manager{};
+	ContextManager content_manager{};
 
 	CommandManager command_manager{};
 

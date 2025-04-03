@@ -1,6 +1,6 @@
 #pragma once
 
-#include <content_manager.h>
+#include <context_manager.h>
 #include <image_manager.h>
 #include <swap_chain_manager.h>
 
@@ -10,7 +10,7 @@ class RenderPassManager
 {
 public:
 	RenderPassManager() = default;
-	RenderPassManager(const ContentManagerSPtr& pContentManager,
+	RenderPassManager(const ContextManagerSPtr& pContentManager,
 					  const SwapChainManagerSPtr& pSwapChainManager,
 					  const CommandManagerSPtr& pCommandManager);
 
@@ -31,6 +31,6 @@ protected:
 	void createFramebuffers();
 
 private:
-	ContentManagerSPtr pContentManager;
+	ContextManagerSPtr pContentManager;
 	CommandManagerSPtr pCommandManager;
 };

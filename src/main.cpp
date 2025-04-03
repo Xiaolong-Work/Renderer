@@ -10,15 +10,14 @@
 #include <scene.h>
 #include <utils.h>
 
-#include <renderer_rt_core.h>
-#include <vulkan_rasterizer_render.h>
 #include <cpu_rasterizer_renderer.h>
+#include <vulkan_path_tracing_renderer_rt_core.h>
+#include <vulkan_rasterizer_render.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
 std::map<int, std::string> name = {{0, "cornell-box"}, {1, "veach-mis"}, {2, "bathroom"}};
-
 
 void rasterRenderCPU()
 {
@@ -50,7 +49,7 @@ void pathTracingGPU(const Scene& scene, const int spp)
 
 void pathTracingRTCore()
 {
-	VulkanPathTracingRenderRTCore renderer;
+	VulkanPathTracingRendererRTCore renderer;
 }
 
 void pathTracingRender()
@@ -83,7 +82,7 @@ void pathTracingRender()
 	pathTracingGPU(scene, spp);
 
 	start = std::chrono::system_clock::now();
-	renderer.render(scene);
+	// renderer.render(scene);
 	end = std::chrono::system_clock::now();
 	outputTimeUse("Render CPU", end - start);
 
@@ -92,9 +91,9 @@ void pathTracingRender()
 
 int main()
 {
-	//rasterRenderCPU();
+	// rasterRenderCPU();
 
-	//rasterRender();
+	// rasterRender();
 	pathTracingRender();
 	pathTracingRTCore();
 }

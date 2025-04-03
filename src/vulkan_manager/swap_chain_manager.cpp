@@ -1,9 +1,9 @@
 #include <swap_chain_manager.h>
 
-SwapChainManager::SwapChainManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& commandManager)
+SwapChainManager::SwapChainManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& command_manager)
 {
 	this->pContentManager = pContentManager;
-	this->pCommandManager = commandManager;
+	this->pCommandManager = command_manager;
 }
 
 void SwapChainManager::init()
@@ -25,7 +25,7 @@ VkExtent2D SwapChainManager::getExtent()
 {
 	/* Query surface capabilities */
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-		pContentManager->physicalDevice, pContentManager->surface, &this->capabilities);
+		pContentManager->physical_device, pContentManager->surface, &this->capabilities);
 
 	if (this->capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
 	{
@@ -52,12 +52,12 @@ VkSurfaceFormatKHR SwapChainManager::getFormat()
 	/* Query surface format */
 	uint32_t formatCount;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(
-		pContentManager->physicalDevice, pContentManager->surface, &formatCount, nullptr);
+		pContentManager->physical_device, pContentManager->surface, &formatCount, nullptr);
 	if (formatCount != 0)
 	{
 		this->formats.resize(formatCount);
 		vkGetPhysicalDeviceSurfaceFormatsKHR(
-			pContentManager->physicalDevice, pContentManager->surface, &formatCount, this->formats.data());
+			pContentManager->physical_device, pContentManager->surface, &formatCount, this->formats.data());
 	}
 
 	for (const auto& format : this->formats)
@@ -76,12 +76,12 @@ VkPresentModeKHR SwapChainManager::getPresentMode()
 	/* Query rendering mode */
 	uint32_t presentModeCount;
 	vkGetPhysicalDeviceSurfacePresentModesKHR(
-		pContentManager->physicalDevice, pContentManager->surface, &presentModeCount, nullptr);
+		pContentManager->physical_device, pContentManager->surface, &presentModeCount, nullptr);
 	if (presentModeCount != 0)
 	{
 		this->presentModes.resize(presentModeCount);
 		vkGetPhysicalDeviceSurfacePresentModesKHR(
-			pContentManager->physicalDevice, pContentManager->surface, &presentModeCount, this->presentModes.data());
+			pContentManager->physical_device, pContentManager->surface, &presentModeCount, this->presentModes.data());
 	}
 
 	for (const auto& presentMode : this->presentModes)

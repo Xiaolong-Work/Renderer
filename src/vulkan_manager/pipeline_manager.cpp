@@ -1,6 +1,6 @@
 #include <pipeline_manager.h>
 
-PipelineManager::PipelineManager(const ContentManagerSPtr& pContentManager)
+PipelineManager::PipelineManager(const ContextManagerSPtr& pContentManager)
 {
 	this->pContentManager = pContentManager;
 }

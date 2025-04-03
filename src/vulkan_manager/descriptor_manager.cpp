@@ -1,6 +1,6 @@
 #include <descriptor_manager.h>
 
-DescriptorManager::DescriptorManager(const ContentManagerSPtr& pContentManager)
+DescriptorManager::DescriptorManager(const ContextManagerSPtr& pContentManager)
 {
 	this->pContentManager = pContentManager;
 }

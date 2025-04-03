@@ -1,6 +1,6 @@
 #include <texture_manager.h>
 
-TextureManager::TextureManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
+TextureManager::TextureManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
 	this->pCommandManager = pCommandManager;
@@ -47,7 +47,7 @@ void TextureManager::createEmptyTexture()
 void TextureManager::createSampler()
 {
 	VkPhysicalDeviceProperties properties{};
-	vkGetPhysicalDeviceProperties(pContentManager->physicalDevice, &properties);
+	vkGetPhysicalDeviceProperties(pContentManager->physical_device, &properties);
 
 	VkSamplerCreateInfo samplerInfo{};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

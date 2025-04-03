@@ -1,7 +1,7 @@
 #pragma once
 
 #include <command_manager.h>
-#include <content_manager.h>
+#include <context_manager.h>
 
 #include <array>
 #include <chrono>
@@ -15,7 +15,7 @@ class BufferManager
 {
 public:
 	BufferManager() = default;
-	BufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	BufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	virtual void init() = 0;
 	virtual void clear() = 0;
@@ -37,7 +37,7 @@ protected:
 								 VkBuffer& buffer,
 								 VkDeviceMemory& bufferMemory);
 
-	ContentManagerSPtr pContentManager;
+	ContextManagerSPtr pContentManager;
 	CommandManagerSPtr pCommandManager;
 };
 
@@ -86,7 +86,7 @@ class VertexBufferManager : public BufferManager
 {
 public:
 	VertexBufferManager() = default;
-	VertexBufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	VertexBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	void init() override;
 	void clear() override;
@@ -100,7 +100,7 @@ class IndexBufferManager : public BufferManager
 {
 public:
 	IndexBufferManager() = default;
-	IndexBufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	IndexBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	void init() override;
 	void clear() override;
@@ -121,7 +121,7 @@ class UniformBufferManager : public BufferManager
 {
 public:
 	UniformBufferManager() = default;
-	UniformBufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	UniformBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	void init() override;
 	void clear() override;
@@ -139,7 +139,7 @@ class StorageBufferManager : public BufferManager
 {
 public:
 	StorageBufferManager() = default;
-	StorageBufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	StorageBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	void init() override;
 	void clear() override;
@@ -152,7 +152,7 @@ class StagingBufferManager : public BufferManager
 {
 public:
 	StagingBufferManager() = default;
-	StagingBufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	StagingBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	void init() override;
 	void clear() override;

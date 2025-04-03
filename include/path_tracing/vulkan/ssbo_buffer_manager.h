@@ -120,7 +120,7 @@ class SSBOBufferManager : public BufferManager
 {
 public:
 	SSBOBufferManager() = default;
-	SSBOBufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
+	SSBOBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
 	{
 		this->pContentManager = pContentManager;
 		this->pCommandManager = pCommandManager;

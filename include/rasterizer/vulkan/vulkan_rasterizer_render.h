@@ -35,7 +35,7 @@ public:
 
 	void run()
 	{
-		while (!glfwWindowShouldClose(contentManager.window))
+		while (!glfwWindowShouldClose(context_manager.window))
 		{
 			auto begin = std::chrono::system_clock::now();
 			glfwPollEvents();
@@ -44,7 +44,7 @@ public:
 			outputFrameRate(end - begin);
 		}
 
-		vkDeviceWaitIdle(contentManager.device);
+		vkDeviceWaitIdle(context_manager.device);
 	}
 
 protected:
@@ -80,11 +80,11 @@ protected:
 
 		while (width == 0 || height == 0)
 		{
-			glfwGetFramebufferSize(contentManager.window, &width, &height);
+			glfwGetFramebufferSize(context_manager.window, &width, &height);
 			glfwWaitEvents();
 		}
 
-		vkDeviceWaitIdle(contentManager.device);
+		vkDeviceWaitIdle(context_manager.device);
 
 		this->swap_chain_manager.recreate();
 
@@ -102,9 +102,9 @@ protected:
 									   10.0f);
 		ubo.project[1][1] *= -1;
 
-		glfwSetFramebufferSizeCallback(this->contentManager.window, framebufferResizeCallback);
-		glfwSetCursorPosCallback(this->contentManager.window, cursorPositionCallback);
-		glfwSetWindowUserPointer(this->contentManager.window, this);
+		glfwSetFramebufferSizeCallback(this->context_manager.window, framebufferResizeCallback);
+		glfwSetCursorPosCallback(this->context_manager.window, cursorPositionCallback);
+		glfwSetWindowUserPointer(this->context_manager.window, this);
 	}
 
 	void createSyncObjects()
@@ -125,11 +125,11 @@ protected:
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			if (vkCreateSemaphore(contentManager.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) !=
+			if (vkCreateSemaphore(context_manager.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) !=
 					VK_SUCCESS ||
-				vkCreateSemaphore(contentManager.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) !=
+				vkCreateSemaphore(context_manager.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) !=
 					VK_SUCCESS ||
-				vkCreateFence(contentManager.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+				vkCreateFence(context_manager.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 			{
 
 				throw std::runtime_error("Failed to create synchronization objects for a frame!");
@@ -254,7 +254,7 @@ protected:
 		descriptorWrites.push_back(imageWrite);
 
 		vkUpdateDescriptorSets(
-			contentManager.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+			context_manager.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 
 	void setupShadowMapRenderPass()
@@ -461,12 +461,12 @@ protected:
 		// temp
 		this->lights.push_back(Light{});
 
-		this->contentManager.init();
-		auto pContentManager = std::make_shared<ContentManager>(this->contentManager);
+		this->context_manager.init();
+		auto pContentManager = std::make_shared<ContextManager>(this->context_manager);
 
-		this->commandManager = CommandManager(pContentManager);
-		this->commandManager.init();
-		auto pCommandManager = std::make_shared<CommandManager>(this->commandManager);
+		this->command_manager = CommandManager(pContentManager);
+		this->command_manager.init();
+		auto pCommandManager = std::make_shared<CommandManager>(this->command_manager);
 
 		this->swap_chain_manager = SwapChainManager(pContentManager, pCommandManager);
 		this->swap_chain_manager.init();
@@ -519,9 +519,9 @@ protected:
 	{
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(contentManager.device, renderFinishedSemaphores[i], nullptr);
-			vkDestroySemaphore(contentManager.device, imageAvailableSemaphores[i], nullptr);
-			vkDestroyFence(contentManager.device, inFlightFences[i], nullptr);
+			vkDestroySemaphore(context_manager.device, renderFinishedSemaphores[i], nullptr);
+			vkDestroySemaphore(context_manager.device, imageAvailableSemaphores[i], nullptr);
+			vkDestroyFence(context_manager.device, inFlightFences[i], nullptr);
 
 			this->uniformBufferManagers[i].clear();
 			this->descriptorManagers[i].clear();
@@ -541,13 +541,13 @@ protected:
 
 		this->swap_chain_manager.clear();
 
-		this->commandManager.clear();
+		this->command_manager.clear();
 
 		this->vertex_shader_manager.clear();
 
 		this->fragment_shader_manager.clear();
 
-		this->contentManager.clear();
+		this->context_manager.clear();
 	}
 
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
@@ -629,11 +629,11 @@ protected:
 
 	void draw()
 	{
-		vkWaitForFences(contentManager.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(context_manager.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
 		/* »ñÈ¡½»»»Á´Í¼Ïñ */
 		uint32_t imageIndex;
-		VkResult result = vkAcquireNextImageKHR(contentManager.device,
+		VkResult result = vkAcquireNextImageKHR(context_manager.device,
 												this->swap_chain_manager.swapChain,
 												UINT64_MAX,
 												imageAvailableSemaphores[currentFrame],
@@ -651,11 +651,11 @@ protected:
 			throw std::runtime_error("Failed to acquire swap chain image!");
 		}
 
-		vkResetFences(contentManager.device, 1, &inFlightFences[currentFrame]);
+		vkResetFences(context_manager.device, 1, &inFlightFences[currentFrame]);
 
 		/* ¼ÇÂ¼ÃüÁî»º³åÇø */
-		vkResetCommandBuffer(commandManager.graphicsCommandBuffers[currentFrame], 0);
-		recordCommandBuffer(commandManager.graphicsCommandBuffers[currentFrame], imageIndex);
+		vkResetCommandBuffer(command_manager.graphicsCommandBuffers[currentFrame], 0);
+		recordCommandBuffer(command_manager.graphicsCommandBuffers[currentFrame], imageIndex);
 
 		updateUniformBufferObjects(currentFrame);
 
@@ -670,12 +670,12 @@ protected:
 		submitInfo.pWaitSemaphores = waitSemaphores;
 		submitInfo.pWaitDstStageMask = waitStages;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandManager.graphicsCommandBuffers[currentFrame];
+		submitInfo.pCommandBuffers = &command_manager.graphicsCommandBuffers[currentFrame];
 		VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(contentManager.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
+		if (vkQueueSubmit(context_manager.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to submit draw command buffer!");
 		}
@@ -694,7 +694,7 @@ protected:
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
-		result = vkQueuePresentKHR(this->contentManager.presentQueue, &presentInfo);
+		result = vkQueuePresentKHR(this->context_manager.presentQueue, &presentInfo);
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || windowResized)
 		{
@@ -710,13 +710,13 @@ protected:
 	}
 
 private:
-	ContentManager contentManager{};
+	ContextManager context_manager{};
 
 	SwapChainManager swap_chain_manager{};
 
 	TextureManager texture_manager{};
 
-	CommandManager commandManager{};
+	CommandManager command_manager{};
 
 	SwapChainManager swapChianManager{};
 

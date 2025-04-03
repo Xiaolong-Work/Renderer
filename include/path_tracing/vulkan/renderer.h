@@ -34,13 +34,13 @@ public:
 
 	void init(const Scene& scene)
 	{
-		this->contentManager.setExtent(VkExtent2D{scene.camera.width, scene.camera.height});
-		this->contentManager.init();
-		auto pContentManager = std::make_shared<ContentManager>(this->contentManager);
+		this->context_manager.setExtent(VkExtent2D{scene.camera.width, scene.camera.height});
+		this->context_manager.init();
+		auto pContentManager = std::make_shared<ContextManager>(this->context_manager);
 
-		this->commandManager = CommandManager(pContentManager);
-		this->commandManager.init();
-		auto pCommandManager = std::make_shared<CommandManager>(this->commandManager);
+		this->command_manager = CommandManager(pContentManager);
+		this->command_manager.init();
+		auto pCommandManager = std::make_shared<CommandManager>(this->command_manager);
 
 		this->swap_chain_manager = SwapChainManager(pContentManager, pCommandManager);
 		this->swap_chain_manager.init();
@@ -183,7 +183,7 @@ public:
 		renderPassInfo.dependencyCount = 1;
 		renderPassInfo.pDependencies = &dependency;
 
-		if (vkCreateRenderPass(contentManager.device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
+		if (vkCreateRenderPass(context_manager.device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create render pass!");
 		}
@@ -206,7 +206,7 @@ public:
 			framebufferInfo.height = swap_chain_manager.extent.height;
 			framebufferInfo.layers = 1;
 
-			if (vkCreateFramebuffer(contentManager.device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
+			if (vkCreateFramebuffer(context_manager.device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to create framebuffer!");
 			}
@@ -239,7 +239,7 @@ public:
 		pipelineLayoutInfo.setLayoutCount = 1;
 		pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
-		if (vkCreatePipelineLayout(contentManager.device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) !=
+		if (vkCreatePipelineLayout(context_manager.device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) !=
 			VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create compute pipeline layout!");
@@ -251,7 +251,7 @@ public:
 		pipelineInfo.stage = computeShaderStageInfo;
 
 		if (vkCreateComputePipelines(
-				contentManager.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS)
+				context_manager.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create compute pipeline!");
 		}
@@ -259,7 +259,7 @@ public:
 
 	void draw()
 	{
-		auto commandBuffer = commandManager.beginComputeCommands();
+		auto commandBuffer = command_manager.beginComputeCommands();
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 		vkCmdBindDescriptorSets(
@@ -267,15 +267,15 @@ public:
 
 		vkCmdDispatch(commandBuffer, this->bufferManager.scene.width / 8, this->bufferManager.scene.height / 8, 1);
 
-		commandManager.endComputeCommands(commandBuffer);
+		command_manager.endComputeCommands(commandBuffer);
 
-		while (!glfwWindowShouldClose(contentManager.window))
+		while (!glfwWindowShouldClose(context_manager.window))
 		{
 			glfwPollEvents();
 			present();
 		}
 
-		vkDeviceWaitIdle(contentManager.device);
+		vkDeviceWaitIdle(context_manager.device);
 	}
 
 	void createSyncObjects()
@@ -296,11 +296,11 @@ public:
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			if (vkCreateSemaphore(contentManager.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) !=
+			if (vkCreateSemaphore(context_manager.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) !=
 					VK_SUCCESS ||
-				vkCreateSemaphore(contentManager.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) !=
+				vkCreateSemaphore(context_manager.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) !=
 					VK_SUCCESS ||
-				vkCreateFence(contentManager.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+				vkCreateFence(context_manager.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 			{
 
 				throw std::runtime_error("Failed to create synchronization objects for a frame!");
@@ -360,11 +360,11 @@ public:
 	uint32_t currentFrame = 0;
 	void present()
 	{
-		vkWaitForFences(contentManager.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(context_manager.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
 		/* »ñÈ¡½»»»Á´Í¼Ïñ */
 		uint32_t imageIndex;
-		VkResult result = vkAcquireNextImageKHR(contentManager.device,
+		VkResult result = vkAcquireNextImageKHR(context_manager.device,
 												this->swap_chain_manager.swapChain,
 												UINT64_MAX,
 												imageAvailableSemaphores[currentFrame],
@@ -382,11 +382,11 @@ public:
 			throw std::runtime_error("Failed to acquire swap chain image!");
 		}
 
-		vkResetFences(contentManager.device, 1, &inFlightFences[currentFrame]);
+		vkResetFences(context_manager.device, 1, &inFlightFences[currentFrame]);
 
 		/* ¼ÇÂ¼ÃüÁî»º³åÇø */
-		vkResetCommandBuffer(commandManager.graphicsCommandBuffers[currentFrame], 0);
-		recordCommandBuffer(commandManager.graphicsCommandBuffers[currentFrame], imageIndex);
+		vkResetCommandBuffer(command_manager.graphicsCommandBuffers[currentFrame], 0);
+		recordCommandBuffer(command_manager.graphicsCommandBuffers[currentFrame], imageIndex);
 
 		/* Ìá½»ÃüÁî»º³åÇø */
 		VkSubmitInfo submitInfo{};
@@ -399,12 +399,12 @@ public:
 		submitInfo.pWaitSemaphores = waitSemaphores;
 		submitInfo.pWaitDstStageMask = waitStages;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandManager.graphicsCommandBuffers[currentFrame];
+		submitInfo.pCommandBuffers = &command_manager.graphicsCommandBuffers[currentFrame];
 		VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(contentManager.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
+		if (vkQueueSubmit(context_manager.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to submit draw command buffer!");
 		}
@@ -423,7 +423,7 @@ public:
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
-		result = vkQueuePresentKHR(this->contentManager.presentQueue, &presentInfo);
+		result = vkQueuePresentKHR(this->context_manager.presentQueue, &presentInfo);
 
 		/*if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
 		{
@@ -482,7 +482,7 @@ public:
 		layoutInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
 		layoutInfo.pBindings = layoutBindings.data();
 
-		if (vkCreateDescriptorSetLayout(contentManager.device, &layoutInfo, nullptr, &this->descriptorSetLayout) !=
+		if (vkCreateDescriptorSetLayout(context_manager.device, &layoutInfo, nullptr, &this->descriptorSetLayout) !=
 			VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create descriptor set layout!");
@@ -510,7 +510,7 @@ public:
 		poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 		poolInfo.pPoolSizes = poolSizes.data();
 
-		if (vkCreateDescriptorPool(contentManager.device, &poolInfo, nullptr, &this->descriptorPool) != VK_SUCCESS)
+		if (vkCreateDescriptorPool(context_manager.device, &poolInfo, nullptr, &this->descriptorPool) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create descriptor pool!");
 		}
@@ -526,7 +526,7 @@ public:
 		allocInfo.descriptorSetCount = 1;
 		allocInfo.pSetLayouts = &this->descriptorSetLayout;
 
-		if (vkAllocateDescriptorSets(contentManager.device, &allocInfo, &this->descriptorSet) != VK_SUCCESS)
+		if (vkAllocateDescriptorSets(context_manager.device, &allocInfo, &this->descriptorSet) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to allocate descriptor sets!");
 		}
@@ -593,7 +593,7 @@ public:
 		descriptorWrites[10].pTexelBufferView = nullptr;
 
 		vkUpdateDescriptorSets(
-			contentManager.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+			context_manager.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 
 	StorageImageManager storageImageManager;
@@ -607,32 +607,32 @@ public:
 
 		for (auto framebuffer : framebuffers)
 		{
-			vkDestroyFramebuffer(contentManager.device, framebuffer, nullptr);
+			vkDestroyFramebuffer(context_manager.device, framebuffer, nullptr);
 		}
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(contentManager.device, renderFinishedSemaphores[i], nullptr);
-			vkDestroySemaphore(contentManager.device, imageAvailableSemaphores[i], nullptr);
-			vkDestroyFence(contentManager.device, inFlightFences[i], nullptr);
+			vkDestroySemaphore(context_manager.device, renderFinishedSemaphores[i], nullptr);
+			vkDestroySemaphore(context_manager.device, imageAvailableSemaphores[i], nullptr);
+			vkDestroyFence(context_manager.device, inFlightFences[i], nullptr);
 		}
 
 		this->graphics_pipeline_manager.clear();
 
-		vkDestroyRenderPass(contentManager.device, renderPass, nullptr);
+		vkDestroyRenderPass(context_manager.device, renderPass, nullptr);
 
 		this->swap_chain_manager.clear();
 
-		this->commandManager.clear();
+		this->command_manager.clear();
 
 		this->vertex_shader_manager.clear();
 		this->fragment_shader_manager.clear();
 
-		this->contentManager.clear();
+		this->context_manager.clear();
 	}
 
-	ContentManager contentManager{};
-	CommandManager commandManager{};
+	ContextManager context_manager{};
+	CommandManager command_manager{};
 	SSBOBufferManager bufferManager{};
 	TextureManager texture_manager{};
 	SwapChainManager swap_chain_manager;

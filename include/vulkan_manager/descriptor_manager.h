@@ -4,13 +4,13 @@
 #include <stdexcept>
 #include <vector>
 
-#include <content_manager.h>
+#include <context_manager.h>
 
 class DescriptorManager
 {
 public:
 	DescriptorManager() = default;
-	DescriptorManager(const ContentManagerSPtr& pContentManager);
+	DescriptorManager(const ContextManagerSPtr& pContentManager);
 
 	void init();
 	void clear();
@@ -27,5 +27,5 @@ public:
 	VkDescriptorSet set;
 
 private:
-	ContentManagerSPtr pContentManager;
+	ContextManagerSPtr pContentManager;
 };

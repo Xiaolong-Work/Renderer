@@ -9,10 +9,10 @@
 #include <stdexcept>
 #include <vector>
 
-class ContentManager
+class ContextManager
 {
 public:
-	ContentManager() = default;
+	ContextManager() = default;
 
 	void init();
 	void clear();
@@ -21,7 +21,7 @@ public:
 
 	GLFWwindow* window;
 	VkInstance instance;
-	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+	VkPhysicalDevice physical_device = VK_NULL_HANDLE;
 	VkDevice device;
 
 	uint32_t graphicsFamily;
@@ -36,7 +36,7 @@ public:
 
 	VkSurfaceKHR surface;
 
-	bool enableRayTracing{false};
+	bool enable_ray_tracing{false};
 	bool enable_window_resize{true};
 
 protected:
@@ -53,10 +53,10 @@ protected:
 	void createDebugMessenger();
 
 	void choosePhysicalDevice();
-	bool isDeviceSuitable(VkPhysicalDevice physicalDevice);
+	bool isDeviceSuitable(VkPhysicalDevice physical_device);
 
 	std::vector<const char*> getRequiredDeviceExtensions();
-	bool checkDeviceExtensionSupport(VkPhysicalDevice physicalDevice);
+	bool checkDeviceExtensionSupport(VkPhysicalDevice physical_device);
 
 	void createLogicalDevice();
 
@@ -74,4 +74,4 @@ private:
 	VkDebugUtilsMessengerEXT debugMessenger;
 };
 
-typedef std::shared_ptr<ContentManager> ContentManagerSPtr;
+typedef std::shared_ptr<ContextManager> ContextManagerSPtr;

@@ -15,7 +15,7 @@ void DrawFrame::init()
 {
 	this->content_manager.enable_window_resize = false;
 	this->content_manager.init();
-	auto content_manager_sptr = std::make_shared<ContentManager>(this->content_manager);
+	auto content_manager_sptr = std::make_shared<ContextManager>(this->content_manager);
 
 	this->command_manager = CommandManager(content_manager_sptr);
 	this->command_manager.init();

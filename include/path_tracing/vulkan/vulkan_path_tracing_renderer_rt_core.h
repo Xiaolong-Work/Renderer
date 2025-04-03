@@ -5,7 +5,7 @@
 
 #include <buffer_manager.h>
 #include <command_manager.h>
-#include <content_manager.h>
+#include <context_manager.h>
 #include <descriptor_manager.h>
 #include <image_manager.h>
 #include <pipeline_manager.h>
@@ -15,11 +15,11 @@
 
 #include <scene.h>
 
-class VulkanPathTracingRenderRTCore
+class VulkanPathTracingRendererRTCore
 {
 public:
-	VulkanPathTracingRenderRTCore();
-	~VulkanPathTracingRenderRTCore();
+	VulkanPathTracingRendererRTCore();
+	~VulkanPathTracingRendererRTCore();
 
 	void init();
 	void clear();
@@ -30,13 +30,15 @@ protected:
 	void createAcceleration();
 
 private:
-	ContentManager contentManager{};
+	ContextManager context_manager{};
+
+	CommandManager command_manager{};
 
 	SwapChainManager swap_chain_manager{};
 
 	TextureManager texture_manager{};
 
-	CommandManager commandManager{};
+	
 
 	SwapChainManager swapChianManager{};
 
@@ -56,7 +58,11 @@ private:
 
 	PipelineManager graphics_pipeline_manager{};
 
-	VkPhysicalDeviceRayTracingPipelinePropertiesKHR property{};
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_property{};
 
-	VkPhysicalDeviceRayTracingPipelineFeaturesKHR feature{};
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_tracing_feature{};
+
+	VkPhysicalDeviceAccelerationStructurePropertiesKHR acceleration_property{};
+
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_feature{};
 };

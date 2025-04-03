@@ -1,6 +1,6 @@
 #include <shader_manager.h>
 
-ShaderManager::ShaderManager(const ContentManagerSPtr& pContentManager)
+ShaderManager::ShaderManager(const ContextManagerSPtr& pContentManager)
 {
 	this->pContentManager = pContentManager;
 }

@@ -11,7 +11,7 @@ class ImageManager : public BufferManager
 {
 public:
 	ImageManager() = default;
-	ImageManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	ImageManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	void setExtent(const VkExtent2D& extent);
 
@@ -44,7 +44,7 @@ class DepthImageManager : public ImageManager
 {
 public:
 	DepthImageManager() = default;
-	DepthImageManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	DepthImageManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	void init();
 	void clear();
@@ -62,7 +62,7 @@ class StorageImageManager : public ImageManager
 {
 public:
 	StorageImageManager() = default;
-	StorageImageManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	StorageImageManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
 
 	void init();
 	void clear();
@@ -78,7 +78,7 @@ class PointLightShadowMapImageManager : public ImageManager
 {
 public:
 	PointLightShadowMapImageManager() = default;
-	PointLightShadowMapImageManager(const ContentManagerSPtr& pContentManager,
+	PointLightShadowMapImageManager(const ContextManagerSPtr& pContentManager,
 									const CommandManagerSPtr& pCommandManager);
 
 	void init();

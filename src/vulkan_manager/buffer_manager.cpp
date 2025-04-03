@@ -1,6 +1,6 @@
 #include <buffer_manager.h>
 
-BufferManager::BufferManager(const ContentManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
+BufferManager::BufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
 	this->pCommandManager = pCommandManager;
@@ -9,7 +9,7 @@ BufferManager::BufferManager(const ContentManagerSPtr& pContentManager, const Co
 uint32_t BufferManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
 	VkPhysicalDeviceMemoryProperties memoryProperties;
-	vkGetPhysicalDeviceMemoryProperties(pContentManager->physicalDevice, &memoryProperties);
+	vkGetPhysicalDeviceMemoryProperties(pContentManager->physical_device, &memoryProperties);
 
 	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
 	{
@@ -100,7 +100,7 @@ void BufferManager::createDeviceLocalBuffer(const VkDeviceSize size,
 	vkFreeMemory(pContentManager->device, stagingBufferMemory, nullptr);
 }
 
-VertexBufferManager::VertexBufferManager(const ContentManagerSPtr& pContentManager,
+VertexBufferManager::VertexBufferManager(const ContextManagerSPtr& pContentManager,
 										 const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
@@ -121,7 +121,7 @@ void VertexBufferManager::clear()
 	vkFreeMemory(pContentManager->device, this->memory, nullptr);
 }
 
-IndexBufferManager::IndexBufferManager(const ContentManagerSPtr& pContentManager,
+IndexBufferManager::IndexBufferManager(const ContextManagerSPtr& pContentManager,
 									   const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
@@ -142,7 +142,7 @@ void IndexBufferManager::clear()
 	vkFreeMemory(pContentManager->device, this->memory, nullptr);
 }
 
-UniformBufferManager::UniformBufferManager(const ContentManagerSPtr& pContentManager,
+UniformBufferManager::UniformBufferManager(const ContextManagerSPtr& pContentManager,
 										   const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
@@ -173,7 +173,7 @@ void UniformBufferManager::update(const UniformBufferObject& ubo)
 	memcpy(this->uniformBuffersMapped, &ubo, sizeof(ubo));
 }
 
-StorageBufferManager::StorageBufferManager(const ContentManagerSPtr& pContentManager,
+StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& pContentManager,
 										   const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;
@@ -190,7 +190,7 @@ void StorageBufferManager::clear()
 	vkFreeMemory(pContentManager->device, this->memory, nullptr);
 }
 
-StagingBufferManager::StagingBufferManager(const ContentManagerSPtr& pContentManager,
+StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& pContentManager,
 										   const CommandManagerSPtr& pCommandManager)
 {
 	this->pContentManager = pContentManager;

@@ -80,7 +80,7 @@ public:
 	float& z();
 
 	/* The position of the vertex in 3D space. */
-	Point position;
+	Coordinate3D position;
 
 	/* The normal vector at the vertex, used for shading calculations. */
 	Direction normal;

@@ -29,7 +29,7 @@ public:
 	float fov;
 
 	/* The position of the camera in world space. */
-	Vector3f position;
+	Coordinate3D position;
 
 	/* The viewing direction of the camera. */
 	Direction look;

@@ -62,4 +62,5 @@ void VulkanPathTracingRendererRTCore::getFeatureProperty()
 void VulkanPathTracingRendererRTCore::createAcceleration()
 {
 	VkAccelerationStructureCreateInfoKHR;
+	VkAccelerationStructureGeometryKHR;
 }

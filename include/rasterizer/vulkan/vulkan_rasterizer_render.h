@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 #include <buffer_manager.h>
 #include <command_manager.h>
@@ -14,11 +15,7 @@
 #include <swap_chain_manager.h>
 #include <texture_manager.h>
 
-#include <model.h>
-#include <tiny_obj_loader.h>
-
-const std::string MODEL_PATH = std::string(ROOT_DIR) + "/models/viking_room/viking_room.obj";
-const std::string TEXTURE_PATH = std::string(ROOT_DIR) + "/models/viking_room/viking_room.png";
+#include <scene.h>
 
 class VulkanRasterRenderer
 {
@@ -47,31 +44,185 @@ public:
 		vkDeviceWaitIdle(context_manager.device);
 	}
 
+	void setData(const Scene& scene)
+	{
+		/* Processing vertex data */
+		for (size_t i = 0; i < scene.objects.size(); i++)
+		{
+			auto& object = scene.objects[i];
+
+			VkDrawIndexedIndirectCommand indirect{};
+			indirect.indexCount = static_cast<uint32_t>(object.indices.size());
+			indirect.instanceCount = static_cast<int32_t>(1);
+			indirect.firstIndex = static_cast<uint32_t>(this->index_buffer_manager.indices.size());
+			indirect.vertexOffset = static_cast<int32_t>(this->vertex_buffer_manager.vertices.size());
+			indirect.firstInstance = static_cast<int32_t>(i);
+
+			this->vertex_buffer_manager.vertices.insert(
+				this->vertex_buffer_manager.vertices.end(), object.vertices.begin(), object.vertices.end());
+
+			this->index_buffer_manager.indices.insert(
+				this->index_buffer_manager.indices.end(), object.indices.begin(), object.indices.end());
+
+			this->indirect_buffer_manager.commands.push_back(indirect);
+		}
+
+		this->vertex_buffer_manager.init();
+		this->index_buffer_manager.init();
+		this->indirect_buffer_manager.init();
+
+		/* Processing Material Data */
+		std::vector<Index> material_index;
+		for (auto& object : scene.objects)
+		{
+			material_index.push_back(object.material_index);
+		}
+		this->material_index_manager.setData(
+			material_index.data(), sizeof(Index) * material_index.size(), material_index.size());
+		this->material_index_manager.init();
+
+		std::vector<SSBOMaterial> materials;
+		for (auto& material : scene.materials)
+		{
+			SSBOMaterial ssbo_material{material};
+			materials.push_back(ssbo_material);
+		}
+		this->material_ssbo_manager.setData(
+			materials.data(), sizeof(SSBOMaterial) * materials.size(), materials.size());
+		this->material_ssbo_manager.init();
+
+		/* Processing texture data */
+		for (auto& texture : scene.textures)
+		{
+			this->texture_manager.createTexture(texture.getPath());
+		}
+
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			this->uniformBufferManagers[i].init();
+			this->setupDescriptor(i);
+		}
+
+		this->setupGraphicsPipelines();
+		this->graphics_pipeline_manager.init();
+	}
+
 protected:
+	glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 3.0f);
+	glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+	glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+	float yaw = -90.0f; // 初始朝 -Z 方向
+	float pitch = 0.0f;
+	bool firstMouse = true;
+
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
 		auto self = reinterpret_cast<VulkanRasterRenderer*>(glfwGetWindowUserPointer(window));
 		self->windowResized = true;
 	}
 
+	bool VulkanRasterRenderer::mouseCaptured = false;
+
 	static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
 	{
 		auto self = static_cast<VulkanRasterRenderer*>(glfwGetWindowUserPointer(window));
 
-		double differenceX = xpos - self->mousePositionX;
-		double differenceY = ypos - self->mousePositionY;
-
-		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
+		// 如果 Alt 被按下，释放鼠标控制
+		if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS)
 		{
-			float angle = sqrt(differenceX * differenceX + differenceY * differenceY) / 3.6f;
-			glm::vec3 rotationAxis(differenceY, differenceX, 0.0f);
-			rotationAxis = glm::normalize(rotationAxis);
-			self->ubo.model = glm::rotate(self->ubo.model, glm::radians(angle), rotationAxis);
+			if (self->mouseCaptured)
+			{
+				glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL); // 显示鼠标
+				self->mouseCaptured = false;
+				self->firstMouse = true;
+			}
+			return;
 		}
+
+		// 鼠标未捕获，则在点击窗口时捕获并隐藏鼠标
+		if (!self->mouseCaptured && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
+		{
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); // 隐藏并锁定鼠标
+			self->mouseCaptured = true;
+			self->firstMouse = true;
+			return;
+		}
+
+		if (!self->mouseCaptured)
+		{
+			return;
+		}
+			 
+
+		// FPS 鼠标控制逻辑
+		if (self->firstMouse)
+		{
+			self->mousePositionX = xpos;
+			self->mousePositionY = ypos;
+			self->firstMouse = false;
+		}
+
+		double dx = xpos - self->mousePositionX;
+		double dy = self->mousePositionY - ypos; 
 
 		self->mousePositionX = xpos;
 		self->mousePositionY = ypos;
-		return;
+
+		const float sensitivity = 0.1f;
+		self->yaw += (float)dx * sensitivity;
+		self->pitch += (float)dy * sensitivity;
+
+		self->pitch = clamp(-89.0f, 89.0f, self->pitch);
+
+		glm::vec3 direction{};
+		direction.x = cos(glm::radians(self->yaw)) * cos(glm::radians(self->pitch));
+		direction.y = sin(glm::radians(self->pitch));
+		direction.z = sin(glm::radians(self->yaw)) * cos(glm::radians(self->pitch));
+		self->cameraFront = glm::normalize(direction);
+
+		self->ubo.view = glm::lookAt(self->cameraPosition, self->cameraPosition + self->cameraFront, self->cameraUp);
+	}
+
+	float deltaTime = 1.0f;
+
+	static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+	{
+		if (action != GLFW_PRESS && action != GLFW_REPEAT)
+			return;
+
+		auto self = static_cast<VulkanRasterRenderer*>(glfwGetWindowUserPointer(window));
+
+		const float moveSpeed = 0.05f;
+		glm::vec3 forward = glm::vec3(self->ubo.view[0][2], self->ubo.view[1][2], self->ubo.view[2][2]);
+		glm::vec3 right = glm::vec3(self->ubo.view[0][0], self->ubo.view[1][0], self->ubo.view[2][0]);
+		glm::vec3 up = glm::vec3(self->ubo.view[0][1], self->ubo.view[1][1], self->ubo.view[2][1]);
+
+		switch (key)
+		{
+		case GLFW_KEY_W:
+			self->cameraPosition -= forward * moveSpeed;
+			break;
+		case GLFW_KEY_S:
+			self->cameraPosition += forward * moveSpeed;
+			break;
+		case GLFW_KEY_A:
+			self->cameraPosition -= right * moveSpeed;
+			break;
+		case GLFW_KEY_D:
+			self->cameraPosition += right * moveSpeed;
+			break;
+		case GLFW_KEY_Q:
+			self->cameraPosition += up * moveSpeed;
+			break;
+		case GLFW_KEY_E:
+			self->cameraPosition -= up * moveSpeed;
+			break;
+		default:
+			break;
+		}
+
+		self->ubo.view = glm::lookAt(self->cameraPosition, self->cameraPosition - forward, up);
 	}
 
 	void handleWindowResize()
@@ -104,6 +255,7 @@ protected:
 
 		glfwSetFramebufferSizeCallback(this->context_manager.window, framebufferResizeCallback);
 		glfwSetCursorPosCallback(this->context_manager.window, cursorPositionCallback);
+		glfwSetKeyCallback(this->context_manager.window, keyCallback);
 		glfwSetWindowUserPointer(this->context_manager.window, this);
 	}
 
@@ -187,74 +339,148 @@ protected:
 
 	void setupDescriptor(const int index)
 	{
-		/* Layout bingding */
-		VkDescriptorSetLayoutBinding uboLayoutBinding{};
-		uboLayoutBinding.binding = 0;
-		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		uboLayoutBinding.descriptorCount = 1;
-		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		uboLayoutBinding.pImmutableSamplers = nullptr;
-		this->descriptorManagers[index].bindings.push_back(uboLayoutBinding);
+		/* ========== Layout bingding infomation ========== */
+		/* MVP UBO bingding */
+		VkDescriptorSetLayoutBinding ubo_layout_binding{};
+		ubo_layout_binding.binding = 0;
+		ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		ubo_layout_binding.descriptorCount = 1;
+		ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		ubo_layout_binding.pImmutableSamplers = nullptr;
+		this->descriptorManagers[index].bindings.push_back(ubo_layout_binding);
 
-		VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-		samplerLayoutBinding.binding = 1;
-		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		samplerLayoutBinding.descriptorCount = 1;
-		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		samplerLayoutBinding.pImmutableSamplers = nullptr;
-		this->descriptorManagers[index].bindings.push_back(samplerLayoutBinding);
+		/* Texture sampler binding */
+		VkDescriptorSetLayoutBinding sampler_layout_binding{};
+		sampler_layout_binding.binding = 1;
+		sampler_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		sampler_layout_binding.descriptorCount = static_cast<uint32_t>(this->texture_manager.imageViews.size());
+		sampler_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		sampler_layout_binding.pImmutableSamplers = nullptr;
+		this->descriptorManagers[index].bindings.push_back(sampler_layout_binding);
 
-		/* Pool size */
-		VkDescriptorPoolSize uboPoolSize{};
-		uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		uboPoolSize.descriptorCount = static_cast<uint32_t>(1);
-		this->descriptorManagers[index].poolSizes.push_back(uboPoolSize);
+		/* Material index bingding */
+		VkDescriptorSetLayoutBinding material_index_layout_binding{};
+		material_index_layout_binding.binding = 2;
+		material_index_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		material_index_layout_binding.descriptorCount = static_cast<uint32_t>(this->material_index_manager.length);
+		material_index_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		material_index_layout_binding.pImmutableSamplers = nullptr;
+		this->descriptorManagers[index].bindings.push_back(material_index_layout_binding);
 
-		VkDescriptorPoolSize samplerPoolSize{};
-		samplerPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		samplerPoolSize.descriptorCount = static_cast<uint32_t>(1);
-		this->descriptorManagers[index].poolSizes.push_back(samplerPoolSize);
+		/* Material data bingding */
+		VkDescriptorSetLayoutBinding material_data_layout_binding{};
+		material_data_layout_binding.binding = 3;
+		material_data_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		material_data_layout_binding.descriptorCount = static_cast<uint32_t>(this->material_ssbo_manager.length);
+		material_data_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		material_data_layout_binding.pImmutableSamplers = nullptr;
+		this->descriptorManagers[index].bindings.push_back(material_data_layout_binding);
+
+		/* ========== Pool size infomation ========== */
+		/* MVP UBO pool size */
+		VkDescriptorPoolSize ubo_pool_size{};
+		ubo_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		ubo_pool_size.descriptorCount = 1;
+		this->descriptorManagers[index].poolSizes.push_back(ubo_pool_size);
+
+		/* Texture pool size */
+		VkDescriptorPoolSize sampler_pool_size{};
+		sampler_pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		sampler_pool_size.descriptorCount = 1;
+		this->descriptorManagers[index].poolSizes.push_back(sampler_pool_size);
+
+		/* Material pool size */
+		VkDescriptorPoolSize material_pool_size{};
+		material_pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		material_pool_size.descriptorCount = 2;
+		this->descriptorManagers[index].poolSizes.push_back(material_pool_size);
 
 		this->descriptorManagers[index].init();
 
-		/* Write Descriptor Set  */
-		std::vector<VkWriteDescriptorSet> descriptorWrites{};
-		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = this->uniformBufferManagers[index].uniformBuffer;
-		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(UniformBufferObject);
-		VkWriteDescriptorSet bufferWrite;
-		bufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		bufferWrite.pNext = nullptr;
-		bufferWrite.dstSet = this->descriptorManagers[index].set;
-		bufferWrite.dstBinding = 0;
-		bufferWrite.dstArrayElement = 0;
-		bufferWrite.descriptorCount = 1;
-		bufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		bufferWrite.pBufferInfo = &bufferInfo;
-		bufferWrite.pImageInfo = nullptr;
-		bufferWrite.pTexelBufferView = nullptr;
-		descriptorWrites.push_back(bufferWrite);
+		/* ========== Write Descriptor Set ========== */
+		std::vector<VkWriteDescriptorSet> descriptor_writes{};
 
-		VkDescriptorImageInfo imageInfo{};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = texture_manager.imageViews[0];
-		imageInfo.sampler = texture_manager.sampler;
-		VkWriteDescriptorSet imageWrite{};
-		imageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		imageWrite.pNext = nullptr;
-		imageWrite.dstSet = this->descriptorManagers[index].set;
-		imageWrite.dstBinding = 1;
-		imageWrite.dstArrayElement = 0;
-		imageWrite.descriptorCount = 1;
-		imageWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		imageWrite.pBufferInfo = nullptr;
-		imageWrite.pImageInfo = &imageInfo;
-		imageWrite.pTexelBufferView = nullptr;
-		descriptorWrites.push_back(imageWrite);
+		/* MVP UBO set write information */
+		VkDescriptorBufferInfo mvp_buffer_information{};
+		mvp_buffer_information.buffer = this->uniformBufferManagers[index].uniformBuffer;
+		mvp_buffer_information.offset = 0;
+		mvp_buffer_information.range = sizeof(UniformBufferObject);
+		VkWriteDescriptorSet mvp_buffer_write;
+		mvp_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		mvp_buffer_write.pNext = nullptr;
+		mvp_buffer_write.dstSet = this->descriptorManagers[index].set;
+		mvp_buffer_write.dstBinding = 0;
+		mvp_buffer_write.dstArrayElement = 0;
+		mvp_buffer_write.descriptorCount = 1;
+		mvp_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		mvp_buffer_write.pBufferInfo = &mvp_buffer_information;
+		mvp_buffer_write.pImageInfo = nullptr;
+		mvp_buffer_write.pTexelBufferView = nullptr;
+		descriptor_writes.push_back(mvp_buffer_write);
 
-		vkUpdateDescriptorSets(
-			context_manager.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		/* Texture sampler write information */
+		std::vector<VkDescriptorImageInfo> texture_information;
+		texture_information.resize(this->texture_manager.imageViews.size());
+		for (size_t i = 0; i < this->texture_manager.imageViews.size(); i++)
+		{
+			texture_information[i].imageView = texture_manager.imageViews[i];
+			texture_information[i].sampler = texture_manager.sampler;
+			texture_information[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		}
+		VkWriteDescriptorSet texture_write{};
+		texture_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		texture_write.pNext = nullptr;
+		texture_write.dstSet = this->descriptorManagers[index].set;
+		texture_write.dstBinding = 1;
+		texture_write.dstArrayElement = 0;
+		texture_write.descriptorCount = static_cast<uint32_t>(texture_information.size());
+		texture_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		texture_write.pBufferInfo = nullptr;
+		texture_write.pImageInfo = texture_information.data();
+		texture_write.pTexelBufferView = nullptr;
+		descriptor_writes.push_back(texture_write);
+
+		/* Material index set write information */
+		VkDescriptorBufferInfo material_index_buffer_information;
+		material_index_buffer_information.buffer = this->material_index_manager.buffer;
+		material_index_buffer_information.offset = 0;
+		material_index_buffer_information.range = VK_WHOLE_SIZE;
+		VkWriteDescriptorSet material_index_buffer_write;
+		material_index_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		material_index_buffer_write.pNext = nullptr;
+		material_index_buffer_write.dstSet = this->descriptorManagers[index].set;
+		material_index_buffer_write.dstBinding = 2;
+		material_index_buffer_write.dstArrayElement = 0;
+		material_index_buffer_write.descriptorCount = 1;
+		material_index_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		material_index_buffer_write.pBufferInfo = &material_index_buffer_information;
+		material_index_buffer_write.pImageInfo = nullptr;
+		material_index_buffer_write.pTexelBufferView = nullptr;
+		descriptor_writes.push_back(material_index_buffer_write);
+
+		/* Material data set write information */
+		VkDescriptorBufferInfo material_data_buffer_information;
+		material_data_buffer_information.buffer = this->material_ssbo_manager.buffer;
+		material_data_buffer_information.offset = 0;
+		material_data_buffer_information.range = VK_WHOLE_SIZE;
+		VkWriteDescriptorSet material_data_buffer_write;
+		material_data_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		material_data_buffer_write.pNext = nullptr;
+		material_data_buffer_write.dstSet = this->descriptorManagers[index].set;
+		material_data_buffer_write.dstBinding = 3;
+		material_data_buffer_write.dstArrayElement = 0;
+		material_data_buffer_write.descriptorCount = 1;
+		material_data_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		material_data_buffer_write.pBufferInfo = &material_data_buffer_information;
+		material_data_buffer_write.pImageInfo = nullptr;
+		material_data_buffer_write.pTexelBufferView = nullptr;
+		descriptor_writes.push_back(material_data_buffer_write);
+
+		vkUpdateDescriptorSets(context_manager.device,
+							   static_cast<uint32_t>(descriptor_writes.size()),
+							   descriptor_writes.data(),
+							   0,
+							   nullptr);
 	}
 
 	void setupShadowMapRenderPass()
@@ -423,39 +649,6 @@ protected:
 		// }
 	}
 
-	void loadModel()
-	{
-		tinyobj::attrib_t attrib;
-		std::vector<tinyobj::shape_t> shapes;
-		std::vector<tinyobj::material_t> materials;
-		std::string warn, err;
-
-		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str()))
-		{
-			throw std::runtime_error(warn + err);
-		}
-
-		for (const auto& shape : shapes)
-		{
-			for (const auto& index : shape.mesh.indices)
-			{
-				Vertex1 vertex{};
-
-				vertex.pos = {attrib.vertices[3 * index.vertex_index + 0],
-							  attrib.vertices[3 * index.vertex_index + 1],
-							  attrib.vertices[3 * index.vertex_index + 2]};
-
-				vertex.texCoord = {attrib.texcoords[2 * index.texcoord_index + 0],
-								   1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
-
-				vertex.color = {1.0f, 1.0f, 1.0f};
-
-				vertexBufferManager.vertices.push_back(vertex);
-				indexBufferManager.indices.push_back(indexBufferManager.indices.size());
-			}
-		}
-	}
-
 	void init()
 	{
 		// temp
@@ -489,26 +682,21 @@ protected:
 
 		this->texture_manager = TextureManager(pContentManager, pCommandManager);
 		this->texture_manager.init();
-		this->texture_manager.createTexture(TEXTURE_PATH);
 
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			this->uniformBufferManagers[i] = UniformBufferManager(pContentManager, pCommandManager);
-			this->uniformBufferManagers[i].init();
-
 			this->descriptorManagers[i] = DescriptorManager(pContentManager);
-			this->setupDescriptor(i);
 		}
 
-		this->vertexBufferManager = VertexBufferManager(pContentManager, pCommandManager);
-		this->indexBufferManager = IndexBufferManager(pContentManager, pCommandManager);
-		loadModel();
-		this->vertexBufferManager.init();
-		this->indexBufferManager.init();
+		this->vertex_buffer_manager = VertexBufferManager(pContentManager, pCommandManager);
+		this->index_buffer_manager = IndexBufferManager(pContentManager, pCommandManager);
+		this->indirect_buffer_manager = IndirectBufferManager(pContentManager, pCommandManager);
+
+		this->material_ssbo_manager = StorageBufferManager(pContentManager, pCommandManager);
+		this->material_index_manager = StorageBufferManager(pContentManager, pCommandManager);
 
 		this->graphics_pipeline_manager = PipelineManager(pContentManager);
-		this->setupGraphicsPipelines();
-		this->graphics_pipeline_manager.init();
 
 		createSyncObjects();
 
@@ -527,9 +715,15 @@ protected:
 			this->descriptorManagers[i].clear();
 		}
 
-		this->indexBufferManager.clear();
+		this->material_index_manager.clear();
 
-		this->vertexBufferManager.clear();
+		this->material_ssbo_manager.clear();
+
+		this->indirect_buffer_manager.clear();
+
+		this->index_buffer_manager.clear();
+
+		this->vertex_buffer_manager.clear();
 
 		this->texture_manager.clear();
 
@@ -550,14 +744,14 @@ protected:
 		this->context_manager.clear();
 	}
 
-	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+	void recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t imageIndex)
 	{
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = 0;
 		beginInfo.pInheritanceInfo = nullptr;
 
-		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+		if (vkBeginCommandBuffer(command_buffer, &beginInfo) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to begin recording command buffer!");
 		}
@@ -574,9 +768,9 @@ protected:
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 		renderPassInfo.pClearValues = clearValues.data();
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(command_buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->graphics_pipeline_manager.pipeline);
+		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->graphics_pipeline_manager.pipeline);
 
 		VkViewport viewport{};
 		viewport.x = 0.0f;
@@ -585,20 +779,20 @@ protected:
 		viewport.height = static_cast<float>(swap_chain_manager.extent.height);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
 		VkRect2D scissor{};
 		scissor.offset = {0, 0};
 		scissor.extent = swap_chain_manager.extent;
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-		VkBuffer vertexBuffers[] = {vertexBufferManager.buffer};
+		VkBuffer vertex_buffers[] = {vertex_buffer_manager.buffer};
 		VkDeviceSize offsets[] = {0};
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
 
-		vkCmdBindIndexBuffer(commandBuffer, indexBufferManager.buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(command_buffer, index_buffer_manager.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-		vkCmdBindDescriptorSets(commandBuffer,
+		vkCmdBindDescriptorSets(command_buffer,
 								VK_PIPELINE_BIND_POINT_GRAPHICS,
 								this->graphics_pipeline_manager.layout,
 								0,
@@ -607,11 +801,15 @@ protected:
 								0,
 								nullptr);
 
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indexBufferManager.indices.size()), 1, 0, 0, 0);
+		vkCmdDrawIndexedIndirect(command_buffer,
+								 this->indirect_buffer_manager.buffer,
+								 0,
+								 static_cast<uint32_t>(this->indirect_buffer_manager.commands.size()),
+								 sizeof(VkDrawIndexedIndirectCommand));
 
-		vkCmdEndRenderPass(commandBuffer);
+		vkCmdEndRenderPass(command_buffer);
 
-		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+		if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to record command buffer!");
 		}
@@ -720,9 +918,15 @@ private:
 
 	SwapChainManager swapChianManager{};
 
-	VertexBufferManager vertexBufferManager{};
+	VertexBufferManager vertex_buffer_manager{};
 
-	IndexBufferManager indexBufferManager{};
+	IndexBufferManager index_buffer_manager{};
+
+	IndirectBufferManager indirect_buffer_manager{};
+
+	StorageBufferManager material_ssbo_manager{};
+
+	StorageBufferManager material_index_manager{};
 
 	std::array<UniformBufferManager, MAX_FRAMES_IN_FLIGHT> uniformBufferManagers{};
 

@@ -144,11 +144,11 @@ IntersectResult PathTracingObject::traverse(const int index, Ray& ray) const
 				auto b2 = result[1];
 				auto b3 = result[2];
 
-				if (this->material.texture_load_flag)
+				if (this->material.diffuse_texture != -1)
 				{
 					Coordinate2D coordinate =
 						triangle.vertex1.texture * b1 + triangle.vertex2.texture * b2 + triangle.vertex3.texture * b3;
-					intersect_result.color = this->material.texture.getColor(coordinate.x, coordinate.y);
+					intersect_result.uv = Coordinate2D(coordinate.x, coordinate.y);
 				}
 
 				intersect_result.normal =

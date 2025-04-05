@@ -2,7 +2,7 @@
 #include <data_loader.h>
 #include <ray.h>
 #include <render.h>
-#include <scene.h>
+#include <path_tracing_scene.h>
 #include <string>
 #include <utils.h>
 
@@ -14,7 +14,7 @@ Renderer::Renderer(const int spp)
 	this->spp = spp;
 }
 
-void Renderer::render(Scene& scene)
+void Renderer::render(PathTracingScene& scene)
 {
 	auto camera = scene.camera;
 
@@ -55,7 +55,7 @@ void Renderer::render(Scene& scene)
 	this->saveResult(scene);
 }
 
-void Renderer::saveResult(const Scene& scene)
+void Renderer::saveResult(const PathTracingScene& scene)
 {
 	std::string path = std::string(ROOT_DIR) + "/results/" + scene.name + "_spp_" + std::to_string(this->spp) +
 					   "_depth_" + std::to_string(scene.max_depth) + "_cpu.bmp";

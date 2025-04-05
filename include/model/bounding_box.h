@@ -4,7 +4,7 @@
 
 /**
  * @class BoundingBox
- * @brief A class representing a 3D bounding box.
+ * @brief A class representing a 3D AABB bounding box.
  */
 class BoundingBox
 {

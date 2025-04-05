@@ -29,6 +29,8 @@ typedef Vector3f Direction;
 typedef Vector3f Coordinate3D;
 typedef Vector2f Coordinate2D;
 
+typedef int32_t Index;
+
 constexpr float pi = glm::pi<float>();
 
 /**

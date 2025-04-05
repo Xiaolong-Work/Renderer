@@ -3,16 +3,13 @@
 PathTracingMaterial::PathTracingMaterial(Material& material)
 {
 	this->name = std::move(material.name);
-	this->Ka = std::move(material.Ka);
-	this->Kd = std::move(material.Kd);
-	this->Ks = std::move(material.Ks);
-	this->Tr = std::move(material.Tr);
-	this->Ns = std::move(material.Ns);
-	this->Ni = std::move(material.Ni);
-	this->map_Kd = std::move(material.map_Kd);
+	this->ka = std::move(material.ka);
+	this->kd = std::move(material.kd);
+	this->ks = std::move(material.ks);
+	this->tr = std::move(material.tr);
+	this->ns = std::move(material.ns);
+	this->ni = std::move(material.ni);
 	this->type = std::move(material.type);
-	this->texture_load_flag = std::move(material.texture_load_flag);
-	this->texture = std::move(material.texture);
 }
 
 Vector3f PathTracingMaterial::sample(const Direction& wi, const Direction& normal) const
@@ -27,7 +24,7 @@ Vector3f PathTracingMaterial::sample(const Direction& wi, const Direction& norma
 	}
 	else if (this->type == MaterialType::Refraction)
 	{
-		return refractionSample(-wi, normal, this->Ni);
+		return refractionSample(-wi, normal, this->ni);
 	}
 	else
 	{
@@ -45,7 +42,7 @@ Vector3f PathTracingMaterial::glossySample(const Direction& wi, const Direction&
 	float v = getRandomNumber(0.0f, 1.0f);
 
 	// Compute Phong cosine-weighted sampling
-	float exponent = std::max(this->Ns, 0.0f); // Ensure the exponent is non-negative
+	float exponent = std::max(this->ns, 0.0f); // Ensure the exponent is non-negative
 	float cos_theta = std::pow(std::max(u, 1e-6f), 1.0f / (exponent + 1));
 	float sin_theta = std::sqrt(1 - cos_theta * cos_theta);
 	float phi = 2.0f * pi * v;
@@ -106,7 +103,7 @@ Vector3f PathTracingMaterial::refractionSample(const Direction& wi, const Direct
 {
 	float cos_theta_i = glm::dot(-wi, normal);
 	float eta_i = 1.0f;			// Refractive index of air
-	float eta_t = this->Ni;		// Refractive Index of material
+	float eta_t = this->ni;		// Refractive Index of material
 
 	Direction n;
 	/* Determine whether the light is entering from the outside or emitting from the inside */
@@ -146,7 +143,7 @@ float PathTracingMaterial::pdf(const Vector3f& wi, const Vector3f& wo, const Vec
 {
 	if (this->type == MaterialType::Glossy)
 	{
-		return 1.0f / (2.0f * pi) * (1.0f / this->Ns) + 1.0f * (1.0f - 1.0f / this->Ns);
+		return 1.0f / (2.0f * pi) * (1.0f / this->ns) + 1.0f * (1.0f - 1.0f / this->ns);
 	}
 	else if (this->type == MaterialType::Refraction || this->type == MaterialType::Specular)
 	{
@@ -170,32 +167,32 @@ Vector3f PathTracingMaterial::evaluate(const Vector3f& wi,
 	if (this->type == MaterialType::Diffuse)
 	{
 		Vector3f shader_color;
-		if (this->texture_load_flag)
+		if (this->diffuse_texture != -1)
 		{
 			shader_color = color;
 		}
 		else
 		{
-			shader_color = this->Kd;
+			shader_color = this->kd;
 		}
 		return std::max(glm::dot(normal, wo), 0.0f) * shader_color / glm::pi<float>();
 	}
 	else if (this->type == MaterialType::Glossy)
 	{
 		Vector3f shader_color;
-		if (this->texture_load_flag)
+		if (this->diffuse_texture != -1)
 		{
 			shader_color = color;
 		}
 		else
 		{
-			shader_color = this->Kd;
+			shader_color = this->kd;
 		}
 
 		Vector3f diffuse = std::max(glm::dot(normal, wo), 0.0f) * shader_color / glm::pi<float>();
 
 		Vector3f half_direction = glm::normalize(wo + wi);
-		Vector3f specular = std::pow(std::max(glm::dot(normal, half_direction), 0.0f), this->Ns) * this->Ks;
+		Vector3f specular = std::pow(std::max(glm::dot(normal, half_direction), 0.0f), this->ns) * this->ks;
 
 		return diffuse + specular;
 	}

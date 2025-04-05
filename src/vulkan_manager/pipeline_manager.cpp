@@ -35,8 +35,8 @@ void PipelineManager::createPipeline()
 {
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	auto bindingDescription = Vertex1::getBindingDescription();
-	auto attributeDescriptions = Vertex1::getAttributeDescriptions();
+	auto bindingDescription = VertexBufferManager::getBindingDescription();
+	auto attributeDescriptions = VertexBufferManager::getAttributeDescriptions();
 
 	if (this->enableVertexInpute)
 	{

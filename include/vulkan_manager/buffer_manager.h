@@ -11,6 +11,46 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <vertex.h>
+#include <material.h>
+
+struct SSBOMaterial
+{
+	/* Ambient reflectance component (ka). */
+	alignas(16) glm::vec3 ka{0.0f};
+
+	/* Diffuse reflectance component (kd). */
+	alignas(16) glm::vec3 kd{0.0f};
+
+	/* Specular reflectance component (ks). */
+	alignas(16) glm::vec3 ks{0.0f};
+
+	/* Transmittance component (tr). */
+	alignas(16) glm::vec3 tr{0.0f};
+
+	/* Shininess coefficient (glossiness factor). */
+	float ns{0.0f};
+
+	/* Refractive index of the material (ni). */
+	float ni{0.0f};
+
+	/* The diffuse texture index of the object, -1 means no texture data */
+	int32_t diffuse_texture{-1};
+
+	int type = 0;
+
+	SSBOMaterial(const Material& material)
+	{
+		this->ka = material.ka;
+		this->kd = material.kd;
+		this->ks = material.ks;
+		this->tr = material.tr;
+		this->ns = material.ns;
+		this->ni = material.ni;
+		this->diffuse_texture = material.diffuse_texture;
+	}
+};
+
 class BufferManager
 {
 public:
@@ -43,45 +83,6 @@ protected:
 
 typedef std::shared_ptr<BufferManager> BufferManagerSPtr;
 
-struct Vertex1
-{
-	glm::vec3 pos;
-	glm::vec3 color;
-	glm::vec2 texCoord;
-
-	static VkVertexInputBindingDescription getBindingDescription()
-	{
-		VkVertexInputBindingDescription bindingDescription{};
-		bindingDescription.binding = 0;
-		bindingDescription.stride = sizeof(Vertex1);
-		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return bindingDescription;
-	}
-
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
-	{
-		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-		attributeDescriptions[0].binding = 0;
-		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[0].offset = offsetof(Vertex1, pos);
-
-		attributeDescriptions[1].binding = 0;
-		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex1, color);
-
-		attributeDescriptions[2].binding = 0;
-		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex1, texCoord);
-
-		return attributeDescriptions;
-	}
-};
-
 class VertexBufferManager : public BufferManager
 {
 public:
@@ -91,9 +92,14 @@ public:
 	void init() override;
 	void clear() override;
 
+	static VkVertexInputBindingDescription getBindingDescription();
+	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
+
 	VkBuffer buffer;
 	VkDeviceMemory memory;
-	std::vector<Vertex1> vertices;
+	std::vector<Vertex> vertices;
+
+	bool enable_ray_tracing{false};
 };
 
 class IndexBufferManager : public BufferManager
@@ -107,7 +113,21 @@ public:
 
 	VkBuffer buffer;
 	VkDeviceMemory memory;
-	std::vector<uint32_t> indices;
+	std::vector<int32_t> indices;
+};
+
+class IndirectBufferManager : public BufferManager
+{
+public:
+	IndirectBufferManager() = default;
+	IndirectBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+
+	void init() override;
+	void clear() override;
+
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+	std::vector<VkDrawIndexedIndirectCommand> commands{};
 };
 
 struct UniformBufferObject
@@ -133,8 +153,6 @@ public:
 	void* uniformBuffersMapped;
 };
 
-typedef std::shared_ptr<UniformBufferManager> UniformBufferManagerSPtr;
-
 class StorageBufferManager : public BufferManager
 {
 public:
@@ -144,8 +162,17 @@ public:
 	void init() override;
 	void clear() override;
 
+	void setData(const void* data, const VkDeviceSize size, const int length);
+
 	VkBuffer buffer;
 	VkDeviceMemory memory;
+
+	VkDeviceSize size;
+	int length;
+
+private:
+	const void* data;
+	
 };
 
 class StagingBufferManager : public BufferManager

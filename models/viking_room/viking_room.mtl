@@ -1,0 +1,7 @@
+newmtl Texture1
+Kd 0 0 0
+Ks 0 0 0
+Tr 1 1 1
+Ns 1
+Ni 1
+map_Kd textures/viking_room.png

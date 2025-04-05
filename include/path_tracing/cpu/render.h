@@ -1,6 +1,6 @@
 #pragma once
 
-#include <scene.h>
+#include <path_tracing_scene.h>
 #include <utils.h>
 
 /**
@@ -27,7 +27,7 @@ public:
 	 *
 	 * @param[in,out] scene The scene to be rendered.
 	 */
-	void render(Scene& scene);
+	void render(PathTracingScene& scene);
 
 	/* Number of samples per pixel (spp), used for anti-aliasing. */
 	int spp = 1;
@@ -38,7 +38,7 @@ protected:
 	 *
 	 * @param[in] scene The scene whose rendering result is saved.
 	 */
-	void saveResult(const Scene& scene);
+	void saveResult(const PathTracingScene& scene);
 
 private:
 	/* Frame buffer storing the computed pixel colors. */

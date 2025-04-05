@@ -111,14 +111,52 @@ void VertexBufferManager::init()
 {
 	VkDeviceSize bufferSize = sizeof(this->vertices[0]) * this->vertices.size();
 
-	createDeviceLocalBuffer(
-		bufferSize, this->vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, this->buffer, this->memory);
+	VkBufferUsageFlags usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+	if (this->enable_ray_tracing)
+	{
+		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+	}
+
+	createDeviceLocalBuffer(bufferSize, this->vertices.data(), usage, this->buffer, this->memory);
 }
 
 void VertexBufferManager::clear()
 {
 	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
 	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+}
+
+VkVertexInputBindingDescription VertexBufferManager::getBindingDescription()
+{
+	VkVertexInputBindingDescription bindingDescription{};
+	bindingDescription.binding = 0;
+	bindingDescription.stride = sizeof(Vertex);
+	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	return bindingDescription;
+}
+
+std::array<VkVertexInputAttributeDescription, 3> VertexBufferManager::getAttributeDescriptions()
+{
+	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+
+	attributeDescriptions[0].binding = 0;
+	attributeDescriptions[0].location = 0;
+	attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[0].offset = offsetof(Vertex, position);
+
+	attributeDescriptions[1].binding = 0;
+	attributeDescriptions[1].location = 1;
+	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[1].offset = offsetof(Vertex, normal);
+
+	attributeDescriptions[2].binding = 0;
+	attributeDescriptions[2].location = 2;
+	attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+	attributeDescriptions[2].offset = offsetof(Vertex, texture);
+
+	return attributeDescriptions;
 }
 
 IndexBufferManager::IndexBufferManager(const ContextManagerSPtr& pContentManager,
@@ -137,6 +175,27 @@ void IndexBufferManager::init()
 }
 
 void IndexBufferManager::clear()
+{
+	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
+	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+}
+
+IndirectBufferManager::IndirectBufferManager(const ContextManagerSPtr& pContentManager,
+											 const CommandManagerSPtr& pCommandManager)
+{
+	this->pContentManager = pContentManager;
+	this->pCommandManager = pCommandManager;
+}
+
+void IndirectBufferManager::init()
+{
+	VkDeviceSize bufferSize = sizeof(VkDrawIndexedIndirectCommand) * this->commands.size();
+
+	createDeviceLocalBuffer(
+		bufferSize, this->commands.data(), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, this->buffer, this->memory);
+}
+
+void IndirectBufferManager::clear()
 {
 	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
 	vkFreeMemory(pContentManager->device, this->memory, nullptr);
@@ -182,12 +241,20 @@ StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& pContentMan
 
 void StorageBufferManager::init()
 {
+	createDeviceLocalBuffer(this->size, this->data, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, this->buffer, this->memory);
 }
 
 void StorageBufferManager::clear()
 {
 	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
 	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+}
+
+void StorageBufferManager::setData(const void* data, const VkDeviceSize size, const int length)
+{
+	this->data = data;
+	this->size = size;
+	this->length = length;
 }
 
 StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& pContentManager,
@@ -213,4 +280,3 @@ void StagingBufferManager::clear()
 	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
 	vkFreeMemory(pContentManager->device, this->memory, nullptr);
 }
-

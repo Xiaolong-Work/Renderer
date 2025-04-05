@@ -60,23 +60,23 @@ struct SSBOTriangle
 
 struct SSBOOMaterial
 {
-	alignas(16) glm::vec3 Ka;
-	alignas(16) glm::vec3 Kd;
-	alignas(16) glm::vec3 Ks;
-	alignas(16) glm::vec3 Tr;
-	float Ns;
-	float Ni;
+	alignas(16) glm::vec3 ka;
+	alignas(16) glm::vec3 kd;
+	alignas(16) glm::vec3 ks;
+	alignas(16) glm::vec3 tr;
+	float ns;
+	float ni;
 	int type;
 	int texture_index;
 
 	void operator=(const Material& material)
 	{
-		this->Ka = material.Ka;
-		this->Kd = material.Kd;
-		this->Ks = material.Ks;
-		this->Tr = material.Tr;
-		this->Ns = material.Ns;
-		this->Ni = material.Ni;
+		this->ka = material.ka;
+		this->kd = material.kd;
+		this->ks = material.ks;
+		this->tr = material.tr;
+		this->ns = material.ns;
+		this->ni = material.ni;
 		this->type = (int)material.type;
 		this->texture_index = -1;
 	}
@@ -107,7 +107,7 @@ struct SSBOScene
 	alignas(16) glm::vec3 look;
 	alignas(16) glm::vec3 up;
 
-	alignas(16) glm::vec3 Ka;
+	alignas(16) glm::vec3 ka;
 	float fov;
 
 	int width;
@@ -140,12 +140,12 @@ public:
 
 	std::vector<std::string> texture_paths;
 
-	void setData(const Scene& scene, int spp)
+	void setData(const PathTracingScene& scene, int spp)
 	{
 		this->scene.position = scene.camera.position;
 		this->scene.look = scene.camera.look;
 		this->scene.up = scene.camera.up;
-		this->scene.Ka = scene.Ka;
+		this->scene.ka = Vector3f{0.0f};
 		this->scene.fov = scene.camera.fov;
 		this->scene.width = scene.camera.width;
 		this->scene.height = scene.camera.height;
@@ -187,9 +187,9 @@ public:
 
 			SSBOOMaterial temp_material;
 			temp_material = object.material;
-			if (object.material.texture_load_flag)
+			if (object.material.diffuse_texture != -1)
 			{
-				this->texture_paths.push_back(object.material.texture.getPath());
+				this->texture_paths.push_back(scene.textures[object.material.diffuse_texture].getPath());
 				temp_material.texture_index = this->texture_paths.size() - 1;
 			}
 			else

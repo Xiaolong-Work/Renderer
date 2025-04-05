@@ -28,7 +28,7 @@ public:
 	DataLoader(const std::string& data_path, const std::string& name);
 
 	/**
-	 * @brief Loads scene data into the provided Scene object.
+	 * @brief Loads scene data into the provided PathTracingScene object.
 	 */
 	void load();
 

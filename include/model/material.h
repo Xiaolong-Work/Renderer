@@ -26,35 +26,29 @@ struct Material
 	/* The name of the material. */
 	std::string name;
 
-	/* Ambient reflectance component (Ka). */
-	Vector3f Ka;
+	/* Ambient reflectance component (ka). */
+	Vector3f ka{0.0f};
 
-	/* Diffuse reflectance component (Kd). */
-	Vector3f Kd;
+	/* Diffuse reflectance component (kd). */
+	Vector3f kd{0.0f};
 
-	/* Specular reflectance component (Ks). */
-	Vector3f Ks;
+	/* Specular reflectance component (ks). */
+	Vector3f ks{0.0f};
 
-	/* Transmittance component (Tr). Default is white (fully transparent). */
-	Vector3f Tr{1.0f, 1.0f, 1.0f};
+	/* Transmittance component (tr). */
+	Vector3f tr{0.0f};
 
 	/* Shininess coefficient (glossiness factor). */
-	float Ns;
+	float ns{0.0f};
 
-	/* Refractive index of the material (Ni). */
-	float Ni;
+	/* Refractive index of the material (ni). */
+	float ni{0.0f};
 
-	/* Texture file path for diffuse mapping. */
-	std::string map_Kd;
+	/* The diffuse texture index of the object, -1 means no texture data */
+	Index diffuse_texture{-1};
 
-	/* The type of the material (diffuse, specular, etc.). */
+	/* The type of the material */
 	MaterialType type;
-
-	/* Flag indicating whether a texture is loaded for this material. */
-	bool texture_load_flag{false};
-
-	/* The texture associated with the material. */
-	Texture texture;
 };
 
 class PBRMaterial

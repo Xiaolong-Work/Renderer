@@ -73,4 +73,6 @@ public:
 
 	/* The interpolated normal at the intersection point. */
 	Direction normal;
+
+	Coordinate2D uv;
 };

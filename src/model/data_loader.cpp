@@ -30,16 +30,15 @@ void DataLoader::loadObjFile()
 		/* Read in material data */
 		auto& material = mesh.MeshMaterial;
 		object.material.name = material.name;
-		object.material.Kd = Vector3f{material.Kd.X, material.Kd.Y, material.Kd.Z};
-		object.material.Ks = Vector3f{material.Ks.X, material.Ks.Y, material.Ks.Z};
-		object.material.Ns = material.Ns;
-		object.material.Ni = material.Ni;
-		object.material.map_Kd = material.map_Kd;
+		object.material.kd = Vector3f{material.Kd.X, material.Kd.Y, material.Kd.Z};
+		object.material.ks = Vector3f{material.Ks.X, material.Ks.Y, material.Ks.Z};
+		object.material.ns = material.Ns;
+		object.material.ni = material.Ni;
 
 		/* Determine the material type */
-		if (object.material.Ns > 1.0f)
+		if (object.material.ns > 1.0f)
 		{
-			if (object.material.Kd == Vector3f{0.0f, 0.0f, 0.0f} && object.material.Ks == Vector3f{1.0f, 1.0f, 1.0f})
+			if (object.material.kd == Vector3f{0.0f, 0.0f, 0.0f} && object.material.ks == Vector3f{1.0f, 1.0f, 1.0f})
 			{
 				object.material.type = MaterialType::Specular;
 			}
@@ -48,20 +47,13 @@ void DataLoader::loadObjFile()
 				object.material.type = MaterialType::Glossy;
 			}
 		}
-		else if (object.material.Ni > 1.0f)
+		else if (object.material.ni > 1.0f)
 		{
 			object.material.type = MaterialType::Refraction;
 		}
 		else
 		{
 			object.material.type = MaterialType::Diffuse;
-		}
-
-		/* Load the texture */
-		if (object.material.map_Kd != "")
-		{
-			object.material.texture_load_flag = true;
-			object.material.texture.setTexture(this->data_path + object.material.map_Kd);
 		}
 
 		/* Convert data format */

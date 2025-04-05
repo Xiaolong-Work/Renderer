@@ -7,7 +7,7 @@
 #include <image_manager.h>
 #include <iostream>
 #include <pipeline_manager.h>
-#include <scene.h>
+#include <path_tracing_scene.h>
 #include <shader_manager.h>
 #include <ssbo_buffer_manager.h>
 #include <swap_chain_manager.h>
@@ -32,7 +32,7 @@ public:
 	VkPipelineLayout computePipelineLayout;
 	ShaderManager computeShaderManager;
 
-	void init(const Scene& scene)
+	void init(const PathTracingScene& scene)
 	{
 		this->context_manager.setExtent(VkExtent2D{scene.camera.width, scene.camera.height});
 		this->context_manager.init();

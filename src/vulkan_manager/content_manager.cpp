@@ -405,11 +405,21 @@ void ContextManager::createLogicalDevice()
 	VkPhysicalDeviceFeatures deviceFeatures{};
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
 	deviceFeatures.imageCubeArray = VK_TRUE;
+	deviceFeatures.multiDrawIndirect = VK_TRUE;
+
+	VkPhysicalDeviceVulkan11Features features11{};
+	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+	features11.shaderDrawParameters = VK_TRUE;
+
+	VkPhysicalDeviceVulkan12Features features12{};
+	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	features12.runtimeDescriptorArray = VK_TRUE;
+	features11.pNext = &features12;
 
 	/* Logical device creation information */
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.pNext = nullptr;
+	createInfo.pNext = &features11;
 	createInfo.flags = 0;
 	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pQueueCreateInfos = queueCreateInfos.data();

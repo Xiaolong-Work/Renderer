@@ -3,8 +3,10 @@
 #include <map>
 
 #define GLFW_INCLUDE_VULKAN
+#include <data_io.h>
 #include <data_loader.h>
 #include <GLFW/glfw3.h>
+#include <path_tracing_scene.h>
 #include <render.h>
 #include <renderer.h>
 #include <scene.h>
@@ -27,13 +29,14 @@ void rasterRenderCPU()
 	r.clear();
 }
 
-void rasterRender()
+void rasterRender(const Scene& scene)
 {
 	VulkanRasterRenderer renderer;
+	renderer.setData(scene);
 	renderer.run();
 }
 
-void pathTracingGPU(const Scene& scene, const int spp)
+void pathTracingGPU(const PathTracingScene& scene, const int spp)
 {
 	VulkanPathTracingRender app{};
 	app.setSpp(spp);
@@ -59,7 +62,7 @@ void pathTracingRender()
 
 	Renderer renderer;
 
-	Scene scene;
+	PathTracingScene scene;
 
 	int scene_index = 2;
 	scene.name = name[scene_index];
@@ -93,7 +96,22 @@ int main()
 {
 	// rasterRenderCPU();
 
-	// rasterRender();
-	pathTracingRender();
-	pathTracingRTCore();
+	// pathTracingRender();
+	// pathTracingRTCore();
+
+	std::string path = std::string(ROOT_DIR) + "/models/bathroom/";
+	InputOutput io{"bathroom"};
+	io.loadObj(path);
+	io.loadXmlFile(path);
+
+	// std::string path = std::string(ROOT_DIR) + "/models/viking_room/";
+	// InputOutput io{"viking_room"};
+	// io.loadObj(path);
+
+	Scene scene;
+	io.generateScene(scene);
+
+	rasterRender(scene);
+
+	return 0;
 }

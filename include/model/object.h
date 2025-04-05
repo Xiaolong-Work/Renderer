@@ -16,6 +16,16 @@ public:
 	/* The name of the object. */
 	std::string name;
 
+	/* Object's vertex data */
+	std::vector<Vertex> vertices;
+
+	/* Object's vertex index data */
+	std::vector<Index> indices;
+
+	/* The material index of the object */
+	Index material_index{-1};
+
+	/* ========== Path Tracing Data Extension ========== */
 	/* The triangle mesh representing the object's geometry. */
 	std::vector<Triangle> mesh;
 

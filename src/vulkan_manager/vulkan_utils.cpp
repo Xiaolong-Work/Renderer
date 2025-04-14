@@ -78,6 +78,8 @@ void DrawFrame::clear()
 
 void DrawFrame::draw()
 {
+	int count = 0;
+	float sum = 0.0f;
 	while (!glfwWindowShouldClose(this->content_manager.window))
 	{
 		auto begin = std::chrono::system_clock::now();
@@ -85,7 +87,17 @@ void DrawFrame::draw()
 		present();
 		glfwPollEvents();
 		auto end = std::chrono::system_clock::now();
-		outputFrameRate(end - begin);
+		if (sum >= 1000000.0f)
+		{
+			outputFrameRate(count);
+			count = 0;
+			sum = 0.0f;
+		}
+		else
+		{
+			count++;
+			sum += (end - begin).count();
+		}
 	}
 
 	vkDeviceWaitIdle(this->content_manager.device);

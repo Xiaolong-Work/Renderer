@@ -1,2 +1,25 @@
-# Blender 4.4.0 MTL File: '未命名.blend'
 # www.blender.org
+newmtl ground
+Kd 0.5 0.5 0.5
+Ks 0 0 0
+Tr 1 1 1
+Ns 1
+Ni 1
+newmtl cube1
+Kd 0.5 0.5 0.5
+Ks 0 0 0
+Tr 1 1 1
+Ns 1
+Ni 1
+newmtl cube2
+Kd 1.00 0.71 0.29
+Ks 1.00 0.71 0.29
+Tr 1 1 1
+Ns 1000
+Ni 1
+newmtl cylinder
+Kd 0.56 0.57 0.58
+Ks 0.56 0.57 0.58
+Tr 1 1 1
+Ns 500
+Ni 1

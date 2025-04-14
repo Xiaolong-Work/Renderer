@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <tiny_obj_loader.h>
+#include <tiny_gltf.h>
 #include <tinyxml2.h>
 
 #include <camera.h>
@@ -20,9 +21,11 @@ public:
 
 	InputOutput(const std::string& name);
 
-	void loadObj(const std::string& path);
+	void loadObjFile(const std::string& path);
 
 	void loadXmlFile(const std::string& path);
+
+	void loadGlbFile(const std::string& path);
 
 	void generateScene(Scene& scene);
 

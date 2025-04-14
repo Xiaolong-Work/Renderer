@@ -1,8 +1,8 @@
 #include <pipeline_manager.h>
 
-PipelineManager::PipelineManager(const ContextManagerSPtr& pContentManager)
+PipelineManager::PipelineManager(const ContextManagerSPtr& context_manager_sptr)
 {
-	this->pContentManager = pContentManager;
+	this->context_manager_sptr = context_manager_sptr;
 }
 
 void PipelineManager::init()
@@ -12,21 +12,21 @@ void PipelineManager::init()
 
 void PipelineManager::clear()
 {
-	vkDestroyPipeline(pContentManager->device, this->pipeline, nullptr);
-	vkDestroyPipelineLayout(pContentManager->device, this->layout, nullptr);
+	vkDestroyPipeline(context_manager_sptr->device, this->pipeline, nullptr);
+	vkDestroyPipelineLayout(context_manager_sptr->device, this->layout, nullptr);
 }
 
-void PipelineManager::setRequiredValue(const std::vector<VkPipelineShaderStageCreateInfo>& shaderStages,
+void PipelineManager::setRequiredValue(const std::vector<VkPipelineShaderStageCreateInfo>& shader_stages,
 									   const VkViewport& viewport,
 									   const VkRect2D& scissor,
 									   const VkPipelineLayoutCreateInfo& pipelineLayoutInfo,
-									   const VkRenderPass& renderPass)
+									   const VkRenderPass& pass)
 {
-	this->shaderStages = shaderStages;
+	this->shader_stages = shader_stages;
 	this->viewport = viewport;
 	this->scissor = scissor;
 	this->pipelineLayoutInfo = pipelineLayoutInfo;
-	this->renderPass = renderPass;
+	this->pass = pass;
 
 	setDefaultFixedState();
 }
@@ -38,7 +38,7 @@ void PipelineManager::createPipeline()
 	auto bindingDescription = VertexBufferManager::getBindingDescription();
 	auto attributeDescriptions = VertexBufferManager::getAttributeDescriptions();
 
-	if (this->enableVertexInpute)
+	if (this->enable_vertex_inpute)
 	{
 		vertexInputInfo.vertexBindingDescriptionCount = 1;
 		vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
@@ -53,23 +53,23 @@ void PipelineManager::createPipeline()
 		vertexInputInfo.pVertexAttributeDescriptions = nullptr;
 	}
 
-	VkPipelineDynamicStateCreateInfo dynamicState{};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.pNext = nullptr;
-	dynamicState.flags = 0;
-	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-	dynamicState.pDynamicStates = dynamicStates.data();
+	VkPipelineDynamicStateCreateInfo dynamic_state{};
+	dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamic_state.pNext = nullptr;
+	dynamic_state.flags = 0;
+	dynamic_state.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
+	dynamic_state.pDynamicStates = dynamic_states.data();
 
-	VkPipelineViewportStateCreateInfo viewportState{};
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.pNext = nullptr;
-	viewportState.flags = 0;
-	viewportState.viewportCount = 1;
-	viewportState.pViewports = &this->viewport;
-	viewportState.scissorCount = 1;
-	viewportState.pScissors = &this->scissor;
+	VkPipelineViewportStateCreateInfo viewport_state{};
+	viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewport_state.pNext = nullptr;
+	viewport_state.flags = 0;
+	viewport_state.viewportCount = 1;
+	viewport_state.pViewports = &this->viewport;
+	viewport_state.scissorCount = 1;
+	viewport_state.pScissors = &this->scissor;
 
-	if (vkCreatePipelineLayout(pContentManager->device, &this->pipelineLayoutInfo, nullptr, &this->layout) !=
+	if (vkCreatePipelineLayout(context_manager_sptr->device, &this->pipelineLayoutInfo, nullptr, &this->layout) !=
 		VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create pipeline layout!");
@@ -77,27 +77,34 @@ void PipelineManager::createPipeline()
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.pNext = nullptr;
+	pipelineInfo.pNext = this->next_pointer;
 	pipelineInfo.flags = 0;
-	pipelineInfo.stageCount = static_cast<uint32_t>(this->shaderStages.size());
-	pipelineInfo.pStages = this->shaderStages.data();
+	pipelineInfo.stageCount = static_cast<uint32_t>(this->shader_stages.size());
+	pipelineInfo.pStages = this->shader_stages.data();
 	pipelineInfo.pVertexInputState = &vertexInputInfo;
-	pipelineInfo.pInputAssemblyState = &this->inputAssembly;
+	pipelineInfo.pInputAssemblyState = &this->input_assembly;
 	pipelineInfo.pTessellationState = nullptr;
-	pipelineInfo.pViewportState = &viewportState;
+	pipelineInfo.pViewportState = &viewport_state;
 	pipelineInfo.pRasterizationState = &this->rasterizer;
-	pipelineInfo.pMultisampleState = &this->multisampling;
-	pipelineInfo.pDepthStencilState = &this->depthStencil;
-	pipelineInfo.pColorBlendState = &this->colorBlending;
-	pipelineInfo.pDynamicState = &dynamicState;
+	pipelineInfo.pMultisampleState = &this->multisample;
+	pipelineInfo.pDepthStencilState = &this->depth_stencil;
+	if (this->enable_color_attachment)
+	{
+		pipelineInfo.pColorBlendState = &this->color_blending;
+	}
+	else
+	{
+		pipelineInfo.pColorBlendState = nullptr;
+	}
+	pipelineInfo.pDynamicState = &dynamic_state;
 	pipelineInfo.layout = this->layout;
-	pipelineInfo.renderPass = renderPass;
+	pipelineInfo.renderPass = pass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	pipelineInfo.basePipelineIndex = -1;
 
 	if (vkCreateGraphicsPipelines(
-			pContentManager->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &this->pipeline) != VK_SUCCESS)
+			context_manager_sptr->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &this->pipeline) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create graphics pipeline!");
 	}
@@ -105,9 +112,9 @@ void PipelineManager::createPipeline()
 
 void PipelineManager::setDefaultFixedState()
 {
-	this->inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	this->inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	this->inputAssembly.primitiveRestartEnable = VK_FALSE;
+	this->input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	this->input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	this->input_assembly.primitiveRestartEnable = VK_FALSE;
 
 	this->rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	this->rasterizer.pNext = nullptr;
@@ -123,48 +130,48 @@ void PipelineManager::setDefaultFixedState()
 	this->rasterizer.depthBiasSlopeFactor = 0.0f;
 	this->rasterizer.lineWidth = 1.0f;
 
-	this->multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	this->multisampling.pNext = nullptr;
-	this->multisampling.flags = 0;
-	this->multisampling.sampleShadingEnable = VK_FALSE;
-	this->multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	this->multisampling.minSampleShading = 1.0f;
-	this->multisampling.pSampleMask = nullptr;
-	this->multisampling.alphaToCoverageEnable = VK_FALSE;
-	this->multisampling.alphaToOneEnable = VK_FALSE;
+	this->multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	this->multisample.pNext = nullptr;
+	this->multisample.flags = 0;
+	this->multisample.sampleShadingEnable = VK_FALSE;
+	this->multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	this->multisample.minSampleShading = 1.0f;
+	this->multisample.pSampleMask = nullptr;
+	this->multisample.alphaToCoverageEnable = VK_FALSE;
+	this->multisample.alphaToOneEnable = VK_FALSE;
 
-	this->depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	this->depthStencil.pNext = nullptr;
-	this->depthStencil.flags = 0;
-	this->depthStencil.depthTestEnable = VK_TRUE;
-	this->depthStencil.depthWriteEnable = VK_TRUE;
-	this->depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-	this->depthStencil.depthBoundsTestEnable = VK_FALSE;
-	this->depthStencil.stencilTestEnable = VK_FALSE;
-	this->depthStencil.front = {};
-	this->depthStencil.back = {};
-	this->depthStencil.minDepthBounds = 0.0f;
-	this->depthStencil.maxDepthBounds = 1.0f;
+	this->depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	this->depth_stencil.pNext = nullptr;
+	this->depth_stencil.flags = 0;
+	this->depth_stencil.depthTestEnable = VK_TRUE;
+	this->depth_stencil.depthWriteEnable = VK_TRUE;
+	this->depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS;
+	this->depth_stencil.depthBoundsTestEnable = VK_FALSE;
+	this->depth_stencil.stencilTestEnable = VK_FALSE;
+	this->depth_stencil.front = {};
+	this->depth_stencil.back = {};
+	this->depth_stencil.minDepthBounds = 0.0f;
+	this->depth_stencil.maxDepthBounds = 1.0f;
 
-	this->colorBlendAttachment.colorWriteMask =
+	this->color_blend_attachment.colorWriteMask =
 		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	this->colorBlendAttachment.blendEnable = VK_FALSE;
-	this->colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	this->colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	this->colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-	this->colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	this->colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	this->colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	this->color_blend_attachment.blendEnable = VK_FALSE;
+	this->color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	this->color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	this->color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+	this->color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	this->color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	this->color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
-	this->colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	this->colorBlending.pNext = nullptr;
-	this->colorBlending.flags = 0;
-	this->colorBlending.logicOpEnable = VK_FALSE;
-	this->colorBlending.logicOp = VK_LOGIC_OP_COPY;
-	this->colorBlending.attachmentCount = 1;
-	this->colorBlending.pAttachments = &colorBlendAttachment;
-	this->colorBlending.blendConstants[0] = 0.0f;
-	this->colorBlending.blendConstants[1] = 0.0f;
-	this->colorBlending.blendConstants[2] = 0.0f;
-	this->colorBlending.blendConstants[3] = 0.0f;
+	this->color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	this->color_blending.pNext = nullptr;
+	this->color_blending.flags = 0;
+	this->color_blending.logicOpEnable = VK_FALSE;
+	this->color_blending.logicOp = VK_LOGIC_OP_COPY;
+	this->color_blending.attachmentCount = 1;
+	this->color_blending.pAttachments = &color_blend_attachment;
+	this->color_blending.blendConstants[0] = 0.0f;
+	this->color_blending.blendConstants[1] = 0.0f;
+	this->color_blending.blendConstants[2] = 0.0f;
+	this->color_blending.blendConstants[3] = 0.0f;
 }

@@ -10,7 +10,7 @@ class CommandManager
 {
 public:
 	CommandManager() = default;
-	CommandManager(const ContextManagerSPtr& pContentManager);
+	CommandManager(const ContextManagerSPtr& context_manager_sptr);
 
 	void init();
 	void clear();
@@ -20,6 +20,9 @@ public:
 
 	VkCommandBuffer beginComputeCommands();
 	void endComputeCommands(VkCommandBuffer commandBuffer);
+
+	VkCommandBuffer beginGraphicsCommands();
+	void endGraphicsCommands(VkCommandBuffer commandBuffer);
 
 	std::vector<VkCommandBuffer> graphicsCommandBuffers;
 
@@ -33,7 +36,7 @@ private:
 	VkCommandPool transferCommandPool = VK_NULL_HANDLE;
 	VkCommandPool computeCommandPool = VK_NULL_HANDLE;
 
-	ContextManagerSPtr pContentManager;
+	ContextManagerSPtr context_manager_sptr;
 };
 
 typedef std::shared_ptr<CommandManager> CommandManagerSPtr;

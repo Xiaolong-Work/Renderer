@@ -4,22 +4,17 @@
 #include <sstream>
 #include <vector>
 
+#include <light.h>
 #include <texture.h>
 #include <triangle.h>
 #include <utils.h>
 #include <vertex.h>
 
-struct Light
-{
-	Vector3f position;
-	Vector3f intensity;
-};
-
 class Model
 {
 public:
 	std::vector<Triangle> faces;
-	std::vector<Light> lights;
+	std::vector<PointLight> lights;
 	Texture texture;
 
 	Model();

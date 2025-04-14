@@ -5,7 +5,7 @@ InputOutput::InputOutput(const std::string& name)
 	this->name = name;
 }
 
-void InputOutput::loadObj(const std::string& path)
+void InputOutput::loadObjFile(const std::string& path)
 {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -88,6 +88,8 @@ void InputOutput::loadObj(const std::string& path)
 
 		this->materials[i].ns = material.shininess;
 		this->materials[i].ni = material.ior;
+
+		this->materials[i].transferToPBR();
 
 		if (material.diffuse_texname != "")
 		{
@@ -176,6 +178,35 @@ void InputOutput::loadXmlFile(const std::string& path)
 			}
 		}
 	}
+}
+
+void InputOutput::loadGlbFile(const std::string& path)
+{
+	//tinygltf::TinyGLTF loader;
+	//tinygltf::Model model;
+	//std::string err, warn;
+
+	//bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, "model.glb");
+	//if (!warn.empty())
+	//	std::cout << "Warn: " << warn << std::endl;
+	//if (!err.empty())
+	//	std::cerr << "Err: " << err << std::endl;
+	//if (!ret)
+	//	throw std::runtime_error("Failed to load glb");
+
+	//for (const auto& mesh : model.meshes)
+	//{
+	//	for (const auto& primitive : mesh.primitives)
+	//	{
+	//		const auto& positionAccessor = model.accessors[primitive.attributes.find("POSITION")->second];
+	//		const auto& positionBufferView = model.bufferViews[positionAccessor.bufferView];
+	//		const auto& positionBuffer = model.buffers[positionBufferView.buffer];
+	//		const unsigned char* posData =
+	//			positionBuffer.data.data() + positionBufferView.byteOffset + positionAccessor.byteOffset;
+
+	//		// 读取 posData -> 顶点数据
+	//	}
+	//}
 }
 
 void InputOutput::generateScene(Scene& scene)

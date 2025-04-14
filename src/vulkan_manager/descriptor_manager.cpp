@@ -1,8 +1,8 @@
 #include <descriptor_manager.h>
 
-DescriptorManager::DescriptorManager(const ContextManagerSPtr& pContentManager)
+DescriptorManager::DescriptorManager(const ContextManagerSPtr& context_manager_sptr)
 {
-	this->pContentManager = pContentManager;
+	this->context_manager_sptr = context_manager_sptr;
 }
 
 void DescriptorManager::init()
@@ -14,8 +14,8 @@ void DescriptorManager::init()
 
 void DescriptorManager::clear()
 {
-	vkDestroyDescriptorPool(pContentManager->device, pool, nullptr);
-	vkDestroyDescriptorSetLayout(pContentManager->device, layout, nullptr);
+	vkDestroyDescriptorPool(context_manager_sptr->device, pool, nullptr);
+	vkDestroyDescriptorSetLayout(context_manager_sptr->device, layout, nullptr);
 }
 
 void DescriptorManager::createDescriptorSetLayout()
@@ -27,7 +27,7 @@ void DescriptorManager::createDescriptorSetLayout()
 	layoutInfo.bindingCount = static_cast<uint32_t>(this->bindings.size());
 	layoutInfo.pBindings = this->bindings.data();
 
-	if (vkCreateDescriptorSetLayout(pContentManager->device, &layoutInfo, nullptr, &this->layout) != VK_SUCCESS)
+	if (vkCreateDescriptorSetLayout(context_manager_sptr->device, &layoutInfo, nullptr, &this->layout) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create descriptor set layout!");
 	}
@@ -43,7 +43,7 @@ void DescriptorManager::createDescriptorPool()
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
 
-	if (vkCreateDescriptorPool(pContentManager->device, &poolInfo, nullptr, &this->pool) != VK_SUCCESS)
+	if (vkCreateDescriptorPool(context_manager_sptr->device, &poolInfo, nullptr, &this->pool) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create descriptor pool!");
 	}
@@ -58,7 +58,7 @@ void DescriptorManager::createDescriptorSet()
 	allocInfo.descriptorSetCount = static_cast<uint32_t>(1);
 	allocInfo.pSetLayouts = &this->layout;
 
-	if (vkAllocateDescriptorSets(pContentManager->device, &allocInfo, &this->set) != VK_SUCCESS)
+	if (vkAllocateDescriptorSets(context_manager_sptr->device, &allocInfo, &this->set) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate descriptor sets!");
 	}

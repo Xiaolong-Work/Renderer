@@ -2,10 +2,11 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 
-ImageManager::ImageManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
+ImageManager::ImageManager(const ContextManagerSPtr& context_manager_sptr,
+						   const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void ImageManager::setExtent(const VkExtent2D& extent)
@@ -38,25 +39,25 @@ void ImageManager::createImage(const VkExtent3D& extent,
 	imageInfo.pQueueFamilyIndices = nullptr;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-	if (vkCreateImage(pContentManager->device, &imageInfo, nullptr, &image) != VK_SUCCESS)
+	if (vkCreateImage(context_manager_sptr->device, &imageInfo, nullptr, &image) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create image!");
 	}
 
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(pContentManager->device, image, &memRequirements);
+	vkGetImageMemoryRequirements(context_manager_sptr->device, image, &memRequirements);
 
 	VkMemoryAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-	if (vkAllocateMemory(pContentManager->device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
+	if (vkAllocateMemory(context_manager_sptr->device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate image memory!");
 	}
 
-	vkBindImageMemory(pContentManager->device, image, imageMemory, 0);
+	vkBindImageMemory(context_manager_sptr->device, image, imageMemory, 0);
 }
 
 void ImageManager::copyBufferToImage(VkBuffer buffer, VkImage image, const VkExtent3D& extent)
@@ -72,11 +73,11 @@ void ImageManager::copyBufferToImage(VkBuffer buffer, VkImage image, const VkExt
 	region.imageOffset = {0, 0, 0};
 	region.imageExtent = extent;
 
-	VkCommandBuffer commandBuffer = pCommandManager->beginTransferCommands();
+	VkCommandBuffer commandBuffer = command_manager_sptr->beginTransferCommands();
 
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	pCommandManager->endTransferCommands(commandBuffer);
+	command_manager_sptr->endTransferCommands(commandBuffer);
 }
 
 void ImageManager::copyImageToBuffer(VkImage image, VkBuffer buffer, const VkExtent3D& extent)
@@ -92,14 +93,15 @@ void ImageManager::copyImageToBuffer(VkImage image, VkBuffer buffer, const VkExt
 	region.imageOffset = {0, 0, 0};
 	region.imageExtent = extent;
 
-	VkCommandBuffer commandBuffer = pCommandManager->beginTransferCommands();
+	VkCommandBuffer commandBuffer = command_manager_sptr->beginTransferCommands();
 
 	vkCmdCopyImageToBuffer(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
 
-	pCommandManager->endTransferCommands(commandBuffer);
+	command_manager_sptr->endTransferCommands(commandBuffer);
 }
 
-void ImageManager::transformLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+void ImageManager::transformLayout(
+	VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount)
 {
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -115,12 +117,13 @@ void ImageManager::transformLayout(VkImage image, VkFormat format, VkImageLayout
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.levelCount = 1;
 	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
+	barrier.subresourceRange.layerCount = layerCount;
 
 	VkPipelineStageFlags sourceStage;
 	VkPipelineStageFlags destinationStage;
 
-	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ||
+		oldLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
 	{
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 
@@ -184,16 +187,60 @@ void ImageManager::transformLayout(VkImage image, VkFormat format, VkImageLayout
 		sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+			 newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+			 newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
+			 newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
+			 newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
 	else
 	{
 		throw std::invalid_argument("Unsupported layout transition!");
 	}
 
-	VkCommandBuffer commandBuffer = pCommandManager->beginTransferCommands();
+	VkCommandBuffer commandBuffer = command_manager_sptr->beginTransferCommands();
 
 	vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-	pCommandManager->endTransferCommands(commandBuffer);
+	command_manager_sptr->endTransferCommands(commandBuffer);
 }
 
 void ImageManager::loadImage(const std::string& imagePath,
@@ -220,9 +267,9 @@ void ImageManager::loadImage(const std::string& imagePath,
 				 stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(pContentManager->device, stagingBufferMemory, 0, imageSize, 0, &data);
+	vkMapMemory(context_manager_sptr->device, stagingBufferMemory, 0, imageSize, 0, &data);
 	memcpy(data, pixels, static_cast<size_t>(imageSize));
-	vkUnmapMemory(pContentManager->device, stagingBufferMemory);
+	vkUnmapMemory(context_manager_sptr->device, stagingBufferMemory);
 
 	createImage(extent,
 				VK_FORMAT_R8G8B8A8_SRGB,
@@ -236,8 +283,8 @@ void ImageManager::loadImage(const std::string& imagePath,
 	copyBufferToImage(stagingBuffer, image, extent);
 	transformLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, layout);
 
-	vkDestroyBuffer(pContentManager->device, stagingBuffer, nullptr);
-	vkFreeMemory(pContentManager->device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, stagingBuffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, stagingBufferMemory, nullptr);
 
 	stbi_image_free(pixels);
 }
@@ -262,7 +309,7 @@ VkImageView ImageManager::createView(VkImage image, VkFormat format, VkImageAspe
 	viewInfo.subresourceRange.layerCount = 1;
 
 	VkImageView imageView;
-	if (vkCreateImageView(pContentManager->device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
+	if (vkCreateImageView(context_manager_sptr->device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create texture image view!");
 	}
@@ -270,11 +317,11 @@ VkImageView ImageManager::createView(VkImage image, VkFormat format, VkImageAspe
 	return imageView;
 }
 
-DepthImageManager::DepthImageManager(const ContextManagerSPtr& pContentManager,
-									 const CommandManagerSPtr& pCommandManager)
+DepthImageManager::DepthImageManager(const ContextManagerSPtr& context_manager_sptr,
+									 const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void DepthImageManager::init()
@@ -297,9 +344,9 @@ void DepthImageManager::init()
 
 void DepthImageManager::clear()
 {
-	vkDestroyImage(pContentManager->device, this->image, nullptr);
-	vkFreeMemory(pContentManager->device, this->imageMemory, nullptr);
-	vkDestroyImageView(pContentManager->device, this->imageView, nullptr);
+	vkDestroyImage(context_manager_sptr->device, this->image, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->imageMemory, nullptr);
+	vkDestroyImageView(context_manager_sptr->device, this->imageView, nullptr);
 }
 
 VkFormat DepthImageManager::findSupportedFormat(const std::vector<VkFormat>& candidates)
@@ -307,7 +354,7 @@ VkFormat DepthImageManager::findSupportedFormat(const std::vector<VkFormat>& can
 	for (VkFormat format : candidates)
 	{
 		VkFormatProperties props;
-		vkGetPhysicalDeviceFormatProperties(pContentManager->physical_device, format, &props);
+		vkGetPhysicalDeviceFormatProperties(context_manager_sptr->physical_device, format, &props);
 
 		if ((props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) ==
 			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
@@ -320,11 +367,11 @@ VkFormat DepthImageManager::findSupportedFormat(const std::vector<VkFormat>& can
 	throw std::runtime_error("Failed to find supported format!");
 }
 
-StorageImageManager::StorageImageManager(const ContextManagerSPtr& pContentManager,
-										 const CommandManagerSPtr& pCommandManager)
+StorageImageManager::StorageImageManager(const ContextManagerSPtr& context_manager_sptr,
+										 const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void StorageImageManager::init()
@@ -343,9 +390,9 @@ void StorageImageManager::init()
 
 void StorageImageManager::clear()
 {
-	vkDestroyImage(pContentManager->device, this->image, nullptr);
-	vkFreeMemory(pContentManager->device, this->imageMemory, nullptr);
-	vkDestroyImageView(pContentManager->device, this->imageView, nullptr);
+	vkDestroyImage(context_manager_sptr->device, this->image, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->imageMemory, nullptr);
+	vkDestroyImageView(context_manager_sptr->device, this->imageView, nullptr);
 }
 
 void StorageImageManager::getData(VkBuffer& stagingBuffer, VkDeviceMemory& stagingBufferMemory)
@@ -362,11 +409,11 @@ void StorageImageManager::getData(VkBuffer& stagingBuffer, VkDeviceMemory& stagi
 	copyImageToBuffer(this->image, stagingBuffer, this->extent);
 }
 
-PointLightShadowMapImageManager::PointLightShadowMapImageManager(const ContextManagerSPtr& pContentManager,
-																 const CommandManagerSPtr& pCommandManager)
+PointLightShadowMapImageManager::PointLightShadowMapImageManager(const ContextManagerSPtr& context_manager_sptr,
+																 const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void PointLightShadowMapImageManager::init()
@@ -377,10 +424,13 @@ void PointLightShadowMapImageManager::init()
 
 void PointLightShadowMapImageManager::clear()
 {
-	vkDestroyImage(pContentManager->device, this->image, nullptr);
-	vkFreeMemory(pContentManager->device, this->memory, nullptr);
-	vkDestroyImageView(pContentManager->device, this->view, nullptr);
-	vkDestroySampler(pContentManager->device, this->sampler, nullptr);
+	vkDestroyImage(context_manager_sptr->device, this->image, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
+	vkDestroyImageView(context_manager_sptr->device, this->view, nullptr);
+	vkDestroyImage(context_manager_sptr->device, this->depth_image, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->depth_memory, nullptr);
+	vkDestroyImageView(context_manager_sptr->device, this->depth_view, nullptr);
+	vkDestroySampler(context_manager_sptr->device, this->sampler, nullptr);
 }
 
 void PointLightShadowMapImageManager::createImageResource()
@@ -390,38 +440,48 @@ void PointLightShadowMapImageManager::createImageResource()
 	image_information.pNext = nullptr;
 	image_information.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 	image_information.imageType = VK_IMAGE_TYPE_2D;
-	image_information.format = VK_FORMAT_D32_SFLOAT;
+	image_information.format = VK_FORMAT_R32_SFLOAT;
 	image_information.extent = VkExtent3D{this->width, this->height, 1};
-	image_information.mipLevels = static_cast<uint32_t>(1);
+	image_information.mipLevels = 1u;
 	image_information.arrayLayers = static_cast<uint32_t>(6 * this->light_number);
 	image_information.samples = VK_SAMPLE_COUNT_1_BIT;
 	image_information.tiling = VK_IMAGE_TILING_OPTIMAL;
-	image_information.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	image_information.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	image_information.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	image_information.queueFamilyIndexCount = static_cast<uint32_t>(0);
+	image_information.queueFamilyIndexCount = 0u;
 	image_information.pQueueFamilyIndices = nullptr;
 	image_information.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-	if (vkCreateImage(pContentManager->device, &image_information, nullptr, &this->image) != VK_SUCCESS)
+	if (vkCreateImage(context_manager_sptr->device, &image_information, nullptr, &this->image) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create image!");
 	}
 
-	VkMemoryRequirements memory_requirements;
-	vkGetImageMemoryRequirements(pContentManager->device, this->image, &memory_requirements);
-
-	VkMemoryAllocateInfo alloc_information{};
-	alloc_information.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	alloc_information.allocationSize = memory_requirements.size;
-	alloc_information.memoryTypeIndex =
-		findMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	if (vkAllocateMemory(pContentManager->device, &alloc_information, nullptr, &this->memory) != VK_SUCCESS)
+	image_information.format = VK_FORMAT_D32_SFLOAT;
+	image_information.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	if (vkCreateImage(context_manager_sptr->device, &image_information, nullptr, &this->depth_image) != VK_SUCCESS)
 	{
-		throw std::runtime_error("Failed to allocate image memory!");
+		throw std::runtime_error("Failed to create image!");
 	}
 
-	vkBindImageMemory(pContentManager->device, this->image, this->memory, 0);
+	auto bindMemory = [this](VkImage image, VkDeviceMemory memory) {
+		VkMemoryRequirements memory_requirements;
+		vkGetImageMemoryRequirements(context_manager_sptr->device, image, &memory_requirements);
+
+		VkMemoryAllocateInfo allocate_information{};
+		allocate_information.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocate_information.allocationSize = memory_requirements.size;
+		allocate_information.memoryTypeIndex =
+			findMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		if (vkAllocateMemory(context_manager_sptr->device, &allocate_information, nullptr, &memory) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to allocate image memory!");
+		}
+
+		vkBindImageMemory(context_manager_sptr->device, image, memory, 0);
+	};
+	bindMemory(this->image, this->memory);
+	bindMemory(this->depth_image, this->depth_memory);
 
 	VkImageViewCreateInfo view_information{};
 	view_information.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -429,24 +489,40 @@ void PointLightShadowMapImageManager::createImageResource()
 	view_information.flags = 0;
 	view_information.image = this->image;
 	view_information.viewType = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
-	view_information.format = VK_FORMAT_D32_SFLOAT;
+	view_information.format = VK_FORMAT_R32_SFLOAT;
 	view_information.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 	view_information.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 	view_information.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 	view_information.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-	view_information.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	view_information.subresourceRange.baseMipLevel = static_cast<uint32_t>(0);
-	view_information.subresourceRange.levelCount = static_cast<uint32_t>(1);
-	view_information.subresourceRange.baseArrayLayer = static_cast<uint32_t>(0);
+	view_information.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	view_information.subresourceRange.baseMipLevel = 0;
+	view_information.subresourceRange.levelCount = 1;
+	view_information.subresourceRange.baseArrayLayer = 0;
 	view_information.subresourceRange.layerCount = static_cast<uint32_t>(6 * this->light_number);
-
-	if (vkCreateImageView(pContentManager->device, &view_information, nullptr, &this->view) != VK_SUCCESS)
+	if (vkCreateImageView(context_manager_sptr->device, &view_information, nullptr, &this->view) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create image view!");
 	}
 
-	transformLayout(
-		this->image, VK_FORMAT_D32_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	view_information.image = this->depth_image;
+	view_information.format = VK_FORMAT_D32_SFLOAT;
+	view_information.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	if (vkCreateImageView(context_manager_sptr->device, &view_information, nullptr, &this->depth_view) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create image view!");
+	}
+
+	transformLayout(this->depth_image,
+					VK_FORMAT_D32_SFLOAT,
+					VK_IMAGE_LAYOUT_UNDEFINED,
+					VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+					6 * this->light_number);
+
+	transformLayout(this->image,
+					VK_FORMAT_D32_SFLOAT,
+					VK_IMAGE_LAYOUT_UNDEFINED,
+					VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+					6 * this->light_number);
 }
 
 void PointLightShadowMapImageManager::createSampler()
@@ -457,21 +533,21 @@ void PointLightShadowMapImageManager::createSampler()
 	sampler_information.flags = 0;
 	sampler_information.magFilter = VK_FILTER_LINEAR;
 	sampler_information.minFilter = VK_FILTER_LINEAR;
-	sampler_information.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	sampler_information.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	sampler_information.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	sampler_information.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	sampler_information.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	sampler_information.mipLodBias = 0.0f;
 	sampler_information.anisotropyEnable = VK_FALSE;
 	sampler_information.maxAnisotropy = 1.0f;
-	sampler_information.compareEnable = VK_TRUE;
-	sampler_information.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	sampler_information.compareEnable = VK_FALSE;
+	sampler_information.compareOp = VK_COMPARE_OP_ALWAYS;
 	sampler_information.minLod = 0.0f;
 	sampler_information.maxLod = 0.0f;
 	sampler_information.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 	sampler_information.unnormalizedCoordinates = VK_FALSE;
 
-	if (vkCreateSampler(pContentManager->device, &sampler_information, nullptr, &this->sampler) != VK_SUCCESS)
+	if (vkCreateSampler(context_manager_sptr->device, &sampler_information, nullptr, &this->sampler) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create texture sampler!");
 	}

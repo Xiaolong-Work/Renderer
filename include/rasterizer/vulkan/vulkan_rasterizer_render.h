@@ -1,8 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <algorithm>
 
 #include <buffer_manager.h>
 #include <command_manager.h>
@@ -11,6 +11,7 @@
 #include <pipeline_manager.h>
 #include <render_pass_manager.h>
 #include <shader_manager.h>
+#include <shadow_map_manager.h>
 #include <ssbo_buffer_manager.h>
 #include <swap_chain_manager.h>
 #include <texture_manager.h>
@@ -32,13 +33,26 @@ public:
 
 	void run()
 	{
+		int count = 0;
+		float sum = 0.0f;
 		while (!glfwWindowShouldClose(context_manager.window))
 		{
 			auto begin = std::chrono::system_clock::now();
 			glfwPollEvents();
 			draw();
 			auto end = std::chrono::system_clock::now();
-			outputFrameRate(end - begin);
+
+			if (sum >= 1000000.0f)
+			{
+				outputFrameRate(count);
+				count = 0;
+				sum = 0.0f;
+			}
+			else
+			{
+				count++;
+				sum += (end - begin).count();
+			}
 		}
 
 		vkDeviceWaitIdle(context_manager.device);
@@ -53,10 +67,10 @@ public:
 
 			VkDrawIndexedIndirectCommand indirect{};
 			indirect.indexCount = static_cast<uint32_t>(object.indices.size());
-			indirect.instanceCount = static_cast<int32_t>(1);
+			indirect.instanceCount = 1;
 			indirect.firstIndex = static_cast<uint32_t>(this->index_buffer_manager.indices.size());
 			indirect.vertexOffset = static_cast<int32_t>(this->vertex_buffer_manager.vertices.size());
-			indirect.firstInstance = static_cast<int32_t>(i);
+			indirect.firstInstance = 0;
 
 			this->vertex_buffer_manager.vertices.insert(
 				this->vertex_buffer_manager.vertices.end(), object.vertices.begin(), object.vertices.end());
@@ -97,6 +111,20 @@ public:
 			this->texture_manager.createTexture(texture.getPath());
 		}
 
+		this->shadow_map_manager =
+			ShadowMapManager(std::make_shared<ContextManager>(this->context_manager),
+							 std::make_shared<CommandManager>(this->command_manager),
+							 std::make_shared<VertexBufferManager>(this->vertex_buffer_manager),
+							 std::make_shared<IndexBufferManager>(this->index_buffer_manager),
+							 std::make_shared<IndirectBufferManager>(this->indirect_buffer_manager));
+
+		this->shadow_map_manager.point_lights = scene.point_lights;
+
+		// temp
+		this->shadow_map_manager.point_lights.push_back(PointLight{{7, 2, 1}, {50.0f, 50.0f, 50.0f}});
+
+		this->shadow_map_manager.init();
+
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			this->uniformBufferManagers[i].init();
@@ -108,9 +136,10 @@ public:
 	}
 
 protected:
-	glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 3.0f);
-	glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-	glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+	glm::vec3 cameraPosition = glm::vec3(15, 5, 1);
+	
+	glm::vec3 cameraFront = glm::vec3(1, 0, 0);
+	glm::vec3 cameraUp = glm::vec3(0, 1, 0);
 
 	float yaw = -90.0f; // 初始朝 -Z 方向
 	float pitch = 0.0f;
@@ -128,7 +157,6 @@ protected:
 	{
 		auto self = static_cast<VulkanRasterRenderer*>(glfwGetWindowUserPointer(window));
 
-		// 如果 Alt 被按下，释放鼠标控制
 		if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS)
 		{
 			if (self->mouseCaptured)
@@ -140,7 +168,6 @@ protected:
 			return;
 		}
 
-		// 鼠标未捕获，则在点击窗口时捕获并隐藏鼠标
 		if (!self->mouseCaptured && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
 		{
 			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); // 隐藏并锁定鼠标
@@ -153,7 +180,6 @@ protected:
 		{
 			return;
 		}
-			 
 
 		// FPS 鼠标控制逻辑
 		if (self->firstMouse)
@@ -164,7 +190,7 @@ protected:
 		}
 
 		double dx = xpos - self->mousePositionX;
-		double dy = self->mousePositionY - ypos; 
+		double dy = self->mousePositionY - ypos;
 
 		self->mousePositionX = xpos;
 		self->mousePositionY = ypos;
@@ -184,12 +210,8 @@ protected:
 		self->ubo.view = glm::lookAt(self->cameraPosition, self->cameraPosition + self->cameraFront, self->cameraUp);
 	}
 
-	float deltaTime = 1.0f;
-
 	static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
-		if (action != GLFW_PRESS && action != GLFW_REPEAT)
-			return;
 
 		auto self = static_cast<VulkanRasterRenderer*>(glfwGetWindowUserPointer(window));
 
@@ -201,23 +223,35 @@ protected:
 		switch (key)
 		{
 		case GLFW_KEY_W:
-			self->cameraPosition -= forward * moveSpeed;
-			break;
-		case GLFW_KEY_S:
-			self->cameraPosition += forward * moveSpeed;
-			break;
+			{
+				self->cameraPosition -= forward * moveSpeed;
+				break;
+			}
 		case GLFW_KEY_A:
-			self->cameraPosition -= right * moveSpeed;
-			break;
+			{
+				self->cameraPosition -= right * moveSpeed;
+				break;
+			}
+		case GLFW_KEY_S:
+			{
+				self->cameraPosition += forward * moveSpeed;
+				break;
+			}
 		case GLFW_KEY_D:
-			self->cameraPosition += right * moveSpeed;
-			break;
-		case GLFW_KEY_Q:
-			self->cameraPosition += up * moveSpeed;
-			break;
-		case GLFW_KEY_E:
-			self->cameraPosition -= up * moveSpeed;
-			break;
+			{
+				self->cameraPosition += right * moveSpeed;
+				break;
+			}
+		case GLFW_KEY_SPACE:
+			{
+				self->cameraPosition += up * moveSpeed;
+				break;
+			}
+		case GLFW_KEY_LEFT_SHIFT:
+			{
+				self->cameraPosition -= up * moveSpeed;
+				break;
+			}
 		default:
 			break;
 		}
@@ -239,18 +273,19 @@ protected:
 
 		this->swap_chain_manager.recreate();
 
-		this->render_pass_manager.pSwapChainManager.swap(std::make_shared<SwapChainManager>(this->swap_chain_manager));
+		this->render_pass_manager.swap_chain_manager_sprt.swap(
+			std::make_shared<SwapChainManager>(this->swap_chain_manager));
 		this->render_pass_manager.recreate();
 	}
 
 	void createUniformBufferObjects()
 	{
 		ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.project = glm::perspective(glm::radians(45.0f),
+		ubo.view = glm::lookAt(cameraPosition, cameraPosition + cameraFront, cameraUp);
+		ubo.project = glm::perspective(glm::radians(90.0f),
 									   (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
 									   0.1f,
-									   10.0f);
+									   1000.0f);
 		ubo.project[1][1] *= -1;
 
 		glfwSetFramebufferSizeCallback(this->context_manager.window, framebufferResizeCallback);
@@ -292,7 +327,7 @@ protected:
 	void setupGraphicsPipelines()
 	{
 		std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-		this->graphics_pipeline_manager.dynamicStates = dynamicStates;
+		this->graphics_pipeline_manager.dynamic_states = dynamicStates;
 
 		VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -328,26 +363,26 @@ protected:
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 1;
-		pipelineLayoutInfo.pSetLayouts = &descriptorManagers[0].layout;
+		pipelineLayoutInfo.pSetLayouts = &descriptor_managers[0].layout;
 		pipelineLayoutInfo.pushConstantRangeCount = 0;
 		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
 		graphics_pipeline_manager.setRequiredValue(
-			shaderStages, viewport, scissor, pipelineLayoutInfo, render_pass_manager.renderPass);
-		graphics_pipeline_manager.enableVertexInpute = true;
+			shaderStages, viewport, scissor, pipelineLayoutInfo, render_pass_manager.pass);
+		graphics_pipeline_manager.enable_vertex_inpute = true;
 	}
 
 	void setupDescriptor(const int index)
 	{
-		/* ========== Layout bingding infomation ========== */
-		/* MVP UBO bingding */
+		/* ========== Layout binding infomation ========== */
+		/* MVP UBO binding */
 		VkDescriptorSetLayoutBinding ubo_layout_binding{};
 		ubo_layout_binding.binding = 0;
 		ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		ubo_layout_binding.descriptorCount = 1;
 		ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		ubo_layout_binding.pImmutableSamplers = nullptr;
-		this->descriptorManagers[index].bindings.push_back(ubo_layout_binding);
+		this->descriptor_managers[index].bindings.push_back(ubo_layout_binding);
 
 		/* Texture sampler binding */
 		VkDescriptorSetLayoutBinding sampler_layout_binding{};
@@ -356,59 +391,88 @@ protected:
 		sampler_layout_binding.descriptorCount = static_cast<uint32_t>(this->texture_manager.imageViews.size());
 		sampler_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		sampler_layout_binding.pImmutableSamplers = nullptr;
-		this->descriptorManagers[index].bindings.push_back(sampler_layout_binding);
+		this->descriptor_managers[index].bindings.push_back(sampler_layout_binding);
+
+		/* Point light shadow map sampler binding */
+		VkDescriptorSetLayoutBinding point_light_shadow_map_layout_binding{};
+		point_light_shadow_map_layout_binding.binding = 2;
+		point_light_shadow_map_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		point_light_shadow_map_layout_binding.descriptorCount = 1;
+		point_light_shadow_map_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		point_light_shadow_map_layout_binding.pImmutableSamplers = nullptr;
+		this->descriptor_managers[index].bindings.push_back(point_light_shadow_map_layout_binding);
+
+		/* Point light data binding */
+		VkDescriptorSetLayoutBinding point_light_layout_binding{};
+		point_light_layout_binding.binding = 3;
+		point_light_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		point_light_layout_binding.descriptorCount =
+			static_cast<uint32_t>(this->shadow_map_manager.point_light_manager.length);
+		point_light_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		point_light_layout_binding.pImmutableSamplers = nullptr;
+		this->descriptor_managers[index].bindings.push_back(point_light_layout_binding);
 
 		/* Material index bingding */
 		VkDescriptorSetLayoutBinding material_index_layout_binding{};
-		material_index_layout_binding.binding = 2;
+		material_index_layout_binding.binding = 4;
 		material_index_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		material_index_layout_binding.descriptorCount = static_cast<uint32_t>(this->material_index_manager.length);
 		material_index_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		material_index_layout_binding.pImmutableSamplers = nullptr;
-		this->descriptorManagers[index].bindings.push_back(material_index_layout_binding);
+		this->descriptor_managers[index].bindings.push_back(material_index_layout_binding);
 
-		/* Material data bingding */
+		/* Material data binding */
 		VkDescriptorSetLayoutBinding material_data_layout_binding{};
-		material_data_layout_binding.binding = 3;
+		material_data_layout_binding.binding = 5;
 		material_data_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		material_data_layout_binding.descriptorCount = static_cast<uint32_t>(this->material_ssbo_manager.length);
 		material_data_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		material_data_layout_binding.pImmutableSamplers = nullptr;
-		this->descriptorManagers[index].bindings.push_back(material_data_layout_binding);
+		this->descriptor_managers[index].bindings.push_back(material_data_layout_binding);
+
+		/* Point light mvp binding */
+		VkDescriptorSetLayoutBinding point_light_mvp_layout_binding{};
+		point_light_mvp_layout_binding.binding = 6;
+		point_light_mvp_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		point_light_mvp_layout_binding.descriptorCount =
+			static_cast<uint32_t>(this->shadow_map_manager.mvp_ssbo_manager.length);
+		point_light_mvp_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		point_light_mvp_layout_binding.pImmutableSamplers = nullptr;
+		this->descriptor_managers[index].bindings.push_back(point_light_mvp_layout_binding);
 
 		/* ========== Pool size infomation ========== */
-		/* MVP UBO pool size */
+		/* UBO pool size */
 		VkDescriptorPoolSize ubo_pool_size{};
 		ubo_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		ubo_pool_size.descriptorCount = 1;
-		this->descriptorManagers[index].poolSizes.push_back(ubo_pool_size);
+		this->descriptor_managers[index].poolSizes.push_back(ubo_pool_size);
 
-		/* Texture pool size */
+		/* Sampler pool size */
 		VkDescriptorPoolSize sampler_pool_size{};
 		sampler_pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		sampler_pool_size.descriptorCount = 1;
-		this->descriptorManagers[index].poolSizes.push_back(sampler_pool_size);
+		sampler_pool_size.descriptorCount = 2;
+		this->descriptor_managers[index].poolSizes.push_back(sampler_pool_size);
 
-		/* Material pool size */
-		VkDescriptorPoolSize material_pool_size{};
-		material_pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		material_pool_size.descriptorCount = 2;
-		this->descriptorManagers[index].poolSizes.push_back(material_pool_size);
+		/* SSBO pool size */
+		VkDescriptorPoolSize ssbo_pool_size{};
+		ssbo_pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		ssbo_pool_size.descriptorCount = 4;
+		this->descriptor_managers[index].poolSizes.push_back(ssbo_pool_size);
 
-		this->descriptorManagers[index].init();
+		this->descriptor_managers[index].init();
 
 		/* ========== Write Descriptor Set ========== */
 		std::vector<VkWriteDescriptorSet> descriptor_writes{};
 
 		/* MVP UBO set write information */
 		VkDescriptorBufferInfo mvp_buffer_information{};
-		mvp_buffer_information.buffer = this->uniformBufferManagers[index].uniformBuffer;
+		mvp_buffer_information.buffer = this->uniformBufferManagers[index].buffer;
 		mvp_buffer_information.offset = 0;
 		mvp_buffer_information.range = sizeof(UniformBufferObject);
 		VkWriteDescriptorSet mvp_buffer_write;
 		mvp_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		mvp_buffer_write.pNext = nullptr;
-		mvp_buffer_write.dstSet = this->descriptorManagers[index].set;
+		mvp_buffer_write.dstSet = this->descriptor_managers[index].set;
 		mvp_buffer_write.dstBinding = 0;
 		mvp_buffer_write.dstArrayElement = 0;
 		mvp_buffer_write.descriptorCount = 1;
@@ -419,26 +483,71 @@ protected:
 		descriptor_writes.push_back(mvp_buffer_write);
 
 		/* Texture sampler write information */
-		std::vector<VkDescriptorImageInfo> texture_information;
-		texture_information.resize(this->texture_manager.imageViews.size());
-		for (size_t i = 0; i < this->texture_manager.imageViews.size(); i++)
+		if (!this->texture_manager.imageViews.empty())
 		{
-			texture_information[i].imageView = texture_manager.imageViews[i];
-			texture_information[i].sampler = texture_manager.sampler;
-			texture_information[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			std::vector<VkDescriptorImageInfo> texture_information;
+			texture_information.resize(this->texture_manager.imageViews.size());
+			for (size_t i = 0; i < this->texture_manager.imageViews.size(); i++)
+			{
+				texture_information[i].imageView = texture_manager.imageViews[i];
+				texture_information[i].sampler = texture_manager.sampler;
+				texture_information[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			}
+			VkWriteDescriptorSet texture_write{};
+			texture_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			texture_write.pNext = nullptr;
+			texture_write.dstSet = this->descriptor_managers[index].set;
+			texture_write.dstBinding = 1;
+			texture_write.dstArrayElement = 0;
+			texture_write.descriptorCount = static_cast<uint32_t>(texture_information.size());
+			texture_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			texture_write.pBufferInfo = nullptr;
+			texture_write.pImageInfo = texture_information.data();
+			texture_write.pTexelBufferView = nullptr;
+			descriptor_writes.push_back(texture_write);
 		}
-		VkWriteDescriptorSet texture_write{};
-		texture_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		texture_write.pNext = nullptr;
-		texture_write.dstSet = this->descriptorManagers[index].set;
-		texture_write.dstBinding = 1;
-		texture_write.dstArrayElement = 0;
-		texture_write.descriptorCount = static_cast<uint32_t>(texture_information.size());
-		texture_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		texture_write.pBufferInfo = nullptr;
-		texture_write.pImageInfo = texture_information.data();
-		texture_write.pTexelBufferView = nullptr;
-		descriptor_writes.push_back(texture_write);
+
+		/* Point light shadow map sampler write information */
+		if (!this->shadow_map_manager.point_lights.empty())
+		{
+			VkDescriptorImageInfo shadow_information;
+			shadow_information.imageView = this->shadow_map_manager.point_light_shadow_map_manager.view;
+			shadow_information.sampler = this->shadow_map_manager.point_light_shadow_map_manager.sampler;
+			shadow_information.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			VkWriteDescriptorSet shadow_write{};
+			shadow_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			shadow_write.pNext = nullptr;
+			shadow_write.dstSet = this->descriptor_managers[index].set;
+			shadow_write.dstBinding = 2;
+			shadow_write.dstArrayElement = 0;
+			shadow_write.descriptorCount = 1;
+			shadow_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			shadow_write.pBufferInfo = nullptr;
+			shadow_write.pImageInfo = &shadow_information;
+			shadow_write.pTexelBufferView = nullptr;
+			descriptor_writes.push_back(shadow_write);
+		}
+
+		/* Point light data write information */
+		if (!this->shadow_map_manager.point_lights.empty())
+		{
+			VkDescriptorBufferInfo point_light_data_buffer_information;
+			point_light_data_buffer_information.buffer = this->shadow_map_manager.point_light_manager.buffer;
+			point_light_data_buffer_information.offset = 0;
+			point_light_data_buffer_information.range = VK_WHOLE_SIZE;
+			VkWriteDescriptorSet point_light_data_buffer_write;
+			point_light_data_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			point_light_data_buffer_write.pNext = nullptr;
+			point_light_data_buffer_write.dstSet = this->descriptor_managers[index].set;
+			point_light_data_buffer_write.dstBinding = 3;
+			point_light_data_buffer_write.dstArrayElement = 0;
+			point_light_data_buffer_write.descriptorCount = 1;
+			point_light_data_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			point_light_data_buffer_write.pBufferInfo = &point_light_data_buffer_information;
+			point_light_data_buffer_write.pImageInfo = nullptr;
+			point_light_data_buffer_write.pTexelBufferView = nullptr;
+			descriptor_writes.push_back(point_light_data_buffer_write);
+		}
 
 		/* Material index set write information */
 		VkDescriptorBufferInfo material_index_buffer_information;
@@ -448,8 +557,8 @@ protected:
 		VkWriteDescriptorSet material_index_buffer_write;
 		material_index_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		material_index_buffer_write.pNext = nullptr;
-		material_index_buffer_write.dstSet = this->descriptorManagers[index].set;
-		material_index_buffer_write.dstBinding = 2;
+		material_index_buffer_write.dstSet = this->descriptor_managers[index].set;
+		material_index_buffer_write.dstBinding = 4;
 		material_index_buffer_write.dstArrayElement = 0;
 		material_index_buffer_write.descriptorCount = 1;
 		material_index_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -466,8 +575,8 @@ protected:
 		VkWriteDescriptorSet material_data_buffer_write;
 		material_data_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		material_data_buffer_write.pNext = nullptr;
-		material_data_buffer_write.dstSet = this->descriptorManagers[index].set;
-		material_data_buffer_write.dstBinding = 3;
+		material_data_buffer_write.dstSet = this->descriptor_managers[index].set;
+		material_data_buffer_write.dstBinding = 5;
 		material_data_buffer_write.dstArrayElement = 0;
 		material_data_buffer_write.descriptorCount = 1;
 		material_data_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -475,6 +584,23 @@ protected:
 		material_data_buffer_write.pImageInfo = nullptr;
 		material_data_buffer_write.pTexelBufferView = nullptr;
 		descriptor_writes.push_back(material_data_buffer_write);
+
+		VkDescriptorBufferInfo point_light_mvp_buffer_information;
+		point_light_mvp_buffer_information.buffer = this->shadow_map_manager.mvp_ssbo_manager.buffer;
+		point_light_mvp_buffer_information.offset = 0;
+		point_light_mvp_buffer_information.range = VK_WHOLE_SIZE;
+		VkWriteDescriptorSet point_light_mvp_buffer_write;
+		point_light_mvp_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		point_light_mvp_buffer_write.pNext = nullptr;
+		point_light_mvp_buffer_write.dstSet = this->descriptor_managers[index].set;
+		point_light_mvp_buffer_write.dstBinding = 6;
+		point_light_mvp_buffer_write.dstArrayElement = 0;
+		point_light_mvp_buffer_write.descriptorCount = 1;
+		point_light_mvp_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		point_light_mvp_buffer_write.pBufferInfo = &point_light_mvp_buffer_information;
+		point_light_mvp_buffer_write.pImageInfo = nullptr;
+		point_light_mvp_buffer_write.pTexelBufferView = nullptr;
+		descriptor_writes.push_back(point_light_mvp_buffer_write);
 
 		vkUpdateDescriptorSets(context_manager.device,
 							   static_cast<uint32_t>(descriptor_writes.size()),
@@ -485,44 +611,6 @@ protected:
 
 	void setupShadowMapRenderPass()
 	{
-		/* Shadow calculation subpass configurationt */
-		VkAttachmentDescription shadow_map_attachment{};
-		shadow_map_attachment.flags = 0;
-		shadow_map_attachment.format = VK_FORMAT_D32_SFLOAT;
-		shadow_map_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		shadow_map_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		shadow_map_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		shadow_map_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		shadow_map_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		shadow_map_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		shadow_map_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-
-		VkAttachmentReference shadow_map_attachment_reference{};
-		shadow_map_attachment_reference.attachment = 0;
-		shadow_map_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		VkSubpassDescription subpass{};
-		subpass.flags = 0;
-		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass.inputAttachmentCount = 0;
-		subpass.pInputAttachments = nullptr;
-		subpass.colorAttachmentCount = 0;
-		subpass.pColorAttachments = nullptr;
-		subpass.pResolveAttachments = nullptr;
-		subpass.pDepthStencilAttachment = &shadow_map_attachment_reference;
-		subpass.preserveAttachmentCount = 0;
-		subpass.pPreserveAttachments = nullptr;
-
-		VkSubpassDependency dependency{};
-		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		dependency.dstSubpass = 0;
-		dependency.srcStageMask =
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependency.srcAccessMask = 0;
-		dependency.dstStageMask =
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		dependency.dependencyFlags = 0;
 	}
 
 	void setupRenderPass()
@@ -643,7 +731,7 @@ protected:
 		// renderPassInfo.dependencyCount = 1;
 		// renderPassInfo.pDependencies = &dependency;
 
-		// if (vkCreateRenderPass(contentManager.device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
+		// if (vkCreateRenderPass(contentManager.device, &renderPassInfo, nullptr, &pass) != VK_SUCCESS)
 		//{
 		//	throw std::runtime_error("Failed to create render pass!");
 		// }
@@ -652,51 +740,50 @@ protected:
 	void init()
 	{
 		// temp
-		this->lights.push_back(Light{});
+		this->lights.push_back(PointLight{});
 
 		this->context_manager.init();
-		auto pContentManager = std::make_shared<ContextManager>(this->context_manager);
+		auto context_manager_sptr = std::make_shared<ContextManager>(this->context_manager);
 
-		this->command_manager = CommandManager(pContentManager);
+		this->command_manager = CommandManager(context_manager_sptr);
 		this->command_manager.init();
-		auto pCommandManager = std::make_shared<CommandManager>(this->command_manager);
+		auto command_manager_sptr = std::make_shared<CommandManager>(this->command_manager);
 
-		this->swap_chain_manager = SwapChainManager(pContentManager, pCommandManager);
+		this->swap_chain_manager = SwapChainManager(context_manager_sptr, command_manager_sptr);
 		this->swap_chain_manager.init();
-		auto pSwapChainManager = std::make_shared<SwapChainManager>(this->swap_chain_manager);
+		auto swap_chain_manager_sptr = std::make_shared<SwapChainManager>(this->swap_chain_manager);
 
-		this->point_light_shadow_map_image_manager = PointLightShadowMapImageManager(pContentManager, pCommandManager);
-		this->point_light_shadow_map_image_manager.light_number = this->lights.size();
-		this->point_light_shadow_map_image_manager.init();
-
-		this->render_pass_manager = RenderPassManager(pContentManager, pSwapChainManager, pCommandManager);
+		this->render_pass_manager =
+			RenderPassManager(context_manager_sptr, swap_chain_manager_sptr, command_manager_sptr);
 		this->render_pass_manager.init();
 
-		this->vertex_shader_manager = ShaderManager(pContentManager);
+		this->vertex_shader_manager = ShaderManager(context_manager_sptr);
 		this->vertex_shader_manager.setShaderName("rasterize_vert.spv");
 		this->vertex_shader_manager.init();
 
-		this->fragment_shader_manager = ShaderManager(pContentManager);
+		this->fragment_shader_manager = ShaderManager(context_manager_sptr);
 		this->fragment_shader_manager.setShaderName("rasterize_frag.spv");
 		this->fragment_shader_manager.init();
 
-		this->texture_manager = TextureManager(pContentManager, pCommandManager);
+		this->texture_manager = TextureManager(context_manager_sptr, command_manager_sptr);
 		this->texture_manager.init();
 
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			this->uniformBufferManagers[i] = UniformBufferManager(pContentManager, pCommandManager);
-			this->descriptorManagers[i] = DescriptorManager(pContentManager);
+			this->uniformBufferManagers[i] = UniformBufferManager(context_manager_sptr, command_manager_sptr);
+			this->descriptor_managers[i] = DescriptorManager(context_manager_sptr);
 		}
 
-		this->vertex_buffer_manager = VertexBufferManager(pContentManager, pCommandManager);
-		this->index_buffer_manager = IndexBufferManager(pContentManager, pCommandManager);
-		this->indirect_buffer_manager = IndirectBufferManager(pContentManager, pCommandManager);
+		this->vertex_buffer_manager = VertexBufferManager(context_manager_sptr, command_manager_sptr);
 
-		this->material_ssbo_manager = StorageBufferManager(pContentManager, pCommandManager);
-		this->material_index_manager = StorageBufferManager(pContentManager, pCommandManager);
+		this->index_buffer_manager = IndexBufferManager(context_manager_sptr, command_manager_sptr);
 
-		this->graphics_pipeline_manager = PipelineManager(pContentManager);
+		this->indirect_buffer_manager = IndirectBufferManager(context_manager_sptr, command_manager_sptr);
+
+		this->material_ssbo_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
+		this->material_index_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
+
+		this->graphics_pipeline_manager = PipelineManager(context_manager_sptr);
 
 		createSyncObjects();
 
@@ -712,7 +799,7 @@ protected:
 			vkDestroyFence(context_manager.device, inFlightFences[i], nullptr);
 
 			this->uniformBufferManagers[i].clear();
-			this->descriptorManagers[i].clear();
+			this->descriptor_managers[i].clear();
 		}
 
 		this->material_index_manager.clear();
@@ -731,7 +818,7 @@ protected:
 
 		this->render_pass_manager.clear();
 
-		this->point_light_shadow_map_image_manager.clear();
+		this->shadow_map_manager.clear();
 
 		this->swap_chain_manager.clear();
 
@@ -758,8 +845,8 @@ protected:
 
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = render_pass_manager.renderPass;
-		renderPassInfo.framebuffer = render_pass_manager.framebuffers[imageIndex];
+		renderPassInfo.renderPass = render_pass_manager.pass;
+		renderPassInfo.framebuffer = render_pass_manager.buffers[imageIndex];
 		renderPassInfo.renderArea.offset = {0, 0};
 		renderPassInfo.renderArea.extent = swap_chain_manager.extent;
 		std::array<VkClearValue, 2> clearValues{};
@@ -797,7 +884,7 @@ protected:
 								this->graphics_pipeline_manager.layout,
 								0,
 								1,
-								&descriptorManagers[currentFrame].set,
+								&descriptor_managers[currentFrame].set,
 								0,
 								nullptr);
 
@@ -817,12 +904,12 @@ protected:
 
 	void updateUniformBufferObjects(int index)
 	{
-		this->uniformBufferManagers[index].update(ubo);
-		ubo.project = glm::perspective(glm::radians(45.0f),
+		ubo.project = glm::perspective(glm::radians(90.0f),
 									   (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
 									   0.1f,
-									   10.0f);
+									   1000.0f);
 		ubo.project[1][1] *= -1;
+		this->uniformBufferManagers[index].update(ubo);
 	}
 
 	void draw()
@@ -928,9 +1015,11 @@ private:
 
 	StorageBufferManager material_index_manager{};
 
+	ShadowMapManager shadow_map_manager{};
+
 	std::array<UniformBufferManager, MAX_FRAMES_IN_FLIGHT> uniformBufferManagers{};
 
-	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> descriptorManagers{};
+	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> descriptor_managers{};
 
 	ShaderManager vertex_shader_manager{};
 
@@ -951,7 +1040,5 @@ private:
 	bool windowResized = false;
 	double mousePositionX = 0.0f, mousePositionY = 0.0f;
 
-	std::vector<Light> lights;
-
-	PointLightShadowMapImageManager point_light_shadow_map_image_manager{};
+	std::vector<PointLight> lights;
 };

@@ -14,7 +14,7 @@ class SwapChainManager : public ImageManager
 {
 public:
 	SwapChainManager() = default;
-	SwapChainManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& command_manager);
+	SwapChainManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager);
 
 	void init();
 	void clear();

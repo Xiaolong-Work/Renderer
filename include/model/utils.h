@@ -65,6 +65,6 @@ void outputTimeUse(std::string name, std::chrono::system_clock::duration duratio
 
 /**
  * @brief Outputs the fps of a task.
- * @param[in] duration The time duration of the task.
+ * @param[in] count The frame count.
  */
-void outputFrameRate(std::chrono::system_clock::duration duration);
+void outputFrameRate(const int count);

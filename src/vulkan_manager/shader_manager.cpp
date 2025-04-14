@@ -1,8 +1,8 @@
 #include <shader_manager.h>
 
-ShaderManager::ShaderManager(const ContextManagerSPtr& pContentManager)
+ShaderManager::ShaderManager(const ContextManagerSPtr& context_manager_sptr)
 {
-	this->pContentManager = pContentManager;
+	this->context_manager_sptr = context_manager_sptr;
 }
 
 void ShaderManager::init()
@@ -13,7 +13,7 @@ void ShaderManager::init()
 
 void ShaderManager::clear()
 {
-	vkDestroyShaderModule(pContentManager->device, this->module, nullptr);
+	vkDestroyShaderModule(context_manager_sptr->device, this->module, nullptr);
 }
 
 void ShaderManager::setShaderName(const std::string& shaderName)
@@ -50,7 +50,7 @@ void ShaderManager::createShaderModule()
 	createInfo.codeSize = this->code.size();
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
-	if (vkCreateShaderModule(pContentManager->device, &createInfo, nullptr, &this->module) != VK_SUCCESS)
+	if (vkCreateShaderModule(context_manager_sptr->device, &createInfo, nullptr, &this->module) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create shader module!");
 	}

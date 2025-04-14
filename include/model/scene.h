@@ -1,6 +1,7 @@
 #pragma once
 
 #include <camera.h>
+#include <light.h>
 
 class Scene
 {
@@ -19,4 +20,7 @@ public:
 
 	/* The texture data in the scene */
 	std::vector<Texture> textures;
+
+	/* Point lights in the scene */
+	std::vector<PointLight> point_lights;
 };

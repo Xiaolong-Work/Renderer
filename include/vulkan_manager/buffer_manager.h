@@ -39,6 +39,10 @@ struct SSBOMaterial
 
 	int type = 0;
 
+	alignas(16) Vector3f albedo;
+	float metallic;
+	float roughness;
+
 	SSBOMaterial(const Material& material)
 	{
 		this->ka = material.ka;
@@ -48,6 +52,10 @@ struct SSBOMaterial
 		this->ns = material.ns;
 		this->ni = material.ni;
 		this->diffuse_texture = material.diffuse_texture;
+		this->type = int(material.type);
+		this->albedo = material.albedo;
+		this->metallic = material.metallic;
+		this->roughness = material.roughness;
 	}
 };
 
@@ -55,7 +63,7 @@ class BufferManager
 {
 public:
 	BufferManager() = default;
-	BufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	BufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	virtual void init() = 0;
 	virtual void clear() = 0;
@@ -77,8 +85,8 @@ protected:
 								 VkBuffer& buffer,
 								 VkDeviceMemory& bufferMemory);
 
-	ContextManagerSPtr pContentManager;
-	CommandManagerSPtr pCommandManager;
+	ContextManagerSPtr context_manager_sptr;
+	CommandManagerSPtr command_manager_sptr;
 };
 
 typedef std::shared_ptr<BufferManager> BufferManagerSPtr;
@@ -87,7 +95,7 @@ class VertexBufferManager : public BufferManager
 {
 public:
 	VertexBufferManager() = default;
-	VertexBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	VertexBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void init() override;
 	void clear() override;
@@ -102,11 +110,13 @@ public:
 	bool enable_ray_tracing{false};
 };
 
+typedef std::shared_ptr<VertexBufferManager> VertexBufferManagerSPtr;
+
 class IndexBufferManager : public BufferManager
 {
 public:
 	IndexBufferManager() = default;
-	IndexBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	IndexBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void init() override;
 	void clear() override;
@@ -116,11 +126,13 @@ public:
 	std::vector<int32_t> indices;
 };
 
+typedef std::shared_ptr<IndexBufferManager> IndexBufferManagerSPtr;
+
 class IndirectBufferManager : public BufferManager
 {
 public:
 	IndirectBufferManager() = default;
-	IndirectBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	IndirectBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void init() override;
 	void clear() override;
@@ -129,6 +141,8 @@ public:
 	VkDeviceMemory memory;
 	std::vector<VkDrawIndexedIndirectCommand> commands{};
 };
+
+typedef std::shared_ptr<IndirectBufferManager> IndirectBufferManagerSPtr;
 
 struct UniformBufferObject
 {
@@ -141,23 +155,23 @@ class UniformBufferManager : public BufferManager
 {
 public:
 	UniformBufferManager() = default;
-	UniformBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	UniformBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void init() override;
 	void clear() override;
 
 	void update(const UniformBufferObject& ubo);
 
-	VkBuffer uniformBuffer;
-	VkDeviceMemory uniformBuffersMemory;
-	void* uniformBuffersMapped;
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+	void* mapped;
 };
 
 class StorageBufferManager : public BufferManager
 {
 public:
 	StorageBufferManager() = default;
-	StorageBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	StorageBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void init() override;
 	void clear() override;
@@ -179,7 +193,7 @@ class StagingBufferManager : public BufferManager
 {
 public:
 	StagingBufferManager() = default;
-	StagingBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	StagingBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void init() override;
 	void clear() override;

@@ -1,9 +1,9 @@
 #include <texture_manager.h>
 
-TextureManager::TextureManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
+TextureManager::TextureManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void TextureManager::createTexture(const std::string& imagePath)
@@ -47,7 +47,7 @@ void TextureManager::createEmptyTexture()
 void TextureManager::createSampler()
 {
 	VkPhysicalDeviceProperties properties{};
-	vkGetPhysicalDeviceProperties(pContentManager->physical_device, &properties);
+	vkGetPhysicalDeviceProperties(context_manager_sptr->physical_device, &properties);
 
 	VkSamplerCreateInfo samplerInfo{};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -69,7 +69,7 @@ void TextureManager::createSampler()
 	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerInfo.unnormalizedCoordinates = VK_FALSE;
 
-	if (vkCreateSampler(pContentManager->device, &samplerInfo, nullptr, &this->sampler) != VK_SUCCESS)
+	if (vkCreateSampler(context_manager_sptr->device, &samplerInfo, nullptr, &this->sampler) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create texture sampler!");
 	}
@@ -83,19 +83,19 @@ void TextureManager::init()
 
 void TextureManager::clear()
 {
-	vkDestroySampler(pContentManager->device, this->sampler, nullptr);
+	vkDestroySampler(context_manager_sptr->device, this->sampler, nullptr);
 
 	for (auto& imageView : this->imageViews)
 	{
-		vkDestroyImageView(pContentManager->device, imageView, nullptr);
+		vkDestroyImageView(context_manager_sptr->device, imageView, nullptr);
 	}
 	for (auto& image : this->images)
 	{
-		vkDestroyImage(pContentManager->device, image, nullptr);
+		vkDestroyImage(context_manager_sptr->device, image, nullptr);
 	}
 	for (auto& imageMemory : this->imageMemories)
 	{
-		vkFreeMemory(pContentManager->device, imageMemory, nullptr);
+		vkFreeMemory(context_manager_sptr->device, imageMemory, nullptr);
 	}
 
 	this->imageViews.clear();

@@ -36,36 +36,36 @@ public:
 	{
 		this->context_manager.setExtent(VkExtent2D{scene.camera.width, scene.camera.height});
 		this->context_manager.init();
-		auto pContentManager = std::make_shared<ContextManager>(this->context_manager);
+		auto context_manager_sptr = std::make_shared<ContextManager>(this->context_manager);
 
-		this->command_manager = CommandManager(pContentManager);
+		this->command_manager = CommandManager(context_manager_sptr);
 		this->command_manager.init();
-		auto pCommandManager = std::make_shared<CommandManager>(this->command_manager);
+		auto command_manager_sptr = std::make_shared<CommandManager>(this->command_manager);
 
-		this->swap_chain_manager = SwapChainManager(pContentManager, pCommandManager);
+		this->swap_chain_manager = SwapChainManager(context_manager_sptr, command_manager_sptr);
 		this->swap_chain_manager.init();
 
-		this->vertex_shader_manager = ShaderManager(pContentManager);
+		this->vertex_shader_manager = ShaderManager(context_manager_sptr);
 		this->vertex_shader_manager.setShaderName("path_tracing_vert.spv");
 		this->vertex_shader_manager.init();
 
-		this->fragment_shader_manager = ShaderManager(pContentManager);
+		this->fragment_shader_manager = ShaderManager(context_manager_sptr);
 		this->fragment_shader_manager.setShaderName("path_tracing_frag.spv");
 		this->fragment_shader_manager.init();
 
-		this->computeShaderManager = ShaderManager(pContentManager);
+		this->computeShaderManager = ShaderManager(context_manager_sptr);
 		this->computeShaderManager.setShaderName("path_tracing_comp.spv");
 		this->computeShaderManager.init();
 
-		this->bufferManager = SSBOBufferManager(pContentManager, pCommandManager);
+		this->bufferManager = SSBOBufferManager(context_manager_sptr, command_manager_sptr);
 		this->bufferManager.setData(scene, this->spp);
 		this->bufferManager.init();
 
-		this->storageImageManager = StorageImageManager(pContentManager, pCommandManager);
+		this->storageImageManager = StorageImageManager(context_manager_sptr, command_manager_sptr);
 		this->storageImageManager.setExtent(VkExtent2D{scene.camera.width, scene.camera.height});
 		this->storageImageManager.init();
 
-		this->texture_manager = TextureManager(pContentManager, pCommandManager);
+		this->texture_manager = TextureManager(context_manager_sptr, command_manager_sptr);
 		this->texture_manager.init();
 
 		for (auto& texture_path : this->bufferManager.texture_paths)
@@ -80,9 +80,9 @@ public:
 		createComputePipeline();
 
 		createRenderPass();
-		createFramebuffers();
+		createFrameBuffers();
 
-		this->graphics_pipeline_manager = PipelineManager(pContentManager);
+		this->graphics_pipeline_manager = PipelineManager(context_manager_sptr);
 		this->setupGraphicsPipelines();
 		this->graphics_pipeline_manager.init();
 
@@ -129,8 +129,8 @@ public:
 		pipelineLayoutInfo.pushConstantRangeCount = 0;
 		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
-		graphics_pipeline_manager.setRequiredValue(shaderStages, viewport, scissor, pipelineLayoutInfo, renderPass);
-		graphics_pipeline_manager.enableVertexInpute = false;
+		graphics_pipeline_manager.setRequiredValue(shaderStages, viewport, scissor, pipelineLayoutInfo, pass);
+		graphics_pipeline_manager.enable_vertex_inpute = false;
 	}
 
 	void createRenderPass()
@@ -183,15 +183,15 @@ public:
 		renderPassInfo.dependencyCount = 1;
 		renderPassInfo.pDependencies = &dependency;
 
-		if (vkCreateRenderPass(context_manager.device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
+		if (vkCreateRenderPass(context_manager.device, &renderPassInfo, nullptr, &pass) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create render pass!");
 		}
 	}
 
-	void createFramebuffers()
+	void createFrameBuffers()
 	{
-		this->framebuffers.resize(this->swap_chain_manager.imageViews.size());
+		this->buffers.resize(this->swap_chain_manager.imageViews.size());
 
 		for (size_t i = 0; i < this->swap_chain_manager.imageViews.size(); i++)
 		{
@@ -199,22 +199,22 @@ public:
 			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			framebufferInfo.pNext = nullptr;
 			framebufferInfo.flags = 0;
-			framebufferInfo.renderPass = renderPass;
+			framebufferInfo.renderPass = pass;
 			framebufferInfo.attachmentCount = 1;
 			framebufferInfo.pAttachments = &swap_chain_manager.imageViews[i];
 			framebufferInfo.width = swap_chain_manager.extent.width;
 			framebufferInfo.height = swap_chain_manager.extent.height;
 			framebufferInfo.layers = 1;
 
-			if (vkCreateFramebuffer(context_manager.device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
+			if (vkCreateFramebuffer(context_manager.device, &framebufferInfo, nullptr, &buffers[i]) != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to create framebuffer!");
 			}
 		}
 	}
 
-	std::vector<VkFramebuffer> framebuffers;
-	VkRenderPass renderPass;
+	std::vector<VkFramebuffer> buffers;
+	VkRenderPass pass;
 
 	ShaderManager vertex_shader_manager{};
 	ShaderManager fragment_shader_manager{};
@@ -322,8 +322,8 @@ public:
 
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = renderPass;
-		renderPassInfo.framebuffer = framebuffers[imageIndex];
+		renderPassInfo.renderPass = pass;
+		renderPassInfo.framebuffer = buffers[imageIndex];
 		renderPassInfo.renderArea.offset = {0, 0};
 		renderPassInfo.renderArea.extent = swap_chain_manager.extent;
 		VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
@@ -605,7 +605,7 @@ public:
 
 		this->texture_manager.clear();
 
-		for (auto framebuffer : framebuffers)
+		for (auto framebuffer : buffers)
 		{
 			vkDestroyFramebuffer(context_manager.device, framebuffer, nullptr);
 		}
@@ -619,7 +619,7 @@ public:
 
 		this->graphics_pipeline_manager.clear();
 
-		vkDestroyRenderPass(context_manager.device, renderPass, nullptr);
+		vkDestroyRenderPass(context_manager.device, pass, nullptr);
 
 		this->swap_chain_manager.clear();
 

@@ -16,3 +16,6 @@
 [submodule "3rd_party/obj_loader"]
 	path = 3rd_party/obj_loader
 	url = https://github.com/Bly7/OBJ-Loader.git
+[submodule "3rd_party/tinygltf"]
+	path = 3rd_party/tinygltf
+	url = https://github.com/syoyo/tinygltf.git

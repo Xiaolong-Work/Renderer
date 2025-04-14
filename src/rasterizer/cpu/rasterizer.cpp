@@ -193,7 +193,7 @@ void Rasterizer::drawShaderTriangle(const std::array<Vector4f, 3>& position,
 									const std::array<Vector3f, 3>& viewspace_positions,
 									const std::array<Point, 3> world_position,
 									Texture* texture,
-									const std::vector<Light>& lights)
+									const std::vector<PointLight>& lights)
 {
 	auto& v0 = position[0];
 	auto& v1 = position[1];
@@ -324,7 +324,7 @@ void Rasterizer::drawShaderTriangleframe(Model model)
 		temp = nullptr;
 	}
 
-	std::vector<Light> lights;
+	std::vector<PointLight> lights;
 	for (auto& light : model.lights)
 	{
 		auto temp = getHomogeneous(light.position);
@@ -332,7 +332,7 @@ void Rasterizer::drawShaderTriangleframe(Model model)
 		// temp = mv * temp;
 		// temp /= temp.w;
 
-		lights.push_back(Light{Vector3f(temp), light.intensity});
+		lights.push_back(PointLight{Vector3f(temp), light.intensity});
 	}
 
 	for (size_t i = 0; i < size; i++)

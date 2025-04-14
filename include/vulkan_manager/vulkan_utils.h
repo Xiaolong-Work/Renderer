@@ -83,7 +83,7 @@ public:
 		fragShaderStageInfo.pName = "main";
 		vertShaderStageInfo.pSpecializationInfo = nullptr;
 
-		std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+		std::vector<VkPipelineShaderStageCreateInfo> shader_stages = {vertShaderStageInfo, fragShaderStageInfo};
 
 		VkViewport viewport{};
 		viewport.x = 0.0f;
@@ -104,8 +104,8 @@ public:
 		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
 		graphics_pipeline_manager.setRequiredValue(
-			shaderStages, viewport, scissor, pipelineLayoutInfo, render_pass_manager.renderPass);
-		graphics_pipeline_manager.enableVertexInpute = false;
+			shader_stages, viewport, scissor, pipelineLayoutInfo, render_pass_manager.pass);
+		graphics_pipeline_manager.enable_vertex_inpute = false;
 
 		this->graphics_pipeline_manager.init();
 	}
@@ -124,8 +124,8 @@ public:
 
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = render_pass_manager.renderPass;
-		renderPassInfo.framebuffer = render_pass_manager.framebuffers[imageIndex];
+		renderPassInfo.renderPass = render_pass_manager.pass;
+		renderPassInfo.framebuffer = render_pass_manager.buffers[imageIndex];
 		renderPassInfo.renderArea.offset = {0, 0};
 		renderPassInfo.renderArea.extent = swap_chain_manager.extent;
 		std::array<VkClearValue, 2> clearValues{};

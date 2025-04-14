@@ -1,15 +1,15 @@
 #include <buffer_manager.h>
 
-BufferManager::BufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
+BufferManager::BufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 uint32_t BufferManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
 	VkPhysicalDeviceMemoryProperties memoryProperties;
-	vkGetPhysicalDeviceMemoryProperties(pContentManager->physical_device, &memoryProperties);
+	vkGetPhysicalDeviceMemoryProperties(context_manager_sptr->physical_device, &memoryProperties);
 
 	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
 	{
@@ -38,30 +38,30 @@ void BufferManager::createBuffer(const VkDeviceSize size,
 	bufferInfo.queueFamilyIndexCount = 0;
 	bufferInfo.pQueueFamilyIndices = nullptr;
 
-	if (vkCreateBuffer(pContentManager->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
+	if (vkCreateBuffer(context_manager_sptr->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create buffer!");
 	}
 
 	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(pContentManager->device, buffer, &memRequirements);
+	vkGetBufferMemoryRequirements(context_manager_sptr->device, buffer, &memRequirements);
 
 	VkMemoryAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.pNext = nullptr;
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-	if (vkAllocateMemory(pContentManager->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
+	if (vkAllocateMemory(context_manager_sptr->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate buffer memory!");
 	}
 
-	vkBindBufferMemory(pContentManager->device, buffer, bufferMemory, 0);
+	vkBindBufferMemory(context_manager_sptr->device, buffer, bufferMemory, 0);
 }
 
 void BufferManager::copyBuffer(const VkBuffer& srcBuffer, VkBuffer& dstBuffer, const VkDeviceSize size)
 {
-	VkCommandBuffer commandBuffer = pCommandManager->beginTransferCommands();
+	VkCommandBuffer commandBuffer = command_manager_sptr->beginTransferCommands();
 
 	VkBufferCopy copyRegion{};
 	copyRegion.srcOffset = 0;
@@ -69,7 +69,7 @@ void BufferManager::copyBuffer(const VkBuffer& srcBuffer, VkBuffer& dstBuffer, c
 	copyRegion.size = size;
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-	pCommandManager->endTransferCommands(commandBuffer);
+	command_manager_sptr->endTransferCommands(commandBuffer);
 }
 
 void BufferManager::createDeviceLocalBuffer(const VkDeviceSize size,
@@ -87,24 +87,24 @@ void BufferManager::createDeviceLocalBuffer(const VkDeviceSize size,
 				 stagingBufferMemory);
 
 	void* tempData;
-	vkMapMemory(pContentManager->device, stagingBufferMemory, 0, size, 0, &tempData);
+	vkMapMemory(context_manager_sptr->device, stagingBufferMemory, 0, size, 0, &tempData);
 	memcpy(tempData, data, (size_t)size);
-	vkUnmapMemory(pContentManager->device, stagingBufferMemory);
+	vkUnmapMemory(context_manager_sptr->device, stagingBufferMemory);
 
 	createBuffer(
 		size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer, bufferMemory);
 
 	copyBuffer(stagingBuffer, buffer, size);
 
-	vkDestroyBuffer(pContentManager->device, stagingBuffer, nullptr);
-	vkFreeMemory(pContentManager->device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, stagingBuffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, stagingBufferMemory, nullptr);
 }
 
-VertexBufferManager::VertexBufferManager(const ContextManagerSPtr& pContentManager,
-										 const CommandManagerSPtr& pCommandManager)
+VertexBufferManager::VertexBufferManager(const ContextManagerSPtr& context_manager_sptr,
+										 const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void VertexBufferManager::init()
@@ -123,8 +123,8 @@ void VertexBufferManager::init()
 
 void VertexBufferManager::clear()
 {
-	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
-	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, this->buffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
 }
 
 VkVertexInputBindingDescription VertexBufferManager::getBindingDescription()
@@ -159,11 +159,11 @@ std::array<VkVertexInputAttributeDescription, 3> VertexBufferManager::getAttribu
 	return attributeDescriptions;
 }
 
-IndexBufferManager::IndexBufferManager(const ContextManagerSPtr& pContentManager,
-									   const CommandManagerSPtr& pCommandManager)
+IndexBufferManager::IndexBufferManager(const ContextManagerSPtr& context_manager_sptr,
+									   const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void IndexBufferManager::init()
@@ -176,15 +176,15 @@ void IndexBufferManager::init()
 
 void IndexBufferManager::clear()
 {
-	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
-	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, this->buffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
 }
 
-IndirectBufferManager::IndirectBufferManager(const ContextManagerSPtr& pContentManager,
-											 const CommandManagerSPtr& pCommandManager)
+IndirectBufferManager::IndirectBufferManager(const ContextManagerSPtr& context_manager_sptr,
+											 const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void IndirectBufferManager::init()
@@ -197,15 +197,15 @@ void IndirectBufferManager::init()
 
 void IndirectBufferManager::clear()
 {
-	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
-	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, this->buffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
 }
 
-UniformBufferManager::UniformBufferManager(const ContextManagerSPtr& pContentManager,
-										   const CommandManagerSPtr& pCommandManager)
+UniformBufferManager::UniformBufferManager(const ContextManagerSPtr& context_manager_sptr,
+										   const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void UniformBufferManager::init()
@@ -215,28 +215,28 @@ void UniformBufferManager::init()
 	createBuffer(bufferSize,
 				 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				 this->uniformBuffer,
-				 this->uniformBuffersMemory);
+				 this->buffer,
+				 this->memory);
 
-	vkMapMemory(pContentManager->device, this->uniformBuffersMemory, 0, bufferSize, 0, &this->uniformBuffersMapped);
+	vkMapMemory(context_manager_sptr->device, this->memory, 0, bufferSize, 0, &this->mapped);
 }
 
 void UniformBufferManager::clear()
 {
-	vkDestroyBuffer(pContentManager->device, this->uniformBuffer, nullptr);
-	vkFreeMemory(pContentManager->device, this->uniformBuffersMemory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, this->buffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
 }
 
 void UniformBufferManager::update(const UniformBufferObject& ubo)
 {
-	memcpy(this->uniformBuffersMapped, &ubo, sizeof(ubo));
+	memcpy(this->mapped, &ubo, sizeof(ubo));
 }
 
-StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& pContentManager,
-										   const CommandManagerSPtr& pCommandManager)
+StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& context_manager_sptr,
+										   const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void StorageBufferManager::init()
@@ -246,8 +246,8 @@ void StorageBufferManager::init()
 
 void StorageBufferManager::clear()
 {
-	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
-	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, this->buffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
 }
 
 void StorageBufferManager::setData(const void* data, const VkDeviceSize size, const int length)
@@ -257,11 +257,11 @@ void StorageBufferManager::setData(const void* data, const VkDeviceSize size, co
 	this->length = length;
 }
 
-StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& pContentManager,
-										   const CommandManagerSPtr& pCommandManager)
+StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& context_manager_sptr,
+										   const CommandManagerSPtr& command_manager_sptr)
 {
-	this->pContentManager = pContentManager;
-	this->pCommandManager = pCommandManager;
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
 }
 
 void StagingBufferManager::init()
@@ -272,11 +272,11 @@ void StagingBufferManager::init()
 				 this->buffer,
 				 this->memory);
 
-	vkMapMemory(pContentManager->device, this->memory, 0, this->size, 0, &this->mapped);
+	vkMapMemory(context_manager_sptr->device, this->memory, 0, this->size, 0, &this->mapped);
 }
 
 void StagingBufferManager::clear()
 {
-	vkDestroyBuffer(pContentManager->device, this->buffer, nullptr);
-	vkFreeMemory(pContentManager->device, this->memory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, this->buffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
 }

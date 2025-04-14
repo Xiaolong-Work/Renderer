@@ -120,10 +120,10 @@ class SSBOBufferManager : public BufferManager
 {
 public:
 	SSBOBufferManager() = default;
-	SSBOBufferManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager)
+	SSBOBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr)
 	{
-		this->pContentManager = pContentManager;
-		this->pCommandManager = pCommandManager;
+		this->context_manager_sptr = context_manager_sptr;
+		this->command_manager_sptr = command_manager_sptr;
 	}
 	std::array<VkBuffer, 9> buffers;
 	std::array<VkDeviceMemory, 9> memories;
@@ -277,8 +277,8 @@ public:
 	{
 		for (int i = 0; i < 5; i++)
 		{
-			vkDestroyBuffer(pContentManager->device, buffers[i], nullptr);
-			vkFreeMemory(pContentManager->device, memories[i], nullptr);
+			vkDestroyBuffer(context_manager_sptr->device, buffers[i], nullptr);
+			vkFreeMemory(context_manager_sptr->device, memories[i], nullptr);
 		}
 	}
 };

@@ -344,6 +344,7 @@ std::vector<const char*> ContextManager::getRequiredDeviceExtensions()
 		device_extensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
 		device_extensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
 	}
+	device_extensions.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
 	device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 	return device_extensions;
 }
@@ -410,11 +411,18 @@ void ContextManager::createLogicalDevice()
 	VkPhysicalDeviceVulkan11Features features11{};
 	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
 	features11.shaderDrawParameters = VK_TRUE;
+	features11.multiview = true;
 
 	VkPhysicalDeviceVulkan12Features features12{};
 	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 	features12.runtimeDescriptorArray = VK_TRUE;
+	features12.shaderOutputLayer = VK_TRUE;
 	features11.pNext = &features12;
+
+	VkPhysicalDeviceDynamicRenderingFeatures dynamic_rendering_feature{};
+	dynamic_rendering_feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+	dynamic_rendering_feature.dynamicRendering = VK_TRUE;
+	features12.pNext = &dynamic_rendering_feature;
 
 	/* Logical device creation information */
 	VkDeviceCreateInfo createInfo{};

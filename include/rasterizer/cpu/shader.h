@@ -15,7 +15,7 @@ public:
 	Vector3f normal;
 	Vector2f texture_coordinate;
 	Texture* texture;
-	std::vector<Light> lights;
+	std::vector<PointLight> lights;
 
 	std::vector<Direction> ups = {Direction(0, -1, 0),
 								  Direction(0, -1, 0),

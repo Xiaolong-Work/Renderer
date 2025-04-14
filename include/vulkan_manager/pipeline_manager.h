@@ -13,43 +13,46 @@ class PipelineManager
 {
 public:
 	PipelineManager() = default;
-	PipelineManager(const ContextManagerSPtr& pContentManager);
+	PipelineManager(const ContextManagerSPtr& context_manager_sptr);
 
 	void init();
 	void clear();
 
-	void setRequiredValue(const std::vector<VkPipelineShaderStageCreateInfo>& shaderStages,
+	void setRequiredValue(const std::vector<VkPipelineShaderStageCreateInfo>& shader_stages,
 						  const VkViewport& viewport,
 						  const VkRect2D& scissor,
 						  const VkPipelineLayoutCreateInfo& pipelineLayoutInfo,
-						  const VkRenderPass& renderPass);
+						  const VkRenderPass& pass);
 
 	void createPipeline();
 
 	/* Optional Values */
-	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
 	VkPipelineRasterizationStateCreateInfo rasterizer{};
-	VkPipelineMultisampleStateCreateInfo multisampling{};
-	VkPipelineDepthStencilStateCreateInfo depthStencil{};
-	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-	VkPipelineColorBlendStateCreateInfo colorBlending{};
-	std::vector<VkDynamicState> dynamicStates;
+	VkPipelineMultisampleStateCreateInfo multisample{};
+	VkPipelineDepthStencilStateCreateInfo depth_stencil{};
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
+	VkPipelineColorBlendStateCreateInfo color_blending{};
+	std::vector<VkDynamicState> dynamic_states;
 
 	VkPipelineLayout layout;
 	VkPipeline pipeline;
 
-	bool enableVertexInpute{true};
+	bool enable_vertex_inpute{true};
+	bool enable_color_attachment{true};
+
+	void* next_pointer = nullptr;
 
 protected:
 	void setDefaultFixedState();
 
 private:
 	/* Required value */
-	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+	std::vector<VkPipelineShaderStageCreateInfo> shader_stages;
 	VkViewport viewport{};
 	VkRect2D scissor{};
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-	VkRenderPass renderPass;
+	VkRenderPass pass;
 
-	ContextManagerSPtr pContentManager;
+	ContextManagerSPtr context_manager_sptr;
 };

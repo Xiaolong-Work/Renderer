@@ -8,7 +8,7 @@ class ShaderManager
 {
 public:
 	ShaderManager() = default;
-	ShaderManager(const ContextManagerSPtr& pContentManager);
+	ShaderManager(const ContextManagerSPtr& context_manager_sptr);
 
 	void init();
 	void clear();
@@ -23,7 +23,7 @@ protected:
 	void createShaderModule();
 
 private:
-	ContextManagerSPtr pContentManager;
+	ContextManagerSPtr context_manager_sptr;
 	std::vector<char> code;
 	std::string shaderName;
 };

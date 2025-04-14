@@ -10,7 +10,7 @@ class DescriptorManager
 {
 public:
 	DescriptorManager() = default;
-	DescriptorManager(const ContextManagerSPtr& pContentManager);
+	DescriptorManager(const ContextManagerSPtr& context_manager_sptr);
 
 	void init();
 	void clear();
@@ -27,5 +27,5 @@ public:
 	VkDescriptorSet set;
 
 private:
-	ContextManagerSPtr pContentManager;
+	ContextManagerSPtr context_manager_sptr;
 };

@@ -55,7 +55,7 @@ public:
 							const std::array<Vector3f, 3>& viewspace_positions,
 							const std::array<Point, 3> world_position,
 							Texture* texture,
-							const std::vector<Light>& lights);
+							const std::vector<PointLight>& lights);
 
 	/* Display the shaded triangle model */
 	void drawShaderTriangleframe(Model model);
@@ -125,7 +125,7 @@ public:
 
 	std::vector<std::vector<std::vector<float>>> shadow_maps;
 
-	std::vector<Light> lights;
+	std::vector<PointLight> lights;
 
 	std::vector<GBuffer> g_buffer;
 };

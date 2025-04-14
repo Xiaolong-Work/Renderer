@@ -33,7 +33,13 @@ void rasterRender(const Scene& scene)
 {
 	VulkanRasterRenderer renderer;
 	renderer.setData(scene);
-	renderer.run();
+	try
+	{
+		renderer.run();
+	} catch (const std::exception& e)
+	{
+		std::cout << e.what() << std::endl;
+	}
 }
 
 void pathTracingGPU(const PathTracingScene& scene, const int spp)
@@ -99,14 +105,18 @@ int main()
 	// pathTracingRender();
 	// pathTracingRTCore();
 
-	std::string path = std::string(ROOT_DIR) + "/models/bathroom/";
-	InputOutput io{"bathroom"};
-	io.loadObj(path);
-	io.loadXmlFile(path);
+	// std::string path = std::string(ROOT_DIR) + "/models/bathroom/";
+	// InputOutput io{"bathroom"};
+	// io.loadObjFile(path);
+	// io.loadXmlFile(path);
 
 	// std::string path = std::string(ROOT_DIR) + "/models/viking_room/";
 	// InputOutput io{"viking_room"};
-	// io.loadObj(path);
+	// io.loadObjFile(path);
+
+	std::string path = std::string(ROOT_DIR) + "/models/light_test/";
+	InputOutput io{"light_test"};
+	io.loadObjFile(path);
 
 	Scene scene;
 	io.generateScene(scene);

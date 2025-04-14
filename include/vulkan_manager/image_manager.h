@@ -11,7 +11,7 @@ class ImageManager : public BufferManager
 {
 public:
 	ImageManager() = default;
-	ImageManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	ImageManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void setExtent(const VkExtent2D& extent);
 
@@ -27,7 +27,8 @@ public:
 
 	void copyImageToBuffer(VkImage image, VkBuffer buffer, const VkExtent3D& extent);
 
-	void transformLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	void transformLayout(
+		VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layercount = 1);
 
 	void loadImage(const std::string& imagePath,
 				   const VkImageLayout layout,
@@ -44,7 +45,7 @@ class DepthImageManager : public ImageManager
 {
 public:
 	DepthImageManager() = default;
-	DepthImageManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	DepthImageManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void init();
 	void clear();
@@ -62,7 +63,7 @@ class StorageImageManager : public ImageManager
 {
 public:
 	StorageImageManager() = default;
-	StorageImageManager(const ContextManagerSPtr& pContentManager, const CommandManagerSPtr& pCommandManager);
+	StorageImageManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
 
 	void init();
 	void clear();
@@ -78,8 +79,8 @@ class PointLightShadowMapImageManager : public ImageManager
 {
 public:
 	PointLightShadowMapImageManager() = default;
-	PointLightShadowMapImageManager(const ContextManagerSPtr& pContentManager,
-									const CommandManagerSPtr& pCommandManager);
+	PointLightShadowMapImageManager(const ContextManagerSPtr& context_manager_sptr,
+									const CommandManagerSPtr& command_manager_sptr);
 
 	void init();
 	void clear();
@@ -87,6 +88,11 @@ public:
 	VkImage image{};
 	VkDeviceMemory memory{};
 	VkImageView view{};
+
+	VkImage depth_image{};
+	VkDeviceMemory depth_memory{};
+	VkImageView depth_view{};
+
 	VkSampler sampler{};
 
 	int light_number{0};

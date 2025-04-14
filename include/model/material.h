@@ -49,6 +49,18 @@ struct Material
 
 	/* The type of the material */
 	MaterialType type;
+
+	/* ========== PBR ========== */
+	Vector3f albedo;
+	float metallic;
+	float roughness;
+
+	void transferToPBR()
+	{
+		this->roughness = 1.0 - clamp(this->ns / 1000.0, 0.0, 1.0);
+		this->metallic = clamp(length(ks) / (length(ks) + length(kd) + 0.0001), 0.0, 1.0);
+		this->albedo = metallic > 0.5 ? ks : kd;
+	}
 };
 
 class PBRMaterial

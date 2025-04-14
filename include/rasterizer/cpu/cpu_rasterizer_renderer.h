@@ -116,13 +116,13 @@ public:
 	{
 		Model model{"F:/C++/Renderer/models/light_test/light_test.obj"};
 		model.lights.push_back(
-			Light{Vector3f{3.555117130279541f, 5.7209856510162354f, 7.8868520259857178f}, Vector3f{20.0f, 0.0f, 5.0f}});
-		model.lights.push_back(Light{Vector3f{10.796123027801514f, 14.8698282837867737f, -10.731630563735962f},
+			PointLight{Vector3f{3.555117130279541f, 5.7209856510162354f, 7.8868520259857178f}, Vector3f{20.0f, 0.0f, 5.0f}});
+		model.lights.push_back(PointLight{Vector3f{10.796123027801514f, 14.8698282837867737f, -10.731630563735962f},
 									 Vector3f{500.0f, 60.0f, 9.0f}});
-		model.lights.push_back(Light{Vector3f{5.061335563659668f, 10.0382213369011879f, 3.3268730640411377f},
+		model.lights.push_back(PointLight{Vector3f{5.061335563659668f, 10.0382213369011879f, 3.3268730640411377f},
 									 Vector3f{0.0f, 78.0f, 67.0f}});
 		model.lights.push_back(
-			Light{Vector3f{4.167896270751953f, 7.8664369583129883f, 3.0616421699523926f}, Vector3f{0.0f, 20.0f, 1.0f}});
+			PointLight{Vector3f{4.167896270751953f, 7.8664369583129883f, 3.0616421699523926f}, Vector3f{0.0f, 20.0f, 1.0f}});
 		models.push_back(model);
 
 		rasterizer.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -223,7 +223,7 @@ public:
 
 		this->swap_chain_manager.recreate();
 
-		this->render_pass_manager.pSwapChainManager.swap(std::make_shared<SwapChainManager>(this->swap_chain_manager));
+		this->render_pass_manager.swap_chain_manager_sprt.swap(std::make_shared<SwapChainManager>(this->swap_chain_manager));
 		this->render_pass_manager.recreate();
 	}
 

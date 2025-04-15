@@ -27,8 +27,8 @@ void main()
 	
     gl_Position = ubo.project * vec4(view_position, 1.0);
 
-	mat4x4 inverse_transform = transpose(inverse(ubo.view * ubo.model));
-    out_normal = vec3(inverse_transform * vec4(in_normal, 1.0f));
+	mat3 normal_matrix = transpose(inverse(mat3(ubo.view * ubo.model)));
+	out_normal = normalize(normal_matrix * in_normal);
 
     out_texture_coordinate = in_texture_coordinate;
 	out_view = ubo.view;

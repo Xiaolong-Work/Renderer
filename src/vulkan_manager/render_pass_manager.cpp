@@ -129,21 +129,6 @@ void RenderPassManager::createRenderPass()
 
 void RenderPassManager::createRenderPassForShadowCompute()
 {
-	VkAttachmentDescription depth_attachment{};
-	depth_attachment.flags = 0;
-	depth_attachment.format = VK_FORMAT_D32_SFLOAT;
-	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentReference depth_attachment_reference{};
-	depth_attachment_reference.attachment = 0u;
-	depth_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
 	VkAttachmentDescription color_attachment{};
 	color_attachment.flags = 0;
 	color_attachment.format = VK_FORMAT_R32_SFLOAT;
@@ -156,51 +141,69 @@ void RenderPassManager::createRenderPassForShadowCompute()
 	color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentReference color_attachment_reference{};
-	color_attachment_reference.attachment = 1u;
+	color_attachment_reference.attachment = 0;
 	color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentDescription depth_attachment{};
+	depth_attachment.flags = 0;
+	depth_attachment.format = VK_FORMAT_D32_SFLOAT;
+	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depth_attachment_reference{};
+	depth_attachment_reference.attachment = 1;
+	depth_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	VkSubpassDescription subpass{};
 	subpass.flags = 0;
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.inputAttachmentCount = 0u;
+	subpass.inputAttachmentCount = 0;
 	subpass.pInputAttachments = nullptr;
-	subpass.colorAttachmentCount = 1u;
+	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &color_attachment_reference;
 	subpass.pResolveAttachments = nullptr;
 	subpass.pDepthStencilAttachment = &depth_attachment_reference;
-	subpass.preserveAttachmentCount = 0u;
+	subpass.preserveAttachmentCount = 0;
 	subpass.pPreserveAttachments = nullptr;
 
 	VkSubpassDependency dependency{};
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0u;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	dependency.srcAccessMask = 0u;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask =
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	dependency.srcAccessMask = 0;
+	dependency.srcAccessMask = 0;
+	dependency.dstStageMask =
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 	/* For the 6 faces of the cubemap */
-	uint32_t view_mask = 0b00111111u;
-	uint32_t correlation_mask = 0b00111111u;
+	uint32_t view_mask = 0b00111111;
+	uint32_t correlation_mask = 0b00111111;
 	VkRenderPassMultiviewCreateInfo multiview_create_information{};
 	multiview_create_information.sType = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO;
-	multiview_create_information.subpassCount = 1u;
+	multiview_create_information.subpassCount = 1;
 	multiview_create_information.pViewMasks = &view_mask;
-	multiview_create_information.dependencyCount = 0u;
+	multiview_create_information.dependencyCount = 0;
 	multiview_create_information.pViewOffsets = nullptr;
-	multiview_create_information.correlationMaskCount = 1u;
+	multiview_create_information.correlationMaskCount = 1;
 	multiview_create_information.pCorrelationMasks = &correlation_mask;
 
-	std::array<VkAttachmentDescription, 2> attachments{depth_attachment, color_attachment};
+	std::array<VkAttachmentDescription, 2> attachments{color_attachment, depth_attachment};
 	VkRenderPassCreateInfo render_pass_information{};
 	render_pass_information.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	render_pass_information.pNext = &multiview_create_information;
-	render_pass_information.flags = 0u;
-	render_pass_information.attachmentCount = 2u;
+	render_pass_information.flags = 0;
+	render_pass_information.attachmentCount = 2;
 	render_pass_information.pAttachments = attachments.data();
-	render_pass_information.subpassCount = 1u;
+	render_pass_information.subpassCount = 1;
 	render_pass_information.pSubpasses = &subpass;
-	render_pass_information.dependencyCount = 1u;
+	render_pass_information.dependencyCount = 1;
 	render_pass_information.pDependencies = &dependency;
 
 	if (vkCreateRenderPass(context_manager_sptr->device, &render_pass_information, nullptr, &this->pass) != VK_SUCCESS)

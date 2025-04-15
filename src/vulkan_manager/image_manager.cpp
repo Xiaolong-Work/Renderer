@@ -457,13 +457,13 @@ void PointLightShadowMapImageManager::createImageResource()
 	}
 
 	image_information.format = VK_FORMAT_D32_SFLOAT;
-	image_information.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	image_information.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	if (vkCreateImage(context_manager_sptr->device, &image_information, nullptr, &this->depth_image) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create image!");
 	}
 
-	auto bindMemory = [this](VkImage image, VkDeviceMemory memory) {
+	auto bindMemory = [this](VkImage& image, VkDeviceMemory& memory) {
 		VkMemoryRequirements memory_requirements;
 		vkGetImageMemoryRequirements(context_manager_sptr->device, image, &memory_requirements);
 
@@ -511,18 +511,6 @@ void PointLightShadowMapImageManager::createImageResource()
 	{
 		throw std::runtime_error("Failed to create image view!");
 	}
-
-	transformLayout(this->depth_image,
-					VK_FORMAT_D32_SFLOAT,
-					VK_IMAGE_LAYOUT_UNDEFINED,
-					VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-					6 * this->light_number);
-
-	transformLayout(this->image,
-					VK_FORMAT_D32_SFLOAT,
-					VK_IMAGE_LAYOUT_UNDEFINED,
-					VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-					6 * this->light_number);
 }
 
 void PointLightShadowMapImageManager::createSampler()

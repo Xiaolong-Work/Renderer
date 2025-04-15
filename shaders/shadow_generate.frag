@@ -7,5 +7,5 @@ layout(location = 0) out float liner_depth;
 
 void main() 
 {
-	liner_depth = length(world_position - light_position);
+	liner_depth = length(world_position - light_position) / 20.0f;
 }

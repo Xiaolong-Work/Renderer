@@ -67,8 +67,8 @@ public:
 
 	void createFrameBuffer()
 	{
-		std::array<VkImageView, 2> views{this->point_light_shadow_map_manager.depth_view,
-										 this->point_light_shadow_map_manager.view};
+		std::array<VkImageView, 2> views{this->point_light_shadow_map_manager.view,
+										 this->point_light_shadow_map_manager.depth_view};
 		VkFramebufferCreateInfo frame_buffer_create_information{};
 		frame_buffer_create_information.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		frame_buffer_create_information.pNext = nullptr;
@@ -148,7 +148,7 @@ public:
 			/* For each face */
 			PointLightMVP mvp{};
 			mvp.model = glm::mat4{1.0f};
-			mvp.project = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 1000.0f);
+			mvp.project = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 20.0f);
 			mvp.project[1][1] *= -1;
 			mvp.position = this->point_lights[i].position;
 
@@ -262,9 +262,9 @@ public:
 		render_pass_begin.renderArea.offset = {0, 0};
 		render_pass_begin.renderArea.extent = {this->point_light_shadow_map_manager.width,
 											   this->point_light_shadow_map_manager.height};
-		std::array<VkClearValue,2> clear_values{};
+		std::array<VkClearValue, 2> clear_values{};
 		clear_values[0].depthStencil = {1.0f, 0};
-		clear_values[1].color = {1000.0f};
+		clear_values[1].color = {1.0f};
 		render_pass_begin.clearValueCount = 2u;
 		render_pass_begin.pClearValues = clear_values.data();
 

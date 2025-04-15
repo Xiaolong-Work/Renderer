@@ -47,25 +47,20 @@ layout(std430, binding = 4) readonly buffer IndexBuffer { int material_indices[]
 layout(std430, binding = 5) readonly buffer MaterialBuffer { Material materials[]; };
 layout(std430, binding = 6) readonly buffer MVPBuffer { MVP point_mvps[]; };
 
-float NonLinearDepth(float linearDepth, float near, float far)
-{
-    float z = (far + near - (2.0 * near * far) / linearDepth) / (far - near);
-    return z * 0.5 + 0.5; 
-}
-
 float shadow(int i)
 {
 	vec3 light_position = point_light[i].position;
     vec3 light_to_shadering_point = world_position - light_position;
-    float distance = length(light_to_shadering_point);
+    float distance1 = length(light_to_shadering_point) / 20.0f;
     vec3 direction = normalize(light_to_shadering_point);
+	direction.y *= -1.0;
 
-    float bias = 3;
+    float bias = 0.001;
 
 	float d = texture(shadow_map, vec4(direction, float(i))).r;
 
-	if (d > distance - bias) return 1.0f;
-    return 0.0f;
+	if (d > distance1 - bias) return 1.0f;
+    return 0.1f;
 }
 
 vec4 shader(PointLight light, Material material, vec3 kd_color, vec3 ks_color)
@@ -168,10 +163,12 @@ void main()
 	{
 		float t = shadow(0);
 		out_color = shaderPBR(light, materials[material_index]) * t;
+		//out_color = vec4(vec3(t), 1);
 	}
 	else
 	{
 		out_color = texture(textures[texture_index], texture_coordinate);
+		out_color = vec4((normalize(normal) + vec3(1.0f, 1.0f, 1.0f)) / 2.0f, 1.0f);
 	}	
 
 	// out_color = vec4((normalize(normal) + vec3(1.0f, 1.0f, 1.0f)) / 2.0f, 1.0f);

@@ -21,9 +21,9 @@ public:
 
 	void recreate();
 
-	VkSwapchainKHR swapChain;
+	VkSwapchainKHR swap_chain;
 	std::vector<VkImage> images;
-	std::vector<VkImageView> imageViews;
+	std::vector<VkImageView> views;
 	VkFormat format;
 	VkExtent2D extent;
 

@@ -47,19 +47,24 @@ struct Material
 	/* The diffuse texture index of the object, -1 means no texture data */
 	Index diffuse_texture{-1};
 
+	Index specular_texture{-1};
+
 	/* The type of the material */
 	MaterialType type;
 
 	/* ========== PBR ========== */
-	Vector3f albedo;
+	Vector4f albedo;
 	float metallic;
 	float roughness;
+
+	Index albedo_texture{-1};
 
 	void transferToPBR()
 	{
 		this->roughness = 1.0 - clamp(this->ns / 1000.0, 0.0, 1.0);
 		this->metallic = clamp(length(ks) / (length(ks) + length(kd) + 0.0001), 0.0, 1.0);
-		this->albedo = metallic > 0.5 ? ks : kd;
+		this->albedo = metallic > 0.5 ? Vector4f{ks, 1.0f} : Vector4f{kd, 1.0f};
+		this->albedo_texture = this->diffuse_texture;
 	}
 };
 

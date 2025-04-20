@@ -40,8 +40,8 @@ void DescriptorManager::createDescriptorPool()
 	poolInfo.pNext = nullptr;
 	poolInfo.flags = 0;
 	poolInfo.maxSets = static_cast<uint32_t>(1);
-	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-	poolInfo.pPoolSizes = poolSizes.data();
+	poolInfo.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
+	poolInfo.pPoolSizes = pool_sizes.data();
 
 	if (vkCreateDescriptorPool(context_manager_sptr->device, &poolInfo, nullptr, &this->pool) != VK_SUCCESS)
 	{
@@ -62,4 +62,29 @@ void DescriptorManager::createDescriptorSet()
 	{
 		throw std::runtime_error("Failed to allocate descriptor sets!");
 	}
+
+	for (auto& write : this->writes)
+	{
+		write.dstSet = this->set;
+	}
+	vkUpdateDescriptorSets(
+		context_manager_sptr->device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+}
+
+void DescriptorManager::addLayoutBinding(const VkDescriptorSetLayoutBinding& binding)
+{
+	this->bindings.push_back(binding);
+}
+
+void DescriptorManager::addPoolSize(const VkDescriptorType type, const uint32_t size)
+{
+	VkDescriptorPoolSize pool_size{};
+	pool_size.type = type;
+	pool_size.descriptorCount = size;
+	this->pool_sizes.push_back(pool_size);
+}
+
+void DescriptorManager::addWrite(const VkWriteDescriptorSet& write)
+{
+	this->writes.push_back(write);
 }

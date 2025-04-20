@@ -11,13 +11,13 @@ bool keys[1024];
 class CPURasterizerRenderer : public DrawFrame
 {
 public:
-	bool windowResized = false;
+	bool window_resized = false;
 	double mousePositionX = 0.0f, mousePositionY = 0.0f;
 
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
 		auto self = reinterpret_cast<CPURasterizerRenderer*>(glfwGetWindowUserPointer(window));
-		self->windowResized = true;
+		self->window_resized = true;
 	}
 
 	static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
@@ -205,8 +205,8 @@ public:
 		/* Write Descriptor Set  */
 		VkDescriptorImageInfo image_infomation{};
 		image_infomation.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		image_infomation.imageView = this->texture_manager.imageViews[0];
-		image_infomation.sampler = this->texture_manager.sampler;
+		image_infomation.imageView = this->texture_manager.views[0];
+		image_infomation.sampler = this->texture_manager.samplers[0];
 		VkWriteDescriptorSet write{};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		write.pNext = nullptr;

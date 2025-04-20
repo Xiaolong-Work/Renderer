@@ -1,5 +1,4 @@
 ﻿#include <data_loader.h>
-#include <obj_loader.h>
 #include <tinyxml2.h>
 
 DataLoader::DataLoader(const std::string& data_path, const std::string& name)
@@ -16,69 +15,7 @@ void DataLoader::load()
 
 void DataLoader::loadObjFile()
 {
-	/* Use obj loader to load obj file */
-	objl::Loader loader;
-	loader.LoadFile(this->data_path + this->name + ".obj");
-	auto& meshes = loader.LoadedMeshes;
 
-	for (auto& mesh : meshes)
-	{
-		Object object{};
-
-		object.name = mesh.MeshName;
-
-		/* Read in material data */
-		auto& material = mesh.MeshMaterial;
-		object.material.name = material.name;
-		object.material.kd = Vector3f{material.Kd.X, material.Kd.Y, material.Kd.Z};
-		object.material.ks = Vector3f{material.Ks.X, material.Ks.Y, material.Ks.Z};
-		object.material.ns = material.Ns;
-		object.material.ni = material.Ni;
-
-		/* Determine the material type */
-		if (object.material.ns > 1.0f)
-		{
-			if (object.material.kd == Vector3f{0.0f, 0.0f, 0.0f} && object.material.ks == Vector3f{1.0f, 1.0f, 1.0f})
-			{
-				object.material.type = MaterialType::Specular;
-			}
-			else
-			{
-				object.material.type = MaterialType::Glossy;
-			}
-		}
-		else if (object.material.ni > 1.0f)
-		{
-			object.material.type = MaterialType::Refraction;
-		}
-		else
-		{
-			object.material.type = MaterialType::Diffuse;
-		}
-
-		/* Convert data format */
-		for (int i = 0; i < mesh.Vertices.size(); i += 3)
-		{
-			Vertex vertices[3];
-
-			for (int j = 0; j < 3; j++)
-			{
-				auto& vertex = mesh.Vertices[i + j];
-
-				vertices[j].position = Point{vertex.Position.X, vertex.Position.Y, vertex.Position.Z};
-				vertices[j].normal = Direction{vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z};
-				vertices[j].texture = Coordinate2D{vertex.TextureCoordinate.X, vertex.TextureCoordinate.Y};
-			}
-
-			Triangle triangle{vertices[0], vertices[1], vertices[2]};
-			object.mesh.emplace_back(triangle);
-
-			object.bounding_box.unionBox(triangle.getBoundingBox());
-			object.area += triangle.area;
-		}
-
-		objects.push_back(object);
-	}
 }
 
 void DataLoader::loadXmlFile()

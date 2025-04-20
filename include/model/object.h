@@ -25,6 +25,8 @@ public:
 	/* The material index of the object */
 	Index material_index{-1};
 
+	Matrix4f model{1};
+
 	/* ========== Path Tracing Data Extension ========== */
 	/* The triangle mesh representing the object's geometry. */
 	std::vector<Triangle> mesh;

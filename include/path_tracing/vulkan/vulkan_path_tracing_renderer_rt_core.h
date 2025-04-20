@@ -56,7 +56,7 @@ private:
 
 	UniformBufferManager uniformBufferManager{};
 
-	DepthImageManager depthImageManager{};
+	DepthImageManager depth_image_manager{};
 
 	DescriptorManager descriptor_manager{};
 
@@ -64,7 +64,7 @@ private:
 
 	ShaderManager fragment_shader_manager{};
 
-	PipelineManager graphics_pipeline_manager{};
+	PipelineManager pipeline_manager{};
 
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_property{};
 

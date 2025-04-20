@@ -87,4 +87,6 @@ public:
 
 	/* The 2D texture coordinates associated with the vertex.*/
 	Coordinate2D texture;
+
+	Vector4f color;
 };

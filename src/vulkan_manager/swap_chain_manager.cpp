@@ -13,12 +13,12 @@ void SwapChainManager::init()
 
 void SwapChainManager::clear()
 {
-	for (size_t i = 0; i < imageViews.size(); i++)
+	for (size_t i = 0; i < views.size(); i++)
 	{
-		vkDestroyImageView(context_manager_sptr->device, this->imageViews[i], nullptr);
+		vkDestroyImageView(context_manager_sptr->device, this->views[i], nullptr);
 	}
 
-	vkDestroySwapchainKHR(context_manager_sptr->device, this->swapChain, nullptr);
+	vkDestroySwapchainKHR(context_manager_sptr->device, this->swap_chain, nullptr);
 }
 
 VkExtent2D SwapChainManager::getExtent()
@@ -141,23 +141,23 @@ void SwapChainManager::createSwapChain()
 	createInfo.oldSwapchain = VK_NULL_HANDLE;
 
 	/* Create a swap chain */
-	if (vkCreateSwapchainKHR(context_manager_sptr->device, &createInfo, nullptr, &this->swapChain) != VK_SUCCESS)
+	if (vkCreateSwapchainKHR(context_manager_sptr->device, &createInfo, nullptr, &this->swap_chain) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create swap chain!");
 	}
 
 	/* Get the operation handle of the image in the swap chain */
-	vkGetSwapchainImagesKHR(context_manager_sptr->device, this->swapChain, &imageCount, nullptr);
+	vkGetSwapchainImagesKHR(context_manager_sptr->device, this->swap_chain, &imageCount, nullptr);
 	this->images.resize(imageCount);
-	vkGetSwapchainImagesKHR(context_manager_sptr->device, this->swapChain, &imageCount, this->images.data());
+	vkGetSwapchainImagesKHR(context_manager_sptr->device, this->swap_chain, &imageCount, this->images.data());
 
 	this->format = surfaceFormat.format;
 	this->extent = extent;
 
-	this->imageViews.resize(imageCount);
+	this->views.resize(imageCount);
 	for (uint32_t i = 0; i < imageCount; i++)
 	{
-		this->imageViews[i] = createView(this->images[i], this->format, VK_IMAGE_ASPECT_COLOR_BIT);
+		this->views[i] = createView(this->images[i], this->format, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
 }
 

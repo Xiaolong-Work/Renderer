@@ -1,9 +1,14 @@
 ﻿cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 
 # Enable hot reload for the MSVC compiler
-if (POLICY CMP0141)
-  cmake_policy(SET CMP0141 NEW)
-  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
+if (MSVC)
+    add_compile_options(
+        "$<$<CONFIG:Debug>:/ZI>"
+        "$<$<CONFIG:Debug>:/hotpatch>"
+        "$<$<CONFIG:Debug>:/MP>"
+    )
+    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
 endif()
 
 # Add executable file
@@ -13,6 +18,11 @@ add_executable(Renderer src/main.cpp)
 # Setting the C++ Standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+set_target_properties(Renderer PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+)
 
 # Add include file
 find_package(Vulkan REQUIRED)
@@ -59,6 +69,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 add_dependencies(Renderer CompileShaders)
 
 if (MSVC)
+	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /Zi)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi /DEBUG")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
 endif()

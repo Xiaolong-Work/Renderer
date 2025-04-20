@@ -33,21 +33,18 @@ public:
 		sampler_layout_binding.descriptorCount = 1;
 		sampler_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		sampler_layout_binding.pImmutableSamplers = nullptr;
-		this->descriptor_manager.bindings.push_back(sampler_layout_binding);
+		this->descriptor_manager.addLayoutBinding(sampler_layout_binding);
 
 		/* Pool size */
-		VkDescriptorPoolSize sampler_pool_size{};
-		sampler_pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		sampler_pool_size.descriptorCount = static_cast<uint32_t>(1);
-		this->descriptor_manager.poolSizes.push_back(sampler_pool_size);
+		this->descriptor_manager.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
 
 		this->descriptor_manager.init();
 
 		/* Write Descriptor Set  */
 		VkDescriptorImageInfo image_infomation{};
 		image_infomation.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		image_infomation.imageView = texture_manager.imageViews[0];
-		image_infomation.sampler = texture_manager.sampler;
+		image_infomation.imageView = texture_manager.views[0];
+		image_infomation.sampler = texture_manager.samplers[0];
 		VkWriteDescriptorSet write{};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		write.pNext = nullptr;
@@ -65,49 +62,16 @@ public:
 
 	void setupGraphicsPipelines()
 	{
-		VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertShaderStageInfo.pNext = nullptr;
-		vertShaderStageInfo.flags = 0;
-		vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertShaderStageInfo.module = vertex_shader_manager.module;
-		vertShaderStageInfo.pName = "main";
-		vertShaderStageInfo.pSpecializationInfo = nullptr;
+		// this->point_pipeline_manager.addShaderStage("draw_single_frame_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		// this->point_pipeline_manager.addShaderStage("draw_single_frame_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-		VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-		fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		fragShaderStageInfo.pNext = nullptr;
-		fragShaderStageInfo.flags = 0;
-		fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragShaderStageInfo.module = fragment_shader_manager.module;
-		fragShaderStageInfo.pName = "main";
-		vertShaderStageInfo.pSpecializationInfo = nullptr;
+		// this->point_pipeline_manager.setExtent(swap_chain_manager.extent);
+		// std::vector<VkDescriptorSetLayout> layout = {descriptor_manager.layout};
+		// this->point_pipeline_manager.setDescriptorSetLayout(layout);
+		// this->point_pipeline_manager.setRenderPass(render_pass_manager.pass, 0);
+		// point_pipeline_manager.enable_vertex_inpute = false;
 
-		std::vector<VkPipelineShaderStageCreateInfo> shader_stages = {vertShaderStageInfo, fragShaderStageInfo};
-
-		VkViewport viewport{};
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = (float)swap_chain_manager.extent.width;
-		viewport.height = (float)swap_chain_manager.extent.height;
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-		VkRect2D scissor{};
-		scissor.offset = {0, 0};
-		scissor.extent = swap_chain_manager.extent;
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = 1;
-		pipelineLayoutInfo.pSetLayouts = &descriptor_manager.layout;
-		pipelineLayoutInfo.pushConstantRangeCount = 0;
-		pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-		graphics_pipeline_manager.setRequiredValue(
-			shader_stages, viewport, scissor, pipelineLayoutInfo, render_pass_manager.pass);
-		graphics_pipeline_manager.enable_vertex_inpute = false;
-
-		this->graphics_pipeline_manager.init();
+		// this->point_pipeline_manager.init();
 	}
 
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
@@ -136,11 +100,11 @@ public:
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->graphics_pipeline_manager.pipeline);
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->pipeline_manager.pipeline);
 
 		vkCmdBindDescriptorSets(commandBuffer,
 								VK_PIPELINE_BIND_POINT_GRAPHICS,
-								this->graphics_pipeline_manager.layout,
+								this->pipeline_manager.layout,
 								0,
 								1,
 								&this->descriptor_manager.set,
@@ -169,9 +133,9 @@ public:
 		fence_information.pNext = nullptr;
 		fence_information.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-		if (vkCreateSemaphore(content_manager.device, &semaphore_information, nullptr, &imageAvailableSemaphores) !=
+		if (vkCreateSemaphore(content_manager.device, &semaphore_information, nullptr, &image_available) !=
 				VK_SUCCESS ||
-			vkCreateSemaphore(content_manager.device, &semaphore_information, nullptr, &renderFinishedSemaphores) !=
+			vkCreateSemaphore(content_manager.device, &semaphore_information, nullptr, &render_finished) !=
 				VK_SUCCESS ||
 			vkCreateFence(content_manager.device, &fence_information, nullptr, &inFlightFences) != VK_SUCCESS)
 		{
@@ -187,9 +151,9 @@ public:
 		/* 获取交换链图像 */
 		uint32_t imageIndex;
 		VkResult result = vkAcquireNextImageKHR(content_manager.device,
-												this->swap_chain_manager.swapChain,
+												this->swap_chain_manager.swap_chain,
 												UINT64_MAX,
-												imageAvailableSemaphores,
+												image_available,
 												VK_NULL_HANDLE,
 												&imageIndex);
 		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -208,14 +172,14 @@ public:
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.pNext = nullptr;
 
-		VkSemaphore waitSemaphores[] = {imageAvailableSemaphores};
+		VkSemaphore waitSemaphores[] = {image_available};
 		VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = waitSemaphores;
 		submitInfo.pWaitDstStageMask = waitStages;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &command_manager.graphicsCommandBuffers[0];
-		VkSemaphore signalSemaphores[] = {renderFinishedSemaphores};
+		VkSemaphore signalSemaphores[] = {render_finished};
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -232,7 +196,7 @@ public:
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pWaitSemaphores = signalSemaphores;
 
-		VkSwapchainKHR swapChains[] = {this->swap_chain_manager.swapChain};
+		VkSwapchainKHR swapChains[] = {this->swap_chain_manager.swap_chain};
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = swapChains;
 		presentInfo.pImageIndices = &imageIndex;
@@ -250,8 +214,8 @@ public:
 	}
 
 	/* 同步量 */
-	VkSemaphore imageAvailableSemaphores;
-	VkSemaphore renderFinishedSemaphores;
+	VkSemaphore image_available;
+	VkSemaphore render_finished;
 	VkFence inFlightFences;
 
 protected:
@@ -273,7 +237,7 @@ protected:
 
 	DescriptorManager descriptor_manager{};
 
-	PipelineManager graphics_pipeline_manager{};
+	PipelineManager pipeline_manager{};
 
-	bool windowResized{false};
+	bool window_resized{false};
 };

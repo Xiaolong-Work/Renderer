@@ -4,10 +4,6 @@
 #include <sstream>
 #include <vector>
 
-#include <tiny_obj_loader.h>
-#include <tiny_gltf.h>
-#include <tinyxml2.h>
-
 #include <camera.h>
 #include <material.h>
 #include <object.h>
@@ -29,10 +25,12 @@ public:
 
 	void generateScene(Scene& scene);
 
-private:
+
 	std::string name;
 	Camera camera;
 	std::vector<Object> objects;
 	std::vector<Material> materials;
+	std::vector<Texture> textures;
+	std::vector<PointLight> point_lights;
 	std::map<std::string, Index> texture_index;
 };

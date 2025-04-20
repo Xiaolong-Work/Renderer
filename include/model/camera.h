@@ -19,6 +19,9 @@ enum class CameraType
 class Camera
 {
 public:
+	/* The name of the camera */
+	std::string name;
+
 	/* The width of the camera screen. */
 	unsigned int width;
 
@@ -27,6 +30,14 @@ public:
 
 	/* Field of view (FOV) in degrees, applicable for perspective projection. */
 	float fov;
+
+	float fovy;
+
+	float aspect_ratio;
+
+	float near_plane;
+
+	float far_plane;
 
 	/* The position of the camera in world space. */
 	Coordinate3D position;

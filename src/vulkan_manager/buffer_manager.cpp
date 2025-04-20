@@ -1,19 +1,20 @@
 #include <buffer_manager.h>
 
-BufferManager::BufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr)
+BufferManager::BufferManager(const ContextManagerSPtr& context_manager_sptr,
+							 const CommandManagerSPtr& command_manager_sptr)
 {
 	this->context_manager_sptr = context_manager_sptr;
 	this->command_manager_sptr = command_manager_sptr;
 }
 
-uint32_t BufferManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+uint32_t BufferManager::findMemoryType(const uint32_t filter, const VkMemoryPropertyFlags properties) const
 {
-	VkPhysicalDeviceMemoryProperties memoryProperties;
-	vkGetPhysicalDeviceMemoryProperties(context_manager_sptr->physical_device, &memoryProperties);
+	VkPhysicalDeviceMemoryProperties memory_properties;
+	vkGetPhysicalDeviceMemoryProperties(context_manager_sptr->physical_device, &memory_properties);
 
-	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+	for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++)
 	{
-		if ((typeFilter & (1 << i)) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
+		if ((filter & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & properties) == properties)
 		{
 			return i;
 		}
@@ -26,78 +27,77 @@ void BufferManager::createBuffer(const VkDeviceSize size,
 								 const VkBufferUsageFlags usage,
 								 const VkMemoryPropertyFlags properties,
 								 VkBuffer& buffer,
-								 VkDeviceMemory& bufferMemory)
+								 VkDeviceMemory& memory) const
 {
-	VkBufferCreateInfo bufferInfo{};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.pNext = nullptr;
-	bufferInfo.flags = 0;
-	bufferInfo.size = size;
-	bufferInfo.usage = usage;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	bufferInfo.queueFamilyIndexCount = 0;
-	bufferInfo.pQueueFamilyIndices = nullptr;
+	VkBufferCreateInfo buffer_create_information{};
+	buffer_create_information.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_create_information.pNext = nullptr;
+	buffer_create_information.flags = 0;
+	buffer_create_information.size = size;
+	buffer_create_information.usage = usage;
+	buffer_create_information.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	buffer_create_information.queueFamilyIndexCount = 0;
+	buffer_create_information.pQueueFamilyIndices = nullptr;
 
-	if (vkCreateBuffer(context_manager_sptr->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
+	if (vkCreateBuffer(context_manager_sptr->device, &buffer_create_information, nullptr, &buffer) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create buffer!");
 	}
 
-	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(context_manager_sptr->device, buffer, &memRequirements);
+	VkMemoryRequirements requirements;
+	vkGetBufferMemoryRequirements(context_manager_sptr->device, buffer, &requirements);
 
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.pNext = nullptr;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-	if (vkAllocateMemory(context_manager_sptr->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
+	VkMemoryAllocateInfo allocate_information{};
+	allocate_information.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocate_information.pNext = nullptr;
+	allocate_information.allocationSize = requirements.size;
+	allocate_information.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, properties);
+	if (vkAllocateMemory(context_manager_sptr->device, &allocate_information, nullptr, &memory) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate buffer memory!");
 	}
 
-	vkBindBufferMemory(context_manager_sptr->device, buffer, bufferMemory, 0);
+	vkBindBufferMemory(context_manager_sptr->device, buffer, memory, 0);
 }
 
-void BufferManager::copyBuffer(const VkBuffer& srcBuffer, VkBuffer& dstBuffer, const VkDeviceSize size)
+void BufferManager::copyBuffer(const VkBuffer& source, VkBuffer& destination, const VkDeviceSize size) const
 {
-	VkCommandBuffer commandBuffer = command_manager_sptr->beginTransferCommands();
+	VkCommandBuffer command_buffer = command_manager_sptr->beginTransferCommands();
 
-	VkBufferCopy copyRegion{};
-	copyRegion.srcOffset = 0;
-	copyRegion.dstOffset = 0;
-	copyRegion.size = size;
-	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+	VkBufferCopy copy_region{};
+	copy_region.srcOffset = 0;
+	copy_region.dstOffset = 0;
+	copy_region.size = size;
+	vkCmdCopyBuffer(command_buffer, source, destination, 1, &copy_region);
 
-	command_manager_sptr->endTransferCommands(commandBuffer);
+	command_manager_sptr->endTransferCommands(command_buffer);
 }
 
 void BufferManager::createDeviceLocalBuffer(const VkDeviceSize size,
 											const void* data,
 											const VkBufferUsageFlags usage,
 											VkBuffer& buffer,
-											VkDeviceMemory& bufferMemory)
+											VkDeviceMemory& memory) const
 {
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
 	createBuffer(size,
 				 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				 stagingBuffer,
-				 stagingBufferMemory);
+				 staging_buffer,
+				 staging_buffer_memory);
 
-	void* tempData;
-	vkMapMemory(context_manager_sptr->device, stagingBufferMemory, 0, size, 0, &tempData);
-	memcpy(tempData, data, (size_t)size);
-	vkUnmapMemory(context_manager_sptr->device, stagingBufferMemory);
+	void* temp_data;
+	vkMapMemory(context_manager_sptr->device, staging_buffer_memory, 0, size, 0, &temp_data);
+	memcpy(temp_data, data, (size_t)size);
+	vkUnmapMemory(context_manager_sptr->device, staging_buffer_memory);
 
-	createBuffer(
-		size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer, bufferMemory);
+	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer, memory);
 
-	copyBuffer(stagingBuffer, buffer, size);
+	copyBuffer(staging_buffer, buffer, size);
 
-	vkDestroyBuffer(context_manager_sptr->device, stagingBuffer, nullptr);
-	vkFreeMemory(context_manager_sptr->device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, staging_buffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, staging_buffer_memory, nullptr);
 }
 
 VertexBufferManager::VertexBufferManager(const ContextManagerSPtr& context_manager_sptr,
@@ -109,7 +109,7 @@ VertexBufferManager::VertexBufferManager(const ContextManagerSPtr& context_manag
 
 void VertexBufferManager::init()
 {
-	VkDeviceSize bufferSize = sizeof(this->vertices[0]) * this->vertices.size();
+	VkDeviceSize size = sizeof(this->vertices[0]) * this->vertices.size();
 
 	VkBufferUsageFlags usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
@@ -118,45 +118,13 @@ void VertexBufferManager::init()
 		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
 	}
 
-	createDeviceLocalBuffer(bufferSize, this->vertices.data(), usage, this->buffer, this->memory);
+	createDeviceLocalBuffer(size, this->vertices.data(), usage, this->buffer, this->memory);
 }
 
 void VertexBufferManager::clear()
 {
 	vkDestroyBuffer(context_manager_sptr->device, this->buffer, nullptr);
 	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
-}
-
-VkVertexInputBindingDescription VertexBufferManager::getBindingDescription()
-{
-	VkVertexInputBindingDescription bindingDescription{};
-	bindingDescription.binding = 0;
-	bindingDescription.stride = sizeof(Vertex);
-	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-	return bindingDescription;
-}
-
-std::array<VkVertexInputAttributeDescription, 3> VertexBufferManager::getAttributeDescriptions()
-{
-	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-	attributeDescriptions[0].binding = 0;
-	attributeDescriptions[0].location = 0;
-	attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[0].offset = offsetof(Vertex, position);
-
-	attributeDescriptions[1].binding = 0;
-	attributeDescriptions[1].location = 1;
-	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[1].offset = offsetof(Vertex, normal);
-
-	attributeDescriptions[2].binding = 0;
-	attributeDescriptions[2].location = 2;
-	attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-	attributeDescriptions[2].offset = offsetof(Vertex, texture);
-
-	return attributeDescriptions;
 }
 
 IndexBufferManager::IndexBufferManager(const ContextManagerSPtr& context_manager_sptr,
@@ -168,10 +136,9 @@ IndexBufferManager::IndexBufferManager(const ContextManagerSPtr& context_manager
 
 void IndexBufferManager::init()
 {
-	VkDeviceSize bufferSize = sizeof(this->indices[0]) * this->indices.size();
+	VkDeviceSize size = sizeof(this->indices[0]) * this->indices.size();
 
-	createDeviceLocalBuffer(
-		bufferSize, this->indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, this->buffer, this->memory);
+	createDeviceLocalBuffer(size, this->indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, this->buffer, this->memory);
 }
 
 void IndexBufferManager::clear()
@@ -189,10 +156,10 @@ IndirectBufferManager::IndirectBufferManager(const ContextManagerSPtr& context_m
 
 void IndirectBufferManager::init()
 {
-	VkDeviceSize bufferSize = sizeof(VkDrawIndexedIndirectCommand) * this->commands.size();
+	VkDeviceSize size = sizeof(VkDrawIndexedIndirectCommand) * this->commands.size();
 
 	createDeviceLocalBuffer(
-		bufferSize, this->commands.data(), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, this->buffer, this->memory);
+		size, this->commands.data(), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, this->buffer, this->memory);
 }
 
 void IndirectBufferManager::clear()
@@ -210,15 +177,13 @@ UniformBufferManager::UniformBufferManager(const ContextManagerSPtr& context_man
 
 void UniformBufferManager::init()
 {
-	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
-	createBuffer(bufferSize,
+	createBuffer(this->size,
 				 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				 this->buffer,
 				 this->memory);
 
-	vkMapMemory(context_manager_sptr->device, this->memory, 0, bufferSize, 0, &this->mapped);
+	vkMapMemory(context_manager_sptr->device, this->memory, 0, this->size, 0, &this->mapped);
 }
 
 void UniformBufferManager::clear()
@@ -227,9 +192,50 @@ void UniformBufferManager::clear()
 	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
 }
 
-void UniformBufferManager::update(const UniformBufferObject& ubo)
+void UniformBufferManager::update(const void* data)
 {
-	memcpy(this->mapped, &ubo, sizeof(ubo));
+	memcpy(this->mapped, data, this->size);
+}
+
+void UniformBufferManager::setData(const void* data, const VkDeviceSize size, const uint32_t length)
+{
+	this->data = data;
+	this->size = size;
+	this->length = length;
+}
+
+VkDescriptorSetLayoutBinding UniformBufferManager::getLayoutBinding(const uint32_t binding,
+																	const VkShaderStageFlags flag)
+{
+	VkDescriptorSetLayoutBinding layout_binding{};
+	layout_binding.binding = binding;
+	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	layout_binding.descriptorCount = this->length;
+	layout_binding.stageFlags = flag;
+	layout_binding.pImmutableSamplers = nullptr;
+
+	return layout_binding;
+}
+
+VkWriteDescriptorSet UniformBufferManager::getWriteInformation(const uint32_t binding)
+{
+	this->descriptor_buffer.buffer = this->buffer;
+	this->descriptor_buffer.offset = 0;
+	this->descriptor_buffer.range = VK_WHOLE_SIZE;
+
+	VkWriteDescriptorSet buffer_write{};
+	buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	buffer_write.pNext = nullptr;
+	buffer_write.dstSet = VK_NULL_HANDLE;
+	buffer_write.dstBinding = binding;
+	buffer_write.dstArrayElement = 0;
+	buffer_write.descriptorCount = 1;
+	buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	buffer_write.pBufferInfo = &this->descriptor_buffer;
+	buffer_write.pImageInfo = nullptr;
+	buffer_write.pTexelBufferView = nullptr;
+
+	return buffer_write;
 }
 
 StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& context_manager_sptr,
@@ -250,11 +256,45 @@ void StorageBufferManager::clear()
 	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
 }
 
-void StorageBufferManager::setData(const void* data, const VkDeviceSize size, const int length)
+void StorageBufferManager::setData(const void* data, const VkDeviceSize size, const uint32_t length)
 {
 	this->data = data;
 	this->size = size;
 	this->length = length;
+}
+
+VkDescriptorSetLayoutBinding StorageBufferManager::getLayoutBinding(const uint32_t binding,
+																	const VkShaderStageFlags flag)
+{
+	VkDescriptorSetLayoutBinding layout_binding{};
+	layout_binding.binding = binding;
+	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	layout_binding.descriptorCount = this->length;
+	layout_binding.stageFlags = flag;
+	layout_binding.pImmutableSamplers = nullptr;
+
+	return layout_binding;
+}
+
+VkWriteDescriptorSet StorageBufferManager::getWriteInformation(const uint32_t binding)
+{
+	this->descriptor_buffer.buffer = this->buffer;
+	this->descriptor_buffer.offset = 0;
+	this->descriptor_buffer.range = VK_WHOLE_SIZE;
+
+	VkWriteDescriptorSet buffer_write{};
+	buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	buffer_write.pNext = nullptr;
+	buffer_write.dstSet = VK_NULL_HANDLE;
+	buffer_write.dstBinding = binding;
+	buffer_write.dstArrayElement = 0;
+	buffer_write.descriptorCount = 1;
+	buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	buffer_write.pBufferInfo = &this->descriptor_buffer;
+	buffer_write.pImageInfo = nullptr;
+	buffer_write.pTexelBufferView = nullptr;
+
+	return buffer_write;
 }
 
 StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& context_manager_sptr,

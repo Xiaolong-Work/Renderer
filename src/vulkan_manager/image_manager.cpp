@@ -20,7 +20,7 @@ void ImageManager::createImage(const VkExtent3D& extent,
 							   const VkImageUsageFlags usage,
 							   const VkMemoryPropertyFlags properties,
 							   VkImage& image,
-							   VkDeviceMemory& imageMemory)
+							   VkDeviceMemory& memory)
 {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -52,12 +52,12 @@ void ImageManager::createImage(const VkExtent3D& extent,
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-	if (vkAllocateMemory(context_manager_sptr->device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
+	if (vkAllocateMemory(context_manager_sptr->device, &allocInfo, nullptr, &memory) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate image memory!");
 	}
 
-	vkBindImageMemory(context_manager_sptr->device, image, imageMemory, 0);
+	vkBindImageMemory(context_manager_sptr->device, image, memory, 0);
 }
 
 void ImageManager::copyBufferToImage(VkBuffer buffer, VkImage image, const VkExtent3D& extent)
@@ -231,6 +231,14 @@ void ImageManager::transformLayout(
 		sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
 	else
 	{
 		throw std::invalid_argument("Unsupported layout transition!");
@@ -243,33 +251,25 @@ void ImageManager::transformLayout(
 	command_manager_sptr->endTransferCommands(commandBuffer);
 }
 
-void ImageManager::loadImage(const std::string& imagePath,
-							 const VkImageLayout layout,
-							 VkImage& image,
-							 VkDeviceMemory& imageMemory)
+void ImageManager::createDeviceLocalImage(const VkDeviceSize size,
+										  const VkExtent3D extent,
+										  const void* data,
+										  const VkImageLayout layout,
+										  VkImage& image,
+										  VkDeviceMemory& memory)
 {
-	int width, height, channels;
-	stbi_uc* pixels = stbi_load(imagePath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-	VkDeviceSize imageSize = width * height * 4;
-	auto extent = VkExtent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
-
-	if (!pixels)
-	{
-		throw std::runtime_error("Failed to load texture image!");
-	}
-
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	createBuffer(imageSize,
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
+	createBuffer(size,
 				 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				 stagingBuffer,
-				 stagingBufferMemory);
+				 staging_buffer,
+				 staging_buffer_memory);
 
-	void* data;
-	vkMapMemory(context_manager_sptr->device, stagingBufferMemory, 0, imageSize, 0, &data);
-	memcpy(data, pixels, static_cast<size_t>(imageSize));
-	vkUnmapMemory(context_manager_sptr->device, stagingBufferMemory);
+	void* temp;
+	vkMapMemory(context_manager_sptr->device, staging_buffer_memory, 0, size, 0, &temp);
+	memcpy(temp, data, static_cast<size_t>(size));
+	vkUnmapMemory(context_manager_sptr->device, staging_buffer_memory);
 
 	createImage(extent,
 				VK_FORMAT_R8G8B8A8_SRGB,
@@ -277,44 +277,130 @@ void ImageManager::loadImage(const std::string& imagePath,
 				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				image,
-				imageMemory);
+				memory);
 
 	transformLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(stagingBuffer, image, extent);
+	copyBufferToImage(staging_buffer, image, extent);
 	transformLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, layout);
 
-	vkDestroyBuffer(context_manager_sptr->device, stagingBuffer, nullptr);
-	vkFreeMemory(context_manager_sptr->device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer(context_manager_sptr->device, staging_buffer, nullptr);
+	vkFreeMemory(context_manager_sptr->device, staging_buffer_memory, nullptr);
+}
+
+void ImageManager::loadImage(const std::string& image_path,
+							 const VkImageLayout layout,
+							 VkImage& image,
+							 VkDeviceMemory& image_memory)
+{
+	int width, height, channels;
+	stbi_uc* pixels = stbi_load(image_path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+	VkDeviceSize image_size = width * height * 4;
+	VkExtent3D extent = VkExtent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
+
+	if (!pixels)
+	{
+		throw std::runtime_error("Failed to load texture image!");
+	}
+
+	createDeviceLocalImage(image_size, extent, pixels, layout, image, image_memory);
 
 	stbi_image_free(pixels);
 }
 
-VkImageView ImageManager::createView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+VkImageView ImageManager::createView(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags)
 {
-	VkImageViewCreateInfo viewInfo{};
-	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewInfo.pNext = nullptr;
-	viewInfo.flags = 0;
-	viewInfo.image = image;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewInfo.format = format;
-	viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewInfo.subresourceRange.aspectMask = aspectFlags;
-	viewInfo.subresourceRange.baseMipLevel = 0;
-	viewInfo.subresourceRange.levelCount = 1;
-	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = 1;
+	VkImageViewCreateInfo view_create_information{};
+	view_create_information.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	view_create_information.pNext = nullptr;
+	view_create_information.flags = 0;
+	view_create_information.image = image;
+	view_create_information.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	view_create_information.format = format;
+	view_create_information.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	view_create_information.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	view_create_information.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	view_create_information.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	view_create_information.subresourceRange.aspectMask = aspect_flags;
+	view_create_information.subresourceRange.baseMipLevel = 0;
+	view_create_information.subresourceRange.levelCount = 1;
+	view_create_information.subresourceRange.baseArrayLayer = 0;
+	view_create_information.subresourceRange.layerCount = 1;
 
-	VkImageView imageView;
-	if (vkCreateImageView(context_manager_sptr->device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
+	VkImageView image_view;
+	if (vkCreateImageView(context_manager_sptr->device, &view_create_information, nullptr, &image_view) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create texture image view!");
 	}
 
-	return imageView;
+	return image_view;
+}
+
+void ImageManager::createSampler(const VkFilter magnify,
+								 const VkFilter minify,
+								 const VkSamplerMipmapMode mipmap,
+								 const VkSamplerAddressMode mode_u,
+								 const VkSamplerAddressMode mode_v,
+								 const VkSamplerAddressMode mode_w,
+								 VkSampler& sampler,
+								 const bool anisotropy,
+								 const bool compare)
+{
+
+	VkSamplerCreateInfo sampler_information{};
+	sampler_information.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	sampler_information.pNext = nullptr;
+	sampler_information.flags = 0;
+	sampler_information.magFilter = magnify;
+	sampler_information.minFilter = minify;
+	sampler_information.mipmapMode = mipmap;
+	sampler_information.addressModeU = mode_u;
+	sampler_information.addressModeV = mode_v;
+	sampler_information.addressModeW = mode_w;
+	sampler_information.mipLodBias = 0.0f;
+	sampler_information.minLod = 0.0f;
+	sampler_information.maxLod = 0.0f;
+	sampler_information.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	sampler_information.unnormalizedCoordinates = VK_FALSE;
+
+	if (anisotropy)
+	{
+		VkPhysicalDeviceProperties properties{};
+		vkGetPhysicalDeviceProperties(context_manager_sptr->physical_device, &properties);
+		sampler_information.anisotropyEnable = VK_TRUE;
+		sampler_information.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+	}
+	else
+	{
+
+		sampler_information.anisotropyEnable = VK_FALSE;
+		sampler_information.maxAnisotropy = 1.0f;
+	}
+
+	if (compare)
+	{
+		sampler_information.compareEnable = VK_TRUE;
+		sampler_information.compareOp = VK_COMPARE_OP_LESS;
+	}
+	else
+	{
+		sampler_information.compareEnable = VK_FALSE;
+		sampler_information.compareOp = VK_COMPARE_OP_ALWAYS;
+	}
+
+	if (vkCreateSampler(context_manager_sptr->device, &sampler_information, nullptr, &sampler) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create texture sampler!");
+	}
+}
+
+void ImageManager::createSampler(const VkFilter filter,
+								 const VkSamplerMipmapMode mipmap,
+								 const VkSamplerAddressMode mode,
+								 VkSampler& sampler,
+								 const bool anisotropy,
+								 const bool compare)
+{
+	createSampler(filter, filter, mipmap, mode, mode, mode, sampler, anisotropy, compare);
 }
 
 DepthImageManager::DepthImageManager(const ContextManagerSPtr& context_manager_sptr,
@@ -335,8 +421,8 @@ void DepthImageManager::init()
 				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				this->image,
-				this->imageMemory);
-	this->imageView = createView(this->image, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+				this->memory);
+	this->view = createView(this->image, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 	transformLayout(
 		this->image, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
@@ -345,8 +431,8 @@ void DepthImageManager::init()
 void DepthImageManager::clear()
 {
 	vkDestroyImage(context_manager_sptr->device, this->image, nullptr);
-	vkFreeMemory(context_manager_sptr->device, this->imageMemory, nullptr);
-	vkDestroyImageView(context_manager_sptr->device, this->imageView, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
+	vkDestroyImageView(context_manager_sptr->device, this->view, nullptr);
 }
 
 VkFormat DepthImageManager::findSupportedFormat(const std::vector<VkFormat>& candidates)
@@ -382,8 +468,8 @@ void StorageImageManager::init()
 				VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				this->image,
-				this->imageMemory);
-	this->imageView = createView(this->image, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
+				this->memory);
+	this->view = createView(this->image, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	transformLayout(this->image, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 }
@@ -391,8 +477,8 @@ void StorageImageManager::init()
 void StorageImageManager::clear()
 {
 	vkDestroyImage(context_manager_sptr->device, this->image, nullptr);
-	vkFreeMemory(context_manager_sptr->device, this->imageMemory, nullptr);
-	vkDestroyImageView(context_manager_sptr->device, this->imageView, nullptr);
+	vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
+	vkDestroyImageView(context_manager_sptr->device, this->view, nullptr);
 }
 
 void StorageImageManager::getData(VkBuffer& stagingBuffer, VkDeviceMemory& stagingBufferMemory)
@@ -442,7 +528,7 @@ void PointLightShadowMapImageManager::createImageResource()
 	image_information.imageType = VK_IMAGE_TYPE_2D;
 	image_information.format = VK_FORMAT_R32_SFLOAT;
 	image_information.extent = VkExtent3D{this->width, this->height, 1};
-	image_information.mipLevels = 1u;
+	image_information.mipLevels = 1;
 	image_information.arrayLayers = static_cast<uint32_t>(6 * this->light_number);
 	image_information.samples = VK_SAMPLE_COUNT_1_BIT;
 	image_information.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -519,9 +605,9 @@ void PointLightShadowMapImageManager::createSampler()
 	sampler_information.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	sampler_information.pNext = nullptr;
 	sampler_information.flags = 0;
-	sampler_information.magFilter = VK_FILTER_LINEAR;
-	sampler_information.minFilter = VK_FILTER_LINEAR;
-	sampler_information.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	sampler_information.magFilter = VK_FILTER_NEAREST;
+	sampler_information.minFilter = VK_FILTER_NEAREST;
+	sampler_information.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 	sampler_information.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	sampler_information.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	sampler_information.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;

@@ -4,6 +4,28 @@
 
 #include <utils.h>
 
+enum class SamplerFilterMode
+{
+	Undefined,
+	Nearest,
+	Linear,
+};
+
+enum class SamplerMipMapMode
+{
+	Undefined,
+	Nearest,
+	Linear,
+};
+
+enum SamplerAddressMode
+{
+	Undefined,
+	Clamp_To_Edge,
+	Mirrored_Repeat,
+	Repeat
+};
+
 /**
  * @class Texture
  * @brief A class representing a texture in 3D rendering.
@@ -60,26 +82,35 @@ public:
 
 	/**
 	 * @brief Get the path of the texture.
-	 * 
+	 *
 	 * @return The texture path.
 	 */
 	std::string getPath() const;
 
-protected:
 	/**
 	 * @brief Retrieves the raw texture data.
 	 *
 	 * @return A pointer to the texture data array.
 	 */
-	stbi_uc* getData() const;
+	const std::vector<unsigned char>& getData() const;
 
-private:
+	std::string name;
+
 	/* The texture data stored as an array of unsigned bytes. */
-	stbi_uc* data;
+	std::vector<unsigned char> data;
 
 	/* The width, height, and channel count of the texture. */
 	int width, height, channel;
 
 	/* The texture file path */
 	std::string texture_path;
+
+	SamplerFilterMode minify{SamplerFilterMode::Undefined};
+	SamplerFilterMode magnify{SamplerFilterMode::Undefined};
+
+	SamplerMipMapMode mipmap{SamplerMipMapMode::Undefined};
+
+	SamplerAddressMode address_u{SamplerAddressMode::Undefined};
+	SamplerAddressMode address_v{SamplerAddressMode::Undefined};
+	SamplerAddressMode address_w{SamplerAddressMode::Undefined};
 };

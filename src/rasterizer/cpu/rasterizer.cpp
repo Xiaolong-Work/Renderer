@@ -332,7 +332,7 @@ void Rasterizer::drawShaderTriangleframe(Model model)
 		// temp = mv * temp;
 		// temp /= temp.w;
 
-		lights.push_back(PointLight{Vector3f(temp), light.intensity});
+		lights.push_back(PointLight{Vector3f(temp), light.color});
 	}
 
 	for (size_t i = 0; i < size; i++)

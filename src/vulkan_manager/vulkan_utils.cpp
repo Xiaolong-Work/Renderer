@@ -28,14 +28,6 @@ void DrawFrame::init()
 	this->render_pass_manager = RenderPassManager(content_manager_sptr, swap_chain_manager_sptr, command_manager_sptr);
 	this->render_pass_manager.init();
 
-	this->vertex_shader_manager = ShaderManager(content_manager_sptr);
-	this->vertex_shader_manager.setShaderName("draw_single_frame_vert.spv");
-	this->vertex_shader_manager.init();
-
-	this->fragment_shader_manager = ShaderManager(content_manager_sptr);
-	this->fragment_shader_manager.setShaderName("draw_single_frame_frag.spv");
-	this->fragment_shader_manager.init();
-
 	this->texture_manager = TextureManager(content_manager_sptr, command_manager_sptr);
 	this->texture_manager.init();
 	this->texture_manager.createEmptyTexture();
@@ -43,7 +35,7 @@ void DrawFrame::init()
 	this->descriptor_manager = DescriptorManager(content_manager_sptr);
 	this->setupDescriptor();
 
-	this->graphics_pipeline_manager = PipelineManager(content_manager_sptr);
+	this->pipeline_manager = PipelineManager(content_manager_sptr);
 	this->setupGraphicsPipelines();
 
 	this->buffer_manager = StagingBufferManager(content_manager_sptr, command_manager_sptr);
@@ -53,19 +45,15 @@ void DrawFrame::init()
 
 void DrawFrame::clear()
 {
-	vkDestroySemaphore(content_manager.device, renderFinishedSemaphores, nullptr);
-	vkDestroySemaphore(content_manager.device, imageAvailableSemaphores, nullptr);
+	vkDestroySemaphore(content_manager.device, render_finished, nullptr);
+	vkDestroySemaphore(content_manager.device, image_available, nullptr);
 	vkDestroyFence(content_manager.device, inFlightFences, nullptr);
 
-	this->graphics_pipeline_manager.clear();
+	this->pipeline_manager.clear();
 
 	this->descriptor_manager.clear();
 
 	this->texture_manager.clear();
-
-	this->fragment_shader_manager.clear();
-
-	this->vertex_shader_manager.clear();
 
 	this->render_pass_manager.clear();
 

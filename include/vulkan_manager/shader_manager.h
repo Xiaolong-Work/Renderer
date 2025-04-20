@@ -13,7 +13,7 @@ public:
 	void init();
 	void clear();
 
-	void setShaderName(const std::string& shaderName);
+	void setShaderName(const std::string& name);
 
 	VkShaderModule module;
 
@@ -25,5 +25,5 @@ protected:
 private:
 	ContextManagerSPtr context_manager_sptr;
 	std::vector<char> code;
-	std::string shaderName;
+	std::string name;
 };

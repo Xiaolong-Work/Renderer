@@ -19,13 +19,18 @@ public:
 	void createDescriptorPool();
 	void createDescriptorSet();
 
-	std::vector<VkDescriptorSetLayoutBinding> bindings{};
-	std::vector<VkDescriptorPoolSize> poolSizes{};
+	void addLayoutBinding(const VkDescriptorSetLayoutBinding& binding);
+	void addPoolSize(const VkDescriptorType type, const uint32_t size);
+	void addWrite(const VkWriteDescriptorSet& write);
 
 	VkDescriptorSetLayout layout;
 	VkDescriptorPool pool;
 	VkDescriptorSet set;
 
 private:
+	std::vector<VkDescriptorSetLayoutBinding> bindings{};
+	std::vector<VkDescriptorPoolSize> pool_sizes{};
+	std::vector<VkWriteDescriptorSet> writes{};
+
 	ContextManagerSPtr context_manager_sptr;
 };

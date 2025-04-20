@@ -21,7 +21,7 @@ public:
 					 const VkImageUsageFlags usage,
 					 const VkMemoryPropertyFlags properties,
 					 VkImage& image,
-					 VkDeviceMemory& imageMemory);
+					 VkDeviceMemory& memory);
 
 	void copyBufferToImage(VkBuffer buffer, VkImage image, const VkExtent3D& extent);
 
@@ -30,12 +30,36 @@ public:
 	void transformLayout(
 		VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layercount = 1);
 
+	void createDeviceLocalImage(const VkDeviceSize size,
+								const VkExtent3D extent,
+								const void* data,
+								const VkImageLayout layout,
+								VkImage& image,
+								VkDeviceMemory& memory);
+
 	void loadImage(const std::string& imagePath,
 				   const VkImageLayout layout,
 				   VkImage& image,
-				   VkDeviceMemory& imageMemory);
+				   VkDeviceMemory& memory);
 
 	VkImageView createView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+
+	void createSampler(const VkFilter magnify,
+					   const VkFilter minify,
+					   const VkSamplerMipmapMode mipmap,
+					   const VkSamplerAddressMode mode_u,
+					   const VkSamplerAddressMode mode_v,
+					   const VkSamplerAddressMode mode_w,
+					   VkSampler& sampler,
+					   const bool anisotropy = false,
+					   const bool compare = false);
+
+	void createSampler(const VkFilter filter,
+					   const VkSamplerMipmapMode mipmap,
+					   const VkSamplerAddressMode mode,
+					   VkSampler& sampler,
+					   const bool anisotropy = false,
+					   const bool compare = false);
 
 protected:
 	VkExtent3D extent;
@@ -51,8 +75,8 @@ public:
 	void clear();
 
 	VkImage image;
-	VkDeviceMemory imageMemory;
-	VkImageView imageView;
+	VkDeviceMemory memory;
+	VkImageView view;
 	VkFormat format;
 
 protected:
@@ -71,8 +95,8 @@ public:
 	void getData(VkBuffer& stagingBuffer, VkDeviceMemory& stagingBufferMemory);
 
 	VkImage image;
-	VkDeviceMemory imageMemory;
-	VkImageView imageView;
+	VkDeviceMemory memory;
+	VkImageView view;
 };
 
 class PointLightShadowMapImageManager : public ImageManager

@@ -85,6 +85,11 @@ public:
 	virtual void init() = 0;
 	virtual void clear() = 0;
 
+	VkDeviceAddress getBufferAddress();
+
+	VkBuffer buffer{};
+	VkDeviceMemory memory{};
+
 protected:
 	uint32_t findMemoryType(const uint32_t filter, const VkMemoryPropertyFlags properties) const;
 
@@ -117,10 +122,7 @@ public:
 	void init() override;
 	void clear() override;
 
-	VkBuffer buffer{};
-	VkDeviceMemory memory{};
 	std::vector<Vertex> vertices{};
-
 	bool enable_ray_tracing{false};
 };
 
@@ -135,8 +137,8 @@ public:
 	void init() override;
 	void clear() override;
 
-	VkBuffer buffer{};
-	VkDeviceMemory memory{};
+	VkDeviceAddress getAddress();
+
 	std::vector<Index> indices{};
 };
 
@@ -152,8 +154,6 @@ public:
 	void init() override;
 	void clear() override;
 
-	VkBuffer buffer{};
-	VkDeviceMemory memory{};
 	std::vector<VkDrawIndexedIndirectCommand> commands{};
 };
 
@@ -181,8 +181,6 @@ private:
 	VkDeviceSize size{0};
 	uint32_t length{0};
 
-	VkBuffer buffer{};
-	VkDeviceMemory memory{};
 	VkDescriptorBufferInfo descriptor_buffer{};
 	void* mapped{nullptr};
 };
@@ -207,8 +205,6 @@ private:
 	VkDeviceSize size{0};
 	uint32_t length{0};
 
-	VkBuffer buffer{};
-	VkDeviceMemory memory{};
 	VkDescriptorBufferInfo descriptor_buffer{};
 };
 
@@ -224,8 +220,6 @@ public:
 	void init() override;
 	void clear() override;
 
-	VkBuffer buffer{};
-	VkDeviceMemory memory{};
 	void* mapped{nullptr};
 
 	VkDeviceSize size{0};

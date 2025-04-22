@@ -1,11 +1,11 @@
 #pragma once
 
 #include <geometry_buffer_manager.h>
-#include <vulkan_rasterizer_render_base.h>
+#include <vulkan_render_base.h>
 
 #include <scene.h>
 
-class VulkanRasterRenderer : public VulkanRasterRendererBase
+class VulkanRasterRenderer : public VulkanRendererBase
 {
 public:
 	VulkanRasterRenderer()
@@ -20,7 +20,7 @@ public:
 
 	void setData(const Scene& scene)
 	{
-		VulkanRasterRendererBase::setData(scene);
+		VulkanRendererBase::setData(scene);
 
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{

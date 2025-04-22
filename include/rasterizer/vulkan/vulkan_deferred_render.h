@@ -1,8 +1,8 @@
 #pragma once
 
-#include <vulkan_rasterizer_render_base.h>
+#include <vulkan_render_base.h>
 
-class VulkanRasterDeferredRenderer : public VulkanRasterRendererBase
+class VulkanRasterDeferredRenderer : public VulkanRendererBase
 {
 public:
 	VulkanRasterDeferredRenderer()
@@ -58,7 +58,7 @@ public:
 
 	void setData(const Scene& scene)
 	{
-		VulkanRasterRendererBase::setData(scene);
+		VulkanRendererBase::setData(scene);
 
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{

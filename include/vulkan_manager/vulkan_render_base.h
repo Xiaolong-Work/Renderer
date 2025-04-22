@@ -19,15 +19,17 @@
 #include <geometry_buffer_manager.h>
 #include <scene.h>
 
-class VulkanRasterRendererBase
+#define MAX_FRAMES_IN_FLIGHT 2
+
+class VulkanRendererBase
 {
 public:
-	VulkanRasterRendererBase()
+	VulkanRendererBase()
 	{
 		init();
 	}
 
-	~VulkanRasterRendererBase()
+	~VulkanRendererBase()
 	{
 		clear();
 	}
@@ -66,12 +68,12 @@ public:
 		{
 			auto& object = scene.objects[i];
 
-			VkDrawIndexedIndirectCommand indirect{};
-			indirect.indexCount = static_cast<uint32_t>(object.indices.size());
-			indirect.instanceCount = 1;
-			indirect.firstIndex = static_cast<uint32_t>(this->index_buffer_manager.indices.size());
-			indirect.vertexOffset = static_cast<int32_t>(this->vertex_buffer_manager.vertices.size());
-			indirect.firstInstance = 0;
+			VkDrawIndexedIndirectCommand command{};
+			command.indexCount = static_cast<uint32_t>(object.indices.size());
+			command.instanceCount = 1;
+			command.firstIndex = static_cast<uint32_t>(this->index_buffer_manager.indices.size());
+			command.vertexOffset = static_cast<int32_t>(this->vertex_buffer_manager.vertices.size());
+			command.firstInstance = 0;
 
 			this->vertex_buffer_manager.vertices.insert(
 				this->vertex_buffer_manager.vertices.end(), object.vertices.begin(), object.vertices.end());
@@ -79,7 +81,7 @@ public:
 			this->index_buffer_manager.indices.insert(
 				this->index_buffer_manager.indices.end(), object.indices.begin(), object.indices.end());
 
-			this->indirect_buffer_manager.commands.push_back(indirect);
+			this->indirect_buffer_manager.commands.push_back(command);
 		}
 
 		this->vertex_buffer_manager.init();
@@ -155,13 +157,13 @@ protected:
 
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
-		auto self = reinterpret_cast<VulkanRasterRendererBase*>(glfwGetWindowUserPointer(window));
+		auto self = reinterpret_cast<VulkanRendererBase*>(glfwGetWindowUserPointer(window));
 		self->window_resized = true;
 	}
 
 	static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
 	{
-		auto self = static_cast<VulkanRasterRendererBase*>(glfwGetWindowUserPointer(window));
+		auto self = static_cast<VulkanRendererBase*>(glfwGetWindowUserPointer(window));
 
 		if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS)
 		{
@@ -224,7 +226,7 @@ protected:
 
 	static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
-		auto self = static_cast<VulkanRasterRendererBase*>(glfwGetWindowUserPointer(window));
+		auto self = static_cast<VulkanRendererBase*>(glfwGetWindowUserPointer(window));
 
 		const float moveSpeed = 0.5f;
 		glm::vec3 forward = glm::vec3(self->ubo.view[0][2], self->ubo.view[1][2], self->ubo.view[2][2]);

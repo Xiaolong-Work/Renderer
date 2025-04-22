@@ -7,6 +7,16 @@ BufferManager::BufferManager(const ContextManagerSPtr& context_manager_sptr,
 	this->command_manager_sptr = command_manager_sptr;
 }
 
+VkDeviceAddress BufferManager::getBufferAddress()
+{
+	VkBufferDeviceAddressInfo address{};
+	address.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+	address.pNext = nullptr;
+	address.buffer = this->buffer;
+
+	return vkGetBufferDeviceAddress(this->context_manager_sptr->device, &address);
+}
+
 uint32_t BufferManager::findMemoryType(const uint32_t filter, const VkMemoryPropertyFlags properties) const
 {
 	VkPhysicalDeviceMemoryProperties memory_properties;

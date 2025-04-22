@@ -60,7 +60,7 @@ void pathTracingGPU(const PathTracingScene& scene, const int spp)
 
 void pathTracingRTCore()
 {
-	VulkanPathTracingRendererRTCore renderer;
+	// VulkanPathTracingRendererRTCore renderer{};
 }
 
 void pathTracingRender()

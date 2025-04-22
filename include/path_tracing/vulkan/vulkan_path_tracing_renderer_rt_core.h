@@ -14,8 +14,9 @@
 #include <texture_manager.h>
 
 #include <path_tracing_scene.h>
+#include <vulkan_render_base.h>
 
-class VulkanPathTracingRendererRTCore
+class VulkanPathTracingRendererRTCore : public VulkanRendererBase
 {
 public:
 	VulkanPathTracingRendererRTCore();
@@ -40,32 +41,6 @@ protected:
 	void createBLAS();
 
 private:
-	ContextManager context_manager{};
-
-	CommandManager command_manager{};
-
-	VertexBufferManager vertex_buffer_manager{};
-
-	IndexBufferManager index_buffer_manager{};
-
-	SwapChainManager swap_chain_manager{};
-
-	TextureManager texture_manager{};
-
-	SwapChainManager swapChianManager{};
-
-	UniformBufferManager uniformBufferManager{};
-
-	DepthImageManager depth_image_manager{};
-
-	DescriptorManager descriptor_manager{};
-
-	ShaderManager vertex_shader_manager{};
-
-	ShaderManager fragment_shader_manager{};
-
-	PipelineManager pipeline_manager{};
-
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_property{};
 
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_tracing_feature{};

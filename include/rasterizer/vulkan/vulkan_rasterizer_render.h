@@ -16,6 +16,7 @@ public:
 	~VulkanRasterRenderer()
 	{
 		clear();
+		VulkanRendererBase::clear();
 	}
 
 	void setData(const Scene& scene)
@@ -37,6 +38,8 @@ public:
 protected:
 	void init()
 	{
+		VulkanRendererBase::init();
+
 		auto context_manager_sptr = std::make_shared<ContextManager>(this->context_manager);
 		auto command_manager_sptr = std::make_shared<CommandManager>(this->command_manager);
 		auto swap_chain_manager_sptr = std::make_shared<SwapChainManager>(this->swap_chain_manager);

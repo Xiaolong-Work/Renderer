@@ -57,9 +57,18 @@ void BufferManager::createBuffer(const VkDeviceSize size,
 	VkMemoryRequirements requirements;
 	vkGetBufferMemoryRequirements(context_manager_sptr->device, buffer, &requirements);
 
+	void* next = nullptr;
+	VkMemoryAllocateFlagsInfo alloc_flags{};
+	if ((usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) == VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+	{
+		alloc_flags.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
+		alloc_flags.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+		next = &alloc_flags;
+	}
+
 	VkMemoryAllocateInfo allocate_information{};
 	allocate_information.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocate_information.pNext = nullptr;
+	allocate_information.pNext = next;
 	allocate_information.allocationSize = requirements.size;
 	allocate_information.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, properties);
 	if (vkAllocateMemory(context_manager_sptr->device, &allocate_information, nullptr, &memory) != VK_SUCCESS)
@@ -119,16 +128,12 @@ VertexBufferManager::VertexBufferManager(const ContextManagerSPtr& context_manag
 
 void VertexBufferManager::init()
 {
-	VkDeviceSize size = sizeof(this->vertices[0]) * this->vertices.size();
+	VkDeviceSize size = sizeof(Vertex) * this->vertices.size();
 
-	VkBufferUsageFlags usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-
-	if (this->enable_ray_tracing)
+	if (size > 0)
 	{
-		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+		createDeviceLocalBuffer(size, this->vertices.data(), this->usage, this->buffer, this->memory);
 	}
-
-	createDeviceLocalBuffer(size, this->vertices.data(), usage, this->buffer, this->memory);
 }
 
 void VertexBufferManager::clear()
@@ -148,7 +153,15 @@ void IndexBufferManager::init()
 {
 	VkDeviceSize size = sizeof(this->indices[0]) * this->indices.size();
 
-	createDeviceLocalBuffer(size, this->indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, this->buffer, this->memory);
+	VkBufferUsageFlags usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+	if (this->enable_ray_tracing)
+	{
+		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+		usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+	}
+
+	createDeviceLocalBuffer(size, this->indices.data(), usage, this->buffer, this->memory);
 }
 
 void IndexBufferManager::clear()
@@ -257,7 +270,16 @@ StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& context_man
 
 void StorageBufferManager::init()
 {
-	createDeviceLocalBuffer(this->size, this->data, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, this->buffer, this->memory);
+	VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+
+	if (this->enable_ray_tracing)
+	{
+		usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR;
+		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+	}
+
+	createDeviceLocalBuffer(this->size, this->data, usage, this->buffer, this->memory);
 }
 
 void StorageBufferManager::clear()

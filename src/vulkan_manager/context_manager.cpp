@@ -417,12 +417,26 @@ void ContextManager::createLogicalDevice()
 	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 	features12.runtimeDescriptorArray = VK_TRUE;
 	features12.shaderOutputLayer = VK_TRUE;
+	features12.bufferDeviceAddress = VK_TRUE;
 	features11.pNext = &features12;
 
 	VkPhysicalDeviceDynamicRenderingFeatures dynamic_rendering_feature{};
 	dynamic_rendering_feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
 	dynamic_rendering_feature.dynamicRendering = VK_TRUE;
 	features12.pNext = &dynamic_rendering_feature;
+
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_feature{};
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_tracing_feature{};
+	if (this->enable_ray_tracing)
+	{
+		acceleration_feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+		acceleration_feature.accelerationStructure = true;
+		dynamic_rendering_feature.pNext = &acceleration_feature;
+	
+		ray_tracing_feature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+		ray_tracing_feature.rayTracingPipeline = true;
+		acceleration_feature.pNext = &ray_tracing_feature;
+	}
 
 	/* Logical device creation information */
 	VkDeviceCreateInfo createInfo{};

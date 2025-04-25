@@ -25,13 +25,17 @@ public:
 	void init();
 	void clear();
 
-	void setSceneData(const Scene& scene)
+	void setData(const Scene& scene);
+
+	void recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index) override
 	{
-		this->vertex_buffer_manager.vertices = scene.objects[0].vertices;
-		this->index_buffer_manager.indices = scene.objects[0].indices;
-		this->vertex_buffer_manager.init();
-		this->index_buffer_manager.init();
 	}
+	void updateUniformBufferObjects(int index) override
+	{
+	}
+
+	void setupGraphicsPipelines();
+	
 
 protected:
 	void getFeatureProperty();
@@ -39,6 +43,10 @@ protected:
 	void createAcceleration();
 
 	void createBLAS();
+
+	void createTLAS();
+
+	void setupDescriptor(const int index);
 
 private:
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_property{};
@@ -48,4 +56,30 @@ private:
 	VkPhysicalDeviceAccelerationStructurePropertiesKHR acceleration_property{};
 
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_feature{};
+
+	std::vector<VkAccelerationStructureKHR> blas{};
+	VkAccelerationStructureKHR tlas;
+
+	std::vector<VertexBufferManager> all_vertex_managers{};
+	std::vector<IndexBufferManager> all_index_managers{};
+
+	StorageBufferManager all_blas_buffer_manager{};
+
+	StorageBufferManager instance_buffer_manager{};
+
+	StorageBufferManager tlas_buffer_manager{};
+
+	StorageBufferManager scratch_buffer_manager{};
+
+	std::vector<VkTransformMatrixKHR> model_matrixes{};
+
+	PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
+
+	PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
+
+	std::array<UniformBufferManager, MAX_FRAMES_IN_FLIGHT> uniform_buffer_managers{};
+
+	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> descriptor_managers{};
+
+	PipelineManager pipeline_manager{};
 };

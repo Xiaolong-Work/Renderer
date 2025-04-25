@@ -123,7 +123,9 @@ public:
 	void clear() override;
 
 	std::vector<Vertex> vertices{};
-	bool enable_ray_tracing{false};
+	std::vector<uint32_t> vertex_count{};
+
+	VkBufferUsageFlags usage{VK_BUFFER_USAGE_VERTEX_BUFFER_BIT};
 };
 
 typedef std::shared_ptr<VertexBufferManager> VertexBufferManagerSPtr;
@@ -137,9 +139,8 @@ public:
 	void init() override;
 	void clear() override;
 
-	VkDeviceAddress getAddress();
-
 	std::vector<Index> indices{};
+	bool enable_ray_tracing{false};
 };
 
 typedef std::shared_ptr<IndexBufferManager> IndexBufferManagerSPtr;
@@ -199,6 +200,8 @@ public:
 
 	VkDescriptorSetLayoutBinding getLayoutBinding(const uint32_t binding, const VkShaderStageFlags flag);
 	VkWriteDescriptorSet getWriteInformation(const uint32_t binding);
+
+	bool enable_ray_tracing{false};
 
 private:
 	const void* data{nullptr};

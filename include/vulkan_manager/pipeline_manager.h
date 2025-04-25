@@ -7,11 +7,18 @@
 #include <context_manager.h>
 #include <shader_manager.h>
 
+enum class PipelineType
+{
+	Rasterize,
+	PathTracing,
+	Compute
+};
+
 class PipelineManager
 {
 public:
 	PipelineManager() = default;
-	PipelineManager(const ContextManagerSPtr& context_manager_sptr);
+	PipelineManager(const ContextManagerSPtr& context_manager_sptr, const PipelineType type = PipelineType::Rasterize);
 
 	void init();
 	void clear();
@@ -88,6 +95,8 @@ public:
 protected:
 	void createPipeline();
 
+	void createRayTracingPipeline();
+
 private:
 	VkPipelineLayoutCreateInfo pipeline_layout{};
 	std::vector<VkDescriptorSetLayout> descriptor_layouts{};
@@ -104,4 +113,6 @@ private:
 	uint32_t subpass;
 
 	ContextManagerSPtr context_manager_sptr;
+
+	PipelineType type;
 };

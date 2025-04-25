@@ -1,13 +1,21 @@
 #include <pipeline_manager.h>
 
-PipelineManager::PipelineManager(const ContextManagerSPtr& context_manager_sptr)
+PipelineManager::PipelineManager(const ContextManagerSPtr& context_manager_sptr, const PipelineType type)
 {
 	this->context_manager_sptr = context_manager_sptr;
+	this->type = type;
 }
 
 void PipelineManager::init()
 {
-	createPipeline();
+	if (this->type == PipelineType::Rasterize)
+	{
+		createPipeline();
+	}
+	else if (this->type == PipelineType::PathTracing)
+	{
+		createRayTracingPipeline();
+	}
 }
 
 void PipelineManager::clear()
@@ -146,6 +154,12 @@ void PipelineManager::setDescriptorSetLayout(const std::vector<VkDescriptorSetLa
 	this->pipeline_layout.pSetLayouts = this->descriptor_layouts.data();
 	this->pipeline_layout.pushConstantRangeCount = static_cast<uint32_t>(this->push_constants.size());
 	this->pipeline_layout.pPushConstantRanges = this->push_constants.data();
+
+	if (vkCreatePipelineLayout(context_manager_sptr->device, &this->pipeline_layout, nullptr, &this->layout) !=
+		VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create pipeline layout!");
+	}
 }
 
 void PipelineManager::createPipeline()
@@ -167,14 +181,8 @@ void PipelineManager::createPipeline()
 	dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamic_state.pNext = nullptr;
 	dynamic_state.flags = 0;
-	dynamic_state.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
-	dynamic_state.pDynamicStates = dynamic_states.data();
-
-	if (vkCreatePipelineLayout(context_manager_sptr->device, &this->pipeline_layout, nullptr, &this->layout) !=
-		VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create pipeline layout!");
-	}
+	dynamic_state.dynamicStateCount = static_cast<uint32_t>(this->dynamic_states.size());
+	dynamic_state.pDynamicStates = this->dynamic_states.data();
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -208,5 +216,72 @@ void PipelineManager::createPipeline()
 			context_manager_sptr->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &this->pipeline) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create graphics pipeline!");
+	}
+}
+
+void PipelineManager::createRayTracingPipeline()
+{
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups{};
+	groups.resize(this->shader_stages.size());
+
+	for (auto& group : groups)
+	{
+		group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+		group.pNext = nullptr;
+		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+		group.generalShader = VK_SHADER_UNUSED_KHR;
+		group.closestHitShader = VK_SHADER_UNUSED_KHR;
+		group.anyHitShader = VK_SHADER_UNUSED_KHR;
+		group.intersectionShader = VK_SHADER_UNUSED_KHR;
+		group.pShaderGroupCaptureReplayHandle = nullptr;
+	}
+
+	for (size_t i = 0; i < this->shader_stages.size(); i++)
+	{
+		auto& shader_stage = this->shader_stages[i];
+		if (shader_stage.stage == VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR)
+		{
+			groups[i].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+			groups[i].closestHitShader = static_cast<uint32_t>(i);
+		}
+		else
+		{
+			groups[i].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+			groups[i].generalShader = static_cast<uint32_t>(i);
+		}
+	}
+
+	VkPipelineDynamicStateCreateInfo dynamic_state{};
+	dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamic_state.pNext = nullptr;
+	dynamic_state.flags = 0;
+	dynamic_state.dynamicStateCount = static_cast<uint32_t>(this->dynamic_states.size());
+	dynamic_state.pDynamicStates = this->dynamic_states.data();
+
+	VkRayTracingPipelineCreateInfoKHR ray_tracing_pipeline_create{};
+	ray_tracing_pipeline_create.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+	ray_tracing_pipeline_create.pNext = nullptr;
+	ray_tracing_pipeline_create.flags = 0;
+	ray_tracing_pipeline_create.stageCount = static_cast<uint32_t>(this->shader_stages.size());
+	ray_tracing_pipeline_create.pStages = this->shader_stages.data();
+	ray_tracing_pipeline_create.groupCount = static_cast<uint32_t>(groups.size());
+	ray_tracing_pipeline_create.pGroups = groups.data();
+	ray_tracing_pipeline_create.maxPipelineRayRecursionDepth = 1;
+	ray_tracing_pipeline_create.pLibraryInfo = nullptr;
+	ray_tracing_pipeline_create.pLibraryInterface = nullptr;
+	ray_tracing_pipeline_create.pDynamicState = &dynamic_state;
+	ray_tracing_pipeline_create.layout = this->layout;
+	ray_tracing_pipeline_create.basePipelineHandle = VK_NULL_HANDLE;
+	ray_tracing_pipeline_create.basePipelineIndex = -1;
+
+	if (vkCreateRayTracingPipelinesKHR(context_manager_sptr->device,
+									   VK_NULL_HANDLE,
+									   VK_NULL_HANDLE,
+									   1,
+									   &ray_tracing_pipeline_create,
+									   nullptr,
+									   &this->pipeline) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create ray tracing pipeline!");
 	}
 }

@@ -24,15 +24,8 @@
 class VulkanRendererBase
 {
 public:
-	VulkanRendererBase()
-	{
-		init();
-	}
-
-	~VulkanRendererBase()
-	{
-		clear();
-	}
+	VulkanRendererBase() = default;
+	~VulkanRendererBase() = default;
 
 	void run()
 	{
@@ -77,6 +70,7 @@ public:
 
 			this->vertex_buffer_manager.vertices.insert(
 				this->vertex_buffer_manager.vertices.end(), object.vertices.begin(), object.vertices.end());
+			this->vertex_buffer_manager.vertex_count.push_back(object.vertices.size());
 
 			this->index_buffer_manager.indices.insert(
 				this->index_buffer_manager.indices.end(), object.indices.begin(), object.indices.end());
@@ -138,8 +132,12 @@ public:
 							 std::make_shared<StorageBufferManager>(this->material_index_manager),
 							 std::make_shared<StorageBufferManager>(this->material_ssbo_manager));
 
-		this->shadow_map_manager.point_lights = scene.point_lights;
-		this->shadow_map_manager.init();
+		if (!scene.point_lights.empty())
+		{
+			this->shadow_map_manager.point_lights = scene.point_lights;
+			this->shadow_map_manager.init();
+		}
+		
 	}
 
 protected:
@@ -342,8 +340,13 @@ protected:
 		}
 	}
 
-	void init()
+	void init(const uint32_t mask = 0)
 	{
+		if (mask == 1)
+		{
+			this->context_manager.enable_ray_tracing = true;
+		}
+
 		this->context_manager.init();
 		auto context_manager_sptr = std::make_shared<ContextManager>(this->context_manager);
 
@@ -369,6 +372,11 @@ protected:
 		createSyncObjects();
 
 		createUniformBufferObjects();
+
+		if (mask == 1)
+		{
+			this->index_buffer_manager.enable_ray_tracing = true;
+		}
 	}
 
 	void clear()

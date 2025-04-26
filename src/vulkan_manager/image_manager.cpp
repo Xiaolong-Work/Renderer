@@ -497,6 +497,46 @@ void StorageImageManager::getData(VkBuffer& stagingBuffer, VkDeviceMemory& stagi
 	copyImageToBuffer(this->image, stagingBuffer, this->extent);
 }
 
+VkDescriptorSetLayoutBinding StorageImageManager::getLayoutBinding(const uint32_t binding,
+																   const VkShaderStageFlags flag)
+{
+	VkDescriptorSetLayoutBinding layout_binding{};
+	layout_binding.binding = binding;
+	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	layout_binding.descriptorCount = 1;
+	layout_binding.stageFlags = flag;
+	layout_binding.pImmutableSamplers = nullptr;
+
+	return layout_binding;
+}
+
+VkWriteDescriptorSet StorageImageManager::getWriteInformation(const uint32_t binding)
+{
+	this->descriptor_image.sampler = this->sampler;
+	this->descriptor_image.imageView = this->view;
+	this->descriptor_image.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+	VkWriteDescriptorSet image_write{};
+	image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	image_write.pNext = nullptr;
+	image_write.dstSet = VK_NULL_HANDLE;
+	image_write.dstBinding = binding;
+	image_write.dstArrayElement = 0;
+	image_write.descriptorCount = 1;
+	image_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	image_write.pBufferInfo = nullptr;
+	image_write.pImageInfo = &this->descriptor_image;
+	image_write.pTexelBufferView = nullptr;
+
+	return image_write;
+}
+
+std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> StorageImageManager::getDescriptor(
+	const uint32_t binding, const VkShaderStageFlags flag)
+{
+	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
+}
+
 PointLightShadowMapImageManager::PointLightShadowMapImageManager(const ContextManagerSPtr& context_manager_sptr,
 																 const CommandManagerSPtr& command_manager_sptr)
 {

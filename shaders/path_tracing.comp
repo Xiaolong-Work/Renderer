@@ -1108,7 +1108,7 @@ void main()
 	seed = uint(random_table[seed] * scene.width * scene.height);
 
 	vec3 color = vec3(0.0f);
-	for (int k = 0; k < scene.spp; k++)
+	for (int k = 0; k < 4; k++)
 	{		
 		Ray ray;
 		ray.origin = eye_position;

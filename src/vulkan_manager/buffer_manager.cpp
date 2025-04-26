@@ -261,6 +261,12 @@ VkWriteDescriptorSet UniformBufferManager::getWriteInformation(const uint32_t bi
 	return buffer_write;
 }
 
+std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> UniformBufferManager::getDescriptor(
+	const uint32_t binding, const VkShaderStageFlags flag)
+{
+	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
+}
+
 StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& context_manager_sptr,
 										   const CommandManagerSPtr& command_manager_sptr)
 {
@@ -301,7 +307,7 @@ VkDescriptorSetLayoutBinding StorageBufferManager::getLayoutBinding(const uint32
 	VkDescriptorSetLayoutBinding layout_binding{};
 	layout_binding.binding = binding;
 	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	layout_binding.descriptorCount = this->length;
+	layout_binding.descriptorCount = 1;
 	layout_binding.stageFlags = flag;
 	layout_binding.pImmutableSamplers = nullptr;
 
@@ -327,6 +333,12 @@ VkWriteDescriptorSet StorageBufferManager::getWriteInformation(const uint32_t bi
 	buffer_write.pTexelBufferView = nullptr;
 
 	return buffer_write;
+}
+
+std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> StorageBufferManager::getDescriptor(
+	const uint32_t binding, const VkShaderStageFlags flag)
+{
+	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
 }
 
 StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& context_manager_sptr,

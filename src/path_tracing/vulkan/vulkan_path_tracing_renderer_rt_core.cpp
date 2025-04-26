@@ -38,6 +38,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 
 	auto context_manager_sptr = std::make_shared<ContextManager>(this->context_manager);
 	auto command_manager_sptr = std::make_shared<CommandManager>(this->command_manager);
+	auto swap_chain_manager_sptr = std::make_shared<SwapChainManager>(this->swap_chain_manager);
 
 	this->all_vertex_managers.resize(scene.objects.size());
 	this->all_index_managers.resize(scene.objects.size());
@@ -90,6 +91,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->createTLAS();
 
 	this->pipeline_manager = PipelineManager(context_manager_sptr, PipelineType::PathTracing);
+	this->present_pipeline_manager = PipelineManager(context_manager_sptr);
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -98,9 +100,17 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 		this->uniform_buffer_managers[i].init();
 		this->descriptor_managers[i] = DescriptorManager(context_manager_sptr);
 		this->setupDescriptor(i);
+		this->present_descriptor_managers[i] = DescriptorManager(context_manager_sptr);
+		this->setupPresentDescriptor(i);
 	}
 
+	this->render_pass_manager = RenderPassManager(context_manager_sptr, swap_chain_manager_sptr, command_manager_sptr);
+	this->setupPresentRenderPass();
+
 	this->setupGraphicsPipelines();
+	this->setupPresentPipeline();
+
+	
 
 	createShaderBindingTable();
 }
@@ -116,6 +126,11 @@ struct PushConstantRay
 
 void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index)
 {
+	/* Clear Value */
+	std::array<VkClearValue, 2> clear_values{};
+	clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+	clear_values[1].depthStencil = {1.0f, 0};
+
 	VkCommandBufferBeginInfo command_begin{};
 	command_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	command_begin.pNext = nullptr;
@@ -156,21 +171,43 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 					  this->swap_chain_manager.extent.height,
 					  1);
 
+	VkRenderPassBeginInfo render_pass_begin{};
+	render_pass_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	render_pass_begin.renderPass = this->render_pass_manager.pass;
+	render_pass_begin.framebuffer = this->render_pass_manager.buffers[image_index];
+	render_pass_begin.renderArea.offset = {0, 0};
+	render_pass_begin.renderArea.extent = this->swap_chain_manager.extent;
+	render_pass_begin.clearValueCount = static_cast<uint32_t>(clear_values.size());
+	render_pass_begin.pClearValues = clear_values.data();
+
+	vkCmdBeginRenderPass(command_buffer, &render_pass_begin, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->present_pipeline_manager.pipeline);
+
+	vkCmdBindDescriptorSets(command_buffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							this->present_pipeline_manager.layout,
+							0,
+							1,
+							&this->present_descriptor_managers[current_frame].set,
+							0,
+							nullptr);
+
+	vkCmdDraw(command_buffer, 6, 1, 0, 0);
+
+	vkCmdEndRenderPass(command_buffer);
+
 	if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to record command buffer!");
 	}
 }
 
-
-
 void VulkanPathTracingRendererRTCore::setupGraphicsPipelines()
 {
 	this->pipeline_manager.addShaderStage("path_tracing_rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
 	this->pipeline_manager.addShaderStage("path_tracing_rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
 	this->pipeline_manager.addShaderStage("path_tracing_rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-
-	
 
 	std::vector<VkPushConstantRange> push(1);
 	push[0].offset = 0;

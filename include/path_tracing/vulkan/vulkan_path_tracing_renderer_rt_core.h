@@ -40,54 +40,37 @@ public:
 
 	void setupGraphicsPipelines();
 
-	void createFrameBuffers()
-	{
-		this->buffers.resize(this->swap_chain_manager.views.size());
-
-		for (size_t i = 0; i < this->swap_chain_manager.views.size(); i++)
-		{
-			VkFramebufferCreateInfo framebufferInfo{};
-			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			framebufferInfo.pNext = nullptr;
-			framebufferInfo.flags = 0;
-			framebufferInfo.renderPass = pass;
-			framebufferInfo.attachmentCount = 1;
-			framebufferInfo.pAttachments = &swap_chain_manager.views[i];
-			framebufferInfo.width = swap_chain_manager.extent.width;
-			framebufferInfo.height = swap_chain_manager.extent.height;
-			framebufferInfo.layers = 1;
-
-			if (vkCreateFramebuffer(context_manager.device, &framebufferInfo, nullptr, &buffers[i]) != VK_SUCCESS)
-			{
-				throw std::runtime_error("Failed to create framebuffer!");
-			}
-		}
-	}
-
 	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> present_descriptor_managers{};
 	void setupPresentDescriptor(const int index)
 	{
-		this->present_descriptor_managers[index].addLayoutBinding(
-			this->storage_image_managers[index].getLayoutBinding(0, VK_SHADER_STAGE_FRAGMENT_BIT));
+		this->present_descriptor_managers[index].addDescriptor(
+			this->storage_image_managers[index].getDescriptor(9, VK_SHADER_STAGE_FRAGMENT_BIT));
+
+		this->present_descriptor_managers[index].init();
 	}
 
-	void setupPresentPipelines()
+	void setupPresentPipeline()
 	{
-		this->present_pipeline_manager.setDefaultFixedState();
+		std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+		this->present_pipeline_manager.dynamic_states = dynamic_states;
 
 		this->present_pipeline_manager.addShaderStage("path_tracing_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		this->present_pipeline_manager.addShaderStage("path_tracing_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
+		this->present_pipeline_manager.setDefaultFixedState();
+		this->present_pipeline_manager.setExtent(this->swap_chain_manager.extent);
+		this->present_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 0);
+		this->present_pipeline_manager.setVertexInput(0b0000);
 		std::vector<VkDescriptorSetLayout> layout = {this->present_descriptor_managers[0].layout};
 		this->present_pipeline_manager.setDescriptorSetLayout(layout);
-		this->present_pipeline_manager.setExtent(swap_chain_manager.extent);
-		this->present_pipeline_manager.setRenderPass(pass, 0);
 
-		this->present_pipeline_manager.enable_vertex_inpute = false;
+		this->present_pipeline_manager.init();
 	}
 
-	void setupPresentPass()
+	void setupPresentRenderPass()
 	{
+		this->render_pass_manager.type = RenderPassType::Render;
+		this->render_pass_manager.init();
 	}
 
 	PipelineManager present_pipeline_manager{};

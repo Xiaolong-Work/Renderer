@@ -86,7 +86,6 @@ public:
 	VkPipelineColorBlendStateCreateInfo color_blending{};
 	std::vector<VkDynamicState> dynamic_states;
 
-	bool enable_vertex_inpute{true};
 	bool enable_color_attachment{true};
 
 	VkPipelineLayout layout;

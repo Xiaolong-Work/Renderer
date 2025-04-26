@@ -176,6 +176,8 @@ public:
 
 	VkDescriptorSetLayoutBinding getLayoutBinding(const uint32_t binding, const VkShaderStageFlags flag);
 	VkWriteDescriptorSet getWriteInformation(const uint32_t binding);
+	std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> getDescriptor(const uint32_t binding,
+																				const VkShaderStageFlags flag);
 
 private:
 	const void* data{nullptr};
@@ -200,6 +202,8 @@ public:
 
 	VkDescriptorSetLayoutBinding getLayoutBinding(const uint32_t binding, const VkShaderStageFlags flag);
 	VkWriteDescriptorSet getWriteInformation(const uint32_t binding);
+	std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> getDescriptor(const uint32_t binding,
+																				const VkShaderStageFlags flag);
 
 	VkBufferUsageFlags usage{VK_BUFFER_USAGE_STORAGE_BUFFER_BIT};
 	bool enable_ray_tracing{false};

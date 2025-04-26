@@ -2,14 +2,27 @@
 #include <algorithm>
 #include <path_tracing_scene.h>
 
-void PathTracingScene::setData(std::vector<Object>& objects, const Camera& camera)
+void PathTracingScene::operator=(const Scene& scene)
 {
-	this->camera = camera;
-	for (auto& object : objects)
+	this->name = scene.name;
+	this->camera = scene.camera;
+	this->materials = scene.materials;
+	this->textures = scene.textures;
+	this->point_lights = scene.point_lights;
+
+	for (auto object : scene.objects)
 	{
+		object.getTriangleData();
 		PathTracingObject temp{object};
+		temp.material = this->materials[object.material_index];
 		this->objects.push_back(temp);
 	}
+}
+
+void PathTracingScene::setData(std::vector<Object>& objects, const Camera& camera)
+{
+
+	
 }
 
 void PathTracingScene::initBVH()

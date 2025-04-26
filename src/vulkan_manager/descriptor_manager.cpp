@@ -49,7 +49,7 @@ void DescriptorManager::createDescriptorPool()
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.pNext = nullptr;
 	poolInfo.flags = 0;
-	poolInfo.maxSets = static_cast<uint32_t>(1);
+	poolInfo.maxSets = 1;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(all_pool_sizes.size());
 	poolInfo.pPoolSizes = all_pool_sizes.data();
 
@@ -65,7 +65,7 @@ void DescriptorManager::createDescriptorSet()
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.pNext = nullptr;
 	allocInfo.descriptorPool = this->pool;
-	allocInfo.descriptorSetCount = static_cast<uint32_t>(1);
+	allocInfo.descriptorSetCount = 1;
 	allocInfo.pSetLayouts = &this->layout;
 
 	if (vkAllocateDescriptorSets(context_manager_sptr->device, &allocInfo, &this->set) != VK_SUCCESS)
@@ -78,7 +78,25 @@ void DescriptorManager::createDescriptorSet()
 		write.dstSet = this->set;
 	}
 	vkUpdateDescriptorSets(
-		context_manager_sptr->device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+		context_manager_sptr->device, static_cast<uint32_t>(this->writes.size()), this->writes.data(), 0, nullptr);
+}
+
+void DescriptorManager::addDescriptor(std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> descriptor)
+{
+	auto& binding = descriptor.first;
+
+	this->bindings.push_back(binding);
+
+	if (this->pool_sizes.find(binding.descriptorType) != this->pool_sizes.end())
+	{
+		this->pool_sizes[binding.descriptorType]++;
+	}
+	else
+	{
+		this->pool_sizes[binding.descriptorType] = 1;
+	}
+
+	this->writes.push_back(descriptor.second);
 }
 
 void DescriptorManager::addLayoutBinding(const VkDescriptorSetLayoutBinding& binding)

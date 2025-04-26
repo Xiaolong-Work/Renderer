@@ -16,17 +16,20 @@ public:
 	void init();
 	void clear();
 
-	void createDescriptorSetLayout();
-	void createDescriptorPool();
-	void createDescriptorSet();
-
 	void addLayoutBinding(const VkDescriptorSetLayoutBinding& binding);
 	void addPoolSize(const VkDescriptorType type, const uint32_t size);
 	void addWrite(const VkWriteDescriptorSet& write);
 
-	VkDescriptorSetLayout layout;
-	VkDescriptorPool pool;
-	VkDescriptorSet set;
+	void addDescriptor(std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> descriptor);
+
+	VkDescriptorSetLayout layout{};
+	VkDescriptorPool pool{};
+	VkDescriptorSet set{};
+
+protected:
+	void createDescriptorSetLayout();
+	void createDescriptorPool();
+	void createDescriptorSet();
 
 private:
 	std::vector<VkDescriptorSetLayoutBinding> bindings{};

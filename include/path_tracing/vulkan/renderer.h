@@ -92,8 +92,7 @@ public:
 		this->pipeline_manager.setDescriptorSetLayout(layout);
 		this->pipeline_manager.setExtent(swap_chain_manager.extent);
 		this->pipeline_manager.setRenderPass(pass, 0);
-
-		this->pipeline_manager.enable_vertex_inpute = false;
+		this->pipeline_manager.setVertexInput(0b0000);
 	}
 
 	void createRenderPass()
@@ -508,7 +507,7 @@ public:
 		imageInfo[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		imageInfo[1].imageView = storageImageManager.view;
-		imageInfo[1].sampler = this->texture_manager.samplers[0];
+		imageInfo[1].sampler = storageImageManager.sampler;
 		imageInfo[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		std::vector<VkDescriptorImageInfo> textureInfo;

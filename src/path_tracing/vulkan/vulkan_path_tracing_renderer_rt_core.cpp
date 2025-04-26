@@ -4,7 +4,6 @@ VulkanPathTracingRendererRTCore::VulkanPathTracingRendererRTCore()
 {
 	this->context_manager.enable_ray_tracing = true;
 	this->init();
-	
 }
 
 VulkanPathTracingRendererRTCore::~VulkanPathTracingRendererRTCore()
@@ -22,7 +21,11 @@ void VulkanPathTracingRendererRTCore::init()
 	this->vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(
 		this->context_manager.device, "vkCreateAccelerationStructureKHR");
 
+	this->vkCmdTraceRaysKHR =
+		(PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(this->context_manager.device, "vkCmdTraceRaysKHR");
 
+	this->vkGetRayTracingShaderGroupHandlesKHR = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(
+		this->context_manager.device, "vkGetRayTracingShaderGroupHandlesKHR");
 }
 
 void VulkanPathTracingRendererRTCore::clear()
@@ -74,28 +77,110 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->instance_buffer_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->tlas_buffer_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->scratch_buffer_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
+	this->sbt_buffer_manager = StagingBufferManager(context_manager_sptr, command_manager_sptr);
+
+	for (int i = 0; i < 2; i++)
+	{
+		this->storage_image_managers[i] = StorageImageManager(context_manager_sptr, command_manager_sptr);
+		this->storage_image_managers[i].setExtent(this->swap_chain_manager.extent);
+		this->storage_image_managers[i].init();
+	}
 
 	this->createBLAS();
 	this->createTLAS();
 
 	this->pipeline_manager = PipelineManager(context_manager_sptr, PipelineType::PathTracing);
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		this->uniform_buffer_managers[i] = UniformBufferManager(context_manager_sptr, command_manager_sptr);
+		this->uniform_buffer_managers[i].setData(&this->ubo, sizeof(UBOMVP), 1);
+		this->uniform_buffer_managers[i].init();
+		this->descriptor_managers[i] = DescriptorManager(context_manager_sptr);
+		this->setupDescriptor(i);
+	}
+
+	this->setupGraphicsPipelines();
+
+	createShaderBindingTable();
 }
+
+struct PushConstantRay
+{
+	glm::vec4 clearColor = glm::vec4(0, 0, 0, 1);
+	glm::vec3 lightPosition;
+	float lightIntensity;
+	int lightType;
+	int frame;
+};
+
+void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index)
+{
+	VkCommandBufferBeginInfo command_begin{};
+	command_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	command_begin.pNext = nullptr;
+	command_begin.flags = 0;
+	command_begin.pInheritanceInfo = nullptr;
+
+	if (vkBeginCommandBuffer(command_buffer, &command_begin) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to begin recording command buffer!");
+	}
+
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, this->pipeline_manager.pipeline);
+
+	PushConstantRay temp{};
+	temp.frame = 0;
+	vkCmdPushConstants(command_buffer,
+					   this->pipeline_manager.layout,
+					   VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+					   0,
+					   sizeof(PushConstantRay),
+					   &temp);
+
+	vkCmdBindDescriptorSets(command_buffer,
+							VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+							this->pipeline_manager.layout,
+							0,
+							1,
+							&this->descriptor_managers[current_frame].set,
+							0,
+							nullptr);
+
+	vkCmdTraceRaysKHR(command_buffer,
+					  &this->ray_generate_region,
+					  &this->ray_miss_region,
+					  &this->ray_hit_region,
+					  &this->call_region,
+					  this->swap_chain_manager.extent.width,
+					  this->swap_chain_manager.extent.height,
+					  1);
+
+	if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to record command buffer!");
+	}
+}
+
+
 
 void VulkanPathTracingRendererRTCore::setupGraphicsPipelines()
 {
-	std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-	this->pipeline_manager.dynamic_states = dynamicStates;
-
 	this->pipeline_manager.addShaderStage("path_tracing_rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
 	this->pipeline_manager.addShaderStage("path_tracing_rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
 	this->pipeline_manager.addShaderStage("path_tracing_rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 
+	
+
+	std::vector<VkPushConstantRange> push(1);
+	push[0].offset = 0;
+	push[0].size = sizeof(PushConstantRay);
+	push[0].stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
 	std::vector<VkDescriptorSetLayout> layout = {this->descriptor_managers[0].layout};
-	this->pipeline_manager.setDescriptorSetLayout(layout);
+	this->pipeline_manager.setDescriptorSetLayout(layout, push);
 
 	this->pipeline_manager.init();
-
-	vkGetRayTracingShaderGroupHandlesKHR
 }
 
 void VulkanPathTracingRendererRTCore::getFeatureProperty()
@@ -267,7 +352,7 @@ void VulkanPathTracingRendererRTCore::createTLAS()
 		address.accelerationStructure = this->blas[i];
 		auto vkGetAccelerationStructureDeviceAddressKHR =
 			(PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(
-			this->context_manager.device, "vkGetAccelerationStructureDeviceAddressKHR");
+				this->context_manager.device, "vkGetAccelerationStructureDeviceAddressKHR");
 		instances[i].accelerationStructureReference =
 			vkGetAccelerationStructureDeviceAddressKHR(this->context_manager.device, &address);
 	}
@@ -352,58 +437,136 @@ void VulkanPathTracingRendererRTCore::createTLAS()
 	this->scratch_buffer_manager.clear();
 }
 
+void VulkanPathTracingRendererRTCore::createShaderBindingTable()
+{
+	uint32_t miss_shader_count{1};
+	uint32_t hit_shader_count{1};
+
+	uint32_t handle_count = 1 + miss_shader_count + hit_shader_count; // ray generate + miss hit + close hit
+
+	uint32_t handle_size = this->ray_tracing_property.shaderGroupHandleSize;
+	uint32_t alignment = this->ray_tracing_property.shaderGroupHandleAlignment;
+
+	uint32_t handle_size_aligned = align(handle_size, alignment);
+
+	this->ray_generate_region.stride = align(handle_size_aligned, this->ray_tracing_property.shaderGroupBaseAlignment);
+	this->ray_generate_region.size = this->ray_generate_region.stride;
+
+	this->ray_miss_region.stride = handle_size_aligned;
+	this->ray_miss_region.size =
+		align(miss_shader_count * handle_size_aligned, this->ray_tracing_property.shaderGroupBaseAlignment);
+
+	this->ray_hit_region.stride = handle_size_aligned;
+	this->ray_hit_region.size =
+		align(hit_shader_count * handle_size_aligned, this->ray_tracing_property.shaderGroupBaseAlignment);
+
+	std::vector<uint8_t> handles(handle_count * handle_size);
+	vkGetRayTracingShaderGroupHandlesKHR(this->context_manager.device,
+										 this->pipeline_manager.pipeline,
+										 0,
+										 handle_count,
+										 static_cast<uint32_t>(handles.size()),
+										 handles.data());
+
+	VkDeviceSize sbt_size = ray_generate_region.size + ray_miss_region.size + ray_hit_region.size;
+
+	this->sbt_buffer_manager.usage =
+		VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+
+	this->sbt_buffer_manager.size = sbt_size;
+	this->sbt_buffer_manager.init();
+
+	VkDeviceAddress sbt_address = this->sbt_buffer_manager.getBufferAddress();
+	this->ray_generate_region.deviceAddress = sbt_address;
+	this->ray_miss_region.deviceAddress = sbt_address + this->ray_generate_region.size;
+	this->ray_hit_region.deviceAddress = sbt_address + this->ray_generate_region.size + this->ray_miss_region.size;
+
+	uint8_t* sbt_data = reinterpret_cast<uint8_t*>(this->sbt_buffer_manager.mapped);
+	memcpy(sbt_data, handles.data(), handle_size);												  // 复制光线生成句柄
+	memcpy(sbt_data + this->ray_generate_region.size, handles.data() + handle_size, handle_size); // 复制未命中句柄
+	memcpy(sbt_data + this->ray_generate_region.size + this->ray_miss_region.size,
+		   handles.data() + 2 * handle_size,
+		   handle_size); // 复制命中句柄
+}
+
 void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 {
+	VkDescriptorSetLayoutBinding layout_binding{};
 	/* ========== Layout binding infomation ========== */
-	/* MVP UBO binding */
-	this->descriptor_managers[index].addLayoutBinding(
-		this->uniform_buffer_managers[index].getLayoutBinding(0, VK_SHADER_STAGE_VERTEX_BIT));
+	/* TLAS binding */
+	layout_binding.binding = 0;
+	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+	layout_binding.descriptorCount = 1;
+	layout_binding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	layout_binding.pImmutableSamplers = nullptr;
+	this->descriptor_managers[index].addLayoutBinding(layout_binding);
 
-	/* Texture sampler binding */
-	this->descriptor_managers[index].addLayoutBinding(
-		this->texture_manager.getLayoutBinding(2, VK_SHADER_STAGE_FRAGMENT_BIT));
+	/* Result image binding */
+	layout_binding.binding = 1;
+	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	layout_binding.descriptorCount = 2;
+	layout_binding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	layout_binding.pImmutableSamplers = nullptr;
+	this->descriptor_managers[index].addLayoutBinding(layout_binding);
 
-	VkWriteDescriptorSetAccelerationStructureKHR write{}; 
+	/* Camera information binding */
+	this->descriptor_managers[index].addLayoutBinding(
+		this->uniform_buffer_managers[index].getLayoutBinding(2, VK_SHADER_STAGE_RAYGEN_BIT_KHR));
+
+	/* ========== Pool size infomation ========== */
+	/* TLAS pool size */
+	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1);
+
+	/* Result image pool size */
+	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1);
+
+	/* Camera pool size */
+	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
+
+	/* ========== Write Descriptor Set ========== */
+	/* TLAS write */
+
 	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
 	write.pNext = nullptr;
 	write.accelerationStructureCount = 1;
 	write.pAccelerationStructures = &tlas;
+	VkWriteDescriptorSet tlas_write{};
+	tlas_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	tlas_write.pNext = &write;
+	tlas_write.dstSet = VK_NULL_HANDLE;
+	tlas_write.dstBinding = 0;
+	tlas_write.dstArrayElement = 0;
+	tlas_write.descriptorCount = 1;
+	tlas_write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+	tlas_write.pBufferInfo = nullptr;
+	tlas_write.pImageInfo = nullptr;
+	tlas_write.pTexelBufferView = nullptr;
+	this->descriptor_managers[index].addWrite(tlas_write);
 
+	/* Result image */
 
-	/* Material data binding */
-	this->descriptor_managers[index].addLayoutBinding(
-		this->material_ssbo_manager.getLayoutBinding(6, VK_SHADER_STAGE_FRAGMENT_BIT));
-
-	/* ========== Pool size infomation ========== */
-	/* UBO pool size */
-	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
-
-	/* Sampler pool size */
-	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2);
-
-	/* SSBO pool size */
-	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5);
-
-	/* ========== Write Descriptor Set ========== */
-	std::vector<VkWriteDescriptorSet> descriptor_writes{};
-
-	/* MVP UBO set write information */
-	this->descriptor_managers[index].addWrite(this->uniform_buffer_managers[index].getWriteInformation(0));
-
-	this->descriptor_managers[index].addWrite(this->model_matrix_manager.getWriteInformation(1));
-
-	/* Texture sampler write information */
-	if (!this->texture_manager.isEmpty())
+	result_images.resize(2);
+	for (size_t i = 0; i < 2; i++)
 	{
-		this->descriptor_managers[index].addWrite(this->texture_manager.getWriteInformation(2));
+		result_images[i].sampler = this->storage_image_managers[i].sampler;
+		result_images[i].imageView = this->storage_image_managers[i].view;
+		result_images[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	}
+	VkWriteDescriptorSet result_image_write{};
+	result_image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	result_image_write.pNext = nullptr;
+	result_image_write.dstSet = VK_NULL_HANDLE;
+	result_image_write.dstBinding = 1;
+	result_image_write.dstArrayElement = 0;
+	result_image_write.descriptorCount = static_cast<uint32_t>(result_images.size());
+	result_image_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	result_image_write.pBufferInfo = nullptr;
+	result_image_write.pImageInfo = result_images.data();
+	result_image_write.pTexelBufferView = nullptr;
+	this->descriptor_managers[index].addWrite(result_image_write);
 
-
-
-	/* Material data set write information */
-	this->descriptor_managers[index].addWrite(this->material_ssbo_manager.getWriteInformation(6));
-
-	this->descriptor_managers[index].addWrite(this->shadow_map_manager.mvp_ssbo_manager.getWriteInformation(7));
+	/* Camera set write information */
+	this->descriptor_managers[index].addWrite(this->uniform_buffer_managers[index].getWriteInformation(2));
 
 	this->descriptor_managers[index].init();
 }

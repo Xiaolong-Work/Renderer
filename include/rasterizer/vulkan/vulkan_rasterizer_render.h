@@ -124,16 +124,6 @@ protected:
 		this->descriptor_managers[index].addLayoutBinding(
 			this->shadow_map_manager.mvp_ssbo_manager.getLayoutBinding(7, VK_SHADER_STAGE_FRAGMENT_BIT));
 
-		/* ========== Pool size infomation ========== */
-		/* UBO pool size */
-		this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
-
-		/* Sampler pool size */
-		this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2);
-
-		/* SSBO pool size */
-		this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5);
-
 		/* ========== Write Descriptor Set ========== */
 		std::vector<VkWriteDescriptorSet> descriptor_writes{};
 

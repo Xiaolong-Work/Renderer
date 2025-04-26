@@ -62,6 +62,13 @@ void pathTracingRTCore(const Scene& scene)
 {
 	VulkanPathTracingRendererRTCore renderer{};
 	renderer.setData(scene);
+	try
+	{
+		renderer.run();
+	} catch (const std::exception& e)
+	{
+		std::cout << e.what() << std::endl;
+	}
 }
 
 void pathTracingRender()

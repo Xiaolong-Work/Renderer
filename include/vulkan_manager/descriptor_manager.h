@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <map>
 #include <stdexcept>
 #include <vector>
 
@@ -29,7 +30,7 @@ public:
 
 private:
 	std::vector<VkDescriptorSetLayoutBinding> bindings{};
-	std::vector<VkDescriptorPoolSize> pool_sizes{};
+	std::map<VkDescriptorType, uint32_t> pool_sizes;
 	std::vector<VkWriteDescriptorSet> writes{};
 
 	ContextManagerSPtr context_manager_sptr;

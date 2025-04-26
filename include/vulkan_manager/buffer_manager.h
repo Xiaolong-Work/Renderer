@@ -201,6 +201,7 @@ public:
 	VkDescriptorSetLayoutBinding getLayoutBinding(const uint32_t binding, const VkShaderStageFlags flag);
 	VkWriteDescriptorSet getWriteInformation(const uint32_t binding);
 
+	VkBufferUsageFlags usage{VK_BUFFER_USAGE_STORAGE_BUFFER_BIT};
 	bool enable_ray_tracing{false};
 
 private:
@@ -225,5 +226,6 @@ public:
 
 	void* mapped{nullptr};
 
+	VkBufferUsageFlags usage{VK_BUFFER_USAGE_TRANSFER_SRC_BIT};
 	VkDeviceSize size{0};
 };

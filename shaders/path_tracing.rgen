@@ -6,14 +6,12 @@
 #include "temp.h"
 #include "path_tracing.glsl"
 
-
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT top_level_acceleration_structure;
 layout(set = 0, binding = 1, rgba32f) uniform image2D image;
 layout(set = 0, binding = 2) uniform _GlobalUniforms { GlobalUniforms uni; };
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
-
 
 const int NBSAMPLES = 10;
 

@@ -339,7 +339,7 @@ StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& context_man
 void StagingBufferManager::init()
 {
 	createBuffer(this->size,
-				 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				 this->usage,
 				 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				 this->buffer,
 				 this->memory);

@@ -274,6 +274,9 @@ void PipelineManager::createRayTracingPipeline()
 	ray_tracing_pipeline_create.basePipelineHandle = VK_NULL_HANDLE;
 	ray_tracing_pipeline_create.basePipelineIndex = -1;
 
+	auto vkCreateRayTracingPipelinesKHR = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(
+		context_manager_sptr->device, "vkCreateRayTracingPipelinesKHR");
+
 	if (vkCreateRayTracingPipelinesKHR(context_manager_sptr->device,
 									   VK_NULL_HANDLE,
 									   VK_NULL_HANDLE,

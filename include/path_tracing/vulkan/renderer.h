@@ -83,15 +83,17 @@ public:
 
 	void setupGraphicsPipelines()
 	{
-		//this->point_pipeline_manager.addShaderStage("path_tracing_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		//this->point_pipeline_manager.addShaderStage("path_tracing_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		this->pipeline_manager.setDefaultFixedState();
 
-		//std::vector<VkDescriptorSetLayout> layout = {this->descriptorSetLayout};
-		//this->point_pipeline_manager.setDescriptorSetLayout(layout);
-		//this->point_pipeline_manager.setExtent(swap_chain_manager.extent);
-		//this->point_pipeline_manager.setRenderPass(pass, 0);
+		this->pipeline_manager.addShaderStage("path_tracing_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		this->pipeline_manager.addShaderStage("path_tracing_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-		//point_pipeline_manager.enable_vertex_inpute = false;
+		std::vector<VkDescriptorSetLayout> layout = {this->descriptorSetLayout};
+		this->pipeline_manager.setDescriptorSetLayout(layout);
+		this->pipeline_manager.setExtent(swap_chain_manager.extent);
+		this->pipeline_manager.setRenderPass(pass, 0);
+
+		this->pipeline_manager.enable_vertex_inpute = false;
 	}
 
 	void createRenderPass()

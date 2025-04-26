@@ -68,3 +68,8 @@ void outputTimeUse(std::string name, std::chrono::system_clock::duration duratio
  * @param[in] count The frame count.
  */
 void outputFrameRate(const int count);
+
+inline uint32_t align(const uint32_t size, const uint32_t alignment)
+{
+	return (size + (alignment - 1)) & ~(alignment - 1);
+}

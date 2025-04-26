@@ -13,7 +13,7 @@ set(SHADER_COMPILING "${VULKAN_BIN_DIR}/glslc.exe")
 
 
 # Supported shader types
-set(SHADER_EXTS "vert" "frag" "geom" "comp" "rgen")
+set(SHADER_EXTS "vert" "frag" "geom" "comp" "rgen" "rmiss" "rchit")
 
 # Store all .spv output files
 set(SPV_FILES "")

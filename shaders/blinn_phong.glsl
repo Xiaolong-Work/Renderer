@@ -1,3 +1,6 @@
+#version 450
+#extension GL_KHR_vulkan_glsl : enable
+
 float fresnel(vec3 wi, vec3 normal, float ni)
 {
 	float cos_i = clamp(-1.0f, 1.0f, dot(wi, normal));

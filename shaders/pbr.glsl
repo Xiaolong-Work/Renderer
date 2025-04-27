@@ -7,6 +7,7 @@
  *********************************************************************/
 
 #include "light.glsl"
+#include "material.glsl"
 
 vec3 fresnelSchlick(float cos_theta, vec3 r0)
 {
@@ -46,25 +47,14 @@ float geometrySmith(vec3 n, vec3 v, vec3 l, float roughness)
 }
 
 
-vec4 shaderPointLightPBR(PointLight point_light, )
+vec4 shaderPBR(vec3 radiance, vec3 wi, vec3 wo, float roughness, float metallic, vec4 color, vec3 normal)
 {
-	vec3 light_position = light.position;
-	vec3 shading_position = position;
-	vec3 eye_position = vec3(0);
-}
-
-vec4 shaderPBR(vec3 radiance, vec3 light_direction ,float roughness, float metallic, vec4 shader_color, vec3 position, vec3 normal)
-{
-	vec3 light_position = light.position;
-	vec3 shading_position = position;
-	vec3 eye_position = vec3(0);
-
-	vec3 l = normalize(light_position - shading_position);
-	vec3 v = normalize(eye_position - shading_position);
+	vec3 l = normalize(wo);
+	vec3 v = normalize(wi);
 	vec3 n = normalize(normal);
 	vec3 h = normalize(v + l);
 
-	vec3 r0 = mix(vec3(0.04), vec3(shader_color), metallic);
+	vec3 r0 = mix(vec3(0.04), vec3(color), metallic);
 
 	vec3 f = fresnelSchlick(max(dot(h, v), 0.0), r0);
 	float d = distributionGGX(n, h, roughness);
@@ -74,12 +64,25 @@ vec4 shaderPBR(vec3 radiance, vec3 light_direction ,float roughness, float metal
 	float denominator = 4.0 * max(dot(n, v), 0.0) * max(dot(n, l), 0.0) + 0.0001;
 	vec3 specular = numerator / denominator;
 
-	vec3 kS = f;
-	vec3 kD = vec3(1.0) - kS;
-	kD *= 1.0 - metallic;
+	vec3 ks = f;
+	vec3 kd = vec3(1.0) - ks;
+	kd *= 1.0 - metallic;
 
 	float NdotL = max(dot(n, l), 0.0);
-	vec3 diffuse = (vec3(shader_color) / 3.14159265) * kD;
+	vec3 diffuse = (vec3(color) / 3.14159265) * kd;
 
-	return vec4((diffuse + specular) * radiance * NdotL, 1.0f);
+	return vec4((diffuse + specular) * radiance * NdotL, 1.0);
+}
+
+vec4 shaderPointLightPBR(vec3 position, vec4 color, vec3 normal, vec3 camera_position, PointLight light,  Material material)
+{
+	vec3 light_position = light.position;
+	float intensity = light.intensity;
+	vec3 light_color = light.color;
+
+	float r2 = dot((light_position - position), (light_position - position));
+	float irradiance = intensity / (4.0 * 3.14159265 * r2);
+	vec3 radiance = irradiance * light_color;
+
+	return shaderPBR(radiance, camera_position - position, light_position - position, material.roughness, material.metallic, color, normal);
 }

@@ -75,32 +75,51 @@ public:
 		this->render_pass_manager.init();
 	}
 
-
 	StorageBufferManager object_address_manager{};
-	void setupObjectAddress()
+	StorageBufferManager object_property_manager{};
+	void setupObjectAddress(const Scene& scene)
 	{
 		struct ObjectAddress
 		{
 			uint64_t vertex_address;
 			uint64_t index_address;
 		};
+
+		struct ObjectProperty
+		{
+			Vector3f radiance{0};
+			int is_light{0};
+			Vector3f color{1};
+			float area{0};
+		};
+
 		std::vector<ObjectAddress> all_object_address;
+		std::vector<ObjectProperty> all_object_property;
 
 		uint64_t base_vertex_address = this->vertex_buffer_manager.getBufferAddress();
 		uint64_t base_index_address = this->index_buffer_manager.getBufferAddress();
 		auto& commands = this->indirect_buffer_manager.commands;
-		for (auto& command : commands)
+		for (size_t i = 0; i < commands.size(); i++)
 		{
+			auto& object = scene.objects[i];
+			auto& command = commands[i];
 			uint64_t vertex_address = base_vertex_address + command.vertexOffset * sizeof(Vertex);
 			uint64_t index_address = base_index_address + command.firstIndex * sizeof(Index);
 			ObjectAddress address{vertex_address, index_address};
+			ObjectProperty property{object.radiance, object.is_light, object.radiance, object.area};
 			all_object_address.push_back(address);
+			all_object_property.push_back(property);
 		}
 
 		this->object_address_manager.setData(
 			all_object_address.data(), all_object_address.size() * sizeof(ObjectAddress), all_object_address.size());
 		this->object_address_manager.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		this->object_address_manager.init();
+
+		this->object_property_manager.setData(all_object_property.data(),
+											  all_object_property.size() * sizeof(ObjectProperty),
+											  all_object_property.size());
+		this->object_property_manager.init();
 	}
 
 protected:

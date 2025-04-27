@@ -7,13 +7,15 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "path_tracing.glsl"
+#include "pbr.glsl"
 
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 layout(binding = 3) uniform sampler2D textures[]; 
 layout(std430, binding = 4) readonly buffer ObjectAddressBuffer { ObjectAddress object_address[]; };
-layout(std430, binding = 5) readonly buffer MaterialIndexBuffer { int material_indices[]; };
-layout(std430, binding = 6) readonly buffer MaterialBuffer { Material materials[]; };
+layout(std430, binding = 5) readonly buffer ObjectPropertyBuffer { ObjectProperty object_properties[]; };
+layout(std430, binding = 6) readonly buffer MaterialIndexBuffer { int material_indices[]; };
+layout(std430, binding = 7) readonly buffer MaterialBuffer { Material materials[]; };
 
 layout(buffer_reference, std430) buffer Indices { int data[]; }; 
 layout(buffer_reference, std430) buffer Vertices { float data[]; }; 
@@ -53,6 +55,8 @@ void main()
 	Indices indices = Indices(address.index_address);
 	Vertices vertices = Vertices(address.vertex_address);
 
+	ObjectProperty property = object_properties[gl_InstanceCustomIndexEXT];
+
 	int index1 = indices.data[gl_PrimitiveID * 3 + 0];
 	int index2 = indices.data[gl_PrimitiveID * 3 + 1];
 	int index3 = indices.data[gl_PrimitiveID * 3 + 2];
@@ -67,14 +71,17 @@ void main()
 	vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(interpolation.position, 1.0));
 	vec3 world_normal = normalize(vec3(interpolation.normal * gl_WorldToObjectEXT));
 
+
+	if (property.is_light == 1)
+	{
+		payload.hit_value = property.radiance;
+		return;
+	}
+
 	vec4 color = vec4(0.0f);
 	if (material.albedo_texture != -1)
 	{
 		color = texture(textures[material.albedo_texture], interpolation.texture);
-	}
-	else if (material.diffuse_texture != -1)
-	{
-		color = texture(textures[material.diffuse_texture], interpolation.texture);
 	}
 	else
 	{

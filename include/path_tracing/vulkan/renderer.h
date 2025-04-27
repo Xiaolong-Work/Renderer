@@ -1,4 +1,4 @@
-#pragma once
+ #pragma once
 
 #include <buffer_manager.h>
 #include <command_manager.h>

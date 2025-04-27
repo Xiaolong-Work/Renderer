@@ -96,8 +96,6 @@ void InputOutput::loadObjFile(const std::string& path)
 		this->materials[i].ns = material.shininess;
 		this->materials[i].ni = material.ior;
 
-		this->materials[i].transferToPBR();
-
 		if (material.diffuse_texname != "")
 		{
 			auto diffuse_texture_path = path + material.diffuse_texname;
@@ -109,6 +107,8 @@ void InputOutput::loadObjFile(const std::string& path)
 
 			this->materials[i].diffuse_texture = this->texture_index[diffuse_texture_path];
 		}
+
+		this->materials[i].transferToPBR();
 	}
 }
 

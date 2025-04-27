@@ -84,6 +84,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->scratch_buffer_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->sbt_buffer_manager = StagingBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_address_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
+	this->object_property_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 
 	for (int i = 0; i < 2; i++)
 	{
@@ -98,7 +99,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->pipeline_manager = PipelineManager(context_manager_sptr, PipelineType::PathTracing);
 	this->present_pipeline_manager = PipelineManager(context_manager_sptr);
 
-	setupObjectAddress();
+	setupObjectAddress(scene);
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		this->uniform_buffer_managers[i] = UniformBufferManager(context_manager_sptr, command_manager_sptr);
@@ -580,13 +581,17 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	this->descriptor_managers[index].addDescriptor(
 		this->object_address_manager.getDescriptor(4, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
+	/* Object's property descriptor */
+	this->descriptor_managers[index].addDescriptor(
+		this->object_property_manager.getDescriptor(5, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+
 	/* Material index descriptor */
 	this->descriptor_managers[index].addDescriptor(
-		this->material_index_manager.getDescriptor(5, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+		this->material_index_manager.getDescriptor(6, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
 	/* Material data descriptor */
 	this->descriptor_managers[index].addDescriptor(
-		this->material_ssbo_manager.getDescriptor(6, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+		this->material_ssbo_manager.getDescriptor(7, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
 	/* ========== Write Descriptor Set ========== */
 	/* TLAS write */

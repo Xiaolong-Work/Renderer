@@ -82,11 +82,14 @@ struct PushConstantRaster
 // Push constant structure for the ray tracer
 struct PushConstantRay
 {
-	vec4 clearColor;
-	vec3 lightPosition;
-	float lightIntensity;
-	int lightType;
+	vec3 position;
+	int image_index;
+
+	vec3 look;
 	int frame;
+
+	vec3 up;
+	int pad;
 };
 
 struct WaveFrontMaterial // See ObjLoader, copy of MaterialObj, could be compressed for device

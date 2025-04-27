@@ -3,13 +3,14 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_ray_flags_primitive_culling : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension  GL_EXT_nonuniform_qualifier : enable
 #include "temp.h"
 #include "path_tracing.glsl"
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT top_level_acceleration_structure;
-layout(set = 0, binding = 1, rgba32f) uniform image2D image;
+layout(set = 0, binding = 1, rgba32f) uniform image2D image[];
 layout(set = 0, binding = 2) uniform _GlobalUniforms { GlobalUniforms uni; };
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
@@ -17,6 +18,13 @@ const int NBSAMPLES = 10;
 
 void main()
 {
+
+	vec2 size = gl_LaunchSizeEXT.xy;
+
+	vec2 pixel_index = gl_LaunchIDEXT.xy;
+
+
+
 	// Initialize the random number
 	uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pcRay.frame);
 
@@ -28,11 +36,7 @@ void main()
 		float r1 = rnd(seed);
 		float r2 = rnd(seed);
 
-		// Subpixel jitter: send the ray through a different position inside the pixel
-		// each time, to provide antialiasing.
-		vec2 subpixel_jitter = pcRay.frame == 0 ? vec2(0.5f, 0.5f) : vec2(r1, r2);
-
-		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + subpixel_jitter;
+		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5f, 0.5f);
 		const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
 		vec2       d           = inUV * 2.0 - 1.0;
 
@@ -52,7 +56,7 @@ void main()
 					0,              
 					0,              
 					0,              
-					origin.xyz,     
+					pcRay.position,     
 					time_min,       
 					direction.xyz,  
 					time_max,       
@@ -67,13 +71,13 @@ void main()
 	if(pcRay.frame > 0)
 	{
 		float a         = 1.0f / float(pcRay.frame + 1);
-		vec3  old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
-		imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, payload.hit_value, a), 1.f));
+		vec3  old_color = imageLoad(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy)).xyz;
+		imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, payload.hit_value, a), 1.f));
 	}
 	else
 	{
 		// First frame, replace the value in the buffer
-		imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(payload.hit_value, 1.f));
+		imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(payload.hit_value, 1.f));
 	}
 }
 

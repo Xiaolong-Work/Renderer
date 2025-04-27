@@ -4,22 +4,84 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier : enable
 
 #include "path_tracing.glsl"
 
 layout(location = 0) rayPayloadInEXT HitPayload payload;
-// 
-// layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // 物体的顶点位置
-// layout(buffer_reference, scalar) buffer Indices {ivec3 i[]; }; // 三角形索引
-// layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // 物体上所有材质的数组
-// layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // 每个三角形的材质 ID
-// layout(set = 1, binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
-// 
-// layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+
+layout(binding = 3) uniform sampler2D textures[]; 
+layout(std430, binding = 4) readonly buffer ObjectAddressBuffer { ObjectAddress object_address[]; };
+layout(std430, binding = 5) readonly buffer MaterialIndexBuffer { int material_indices[]; };
+layout(std430, binding = 6) readonly buffer MaterialBuffer { Material materials[]; };
+
+layout(buffer_reference, std430) buffer Indices { int data[]; }; 
+layout(buffer_reference, std430) buffer Vertices { float data[]; }; 
+hitAttributeEXT vec2 attributes;
+
+Vertex unpackVertex(Vertices vertices, int start_index)
+{
+    Vertex vertex;
+    vertex.position = vec3(vertices.data[start_index + 0], vertices.data[start_index + 1], vertices.data[start_index + 2]);
+    vertex.normal = vec3(vertices.data[start_index + 3], vertices.data[start_index + 4], vertices.data[start_index + 5]);
+    vertex.texture = vec2(vertices.data[start_index + 6], vertices.data[start_index + 7]);
+    vertex.color = vec4(vertices.data[start_index + 8], vertices.data[start_index + 9], vertices.data[start_index + 10], vertices.data[start_index + 11]);
+    return vertex;
+}
+
+Vertex interpolate(Vertex vertex1, Vertex vertex2, Vertex vertex3, vec3 barycentrics)
+{
+    float a = barycentrics.x;
+    float b = barycentrics.y;
+    float c = barycentrics.z;
+
+    Vertex result;
+    result.position = vertex1.position * a + vertex2.position * b + vertex3.position * c;
+    result.normal = normalize(vertex1.normal * a + vertex2.normal * b + vertex3.normal * c);
+    result.texture = vertex1.texture * a + vertex2.texture * b + vertex3.texture * c;
+    result.color = vertex1.color * a + vertex2.color * b + vertex3.color * c;
+    
+    return result;
+}
 
 void main()
 {
-	payload.hit_value = vec3(1.0f);
+	int material_index = material_indices[gl_InstanceCustomIndexEXT];
+	Material material = materials[material_index];
+
+	ObjectAddress address = object_address[gl_InstanceCustomIndexEXT];
+	Indices indices = Indices(address.index_address);
+	Vertices vertices = Vertices(address.vertex_address);
+
+	int index1 = indices.data[gl_PrimitiveID * 3 + 0];
+	int index2 = indices.data[gl_PrimitiveID * 3 + 1];
+	int index3 = indices.data[gl_PrimitiveID * 3 + 2];
+
+	Vertex vertex1 = unpackVertex(vertices, index1 * 12);
+	Vertex vertex2 = unpackVertex(vertices, index2 * 12);
+	Vertex vertex3 = unpackVertex(vertices, index3 * 12);
+
+	vec3 barycentrics = vec3(1.0 - attributes.x - attributes.y, attributes.x, attributes.y);
+	Vertex interpolation = interpolate(vertex1, vertex2, vertex3, barycentrics);
+
+	vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(interpolation.position, 1.0));
+	vec3 world_normal = normalize(vec3(interpolation.normal * gl_WorldToObjectEXT));
+
+	vec4 color = vec4(0.0f);
+	if (material.albedo_texture != -1)
+	{
+		color = texture(textures[material.albedo_texture], interpolation.texture);
+	}
+	else if (material.diffuse_texture != -1)
+	{
+		color = texture(textures[material.diffuse_texture], interpolation.texture);
+	}
+	else
+	{
+		color = material.albedo;
+	}
+	payload.hit_value = vec3(color);
+	//payload.hit_value = vec3(color * interpolation.color);
 }
 
 //void main()

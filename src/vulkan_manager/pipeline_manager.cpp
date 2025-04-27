@@ -174,8 +174,13 @@ void PipelineManager::createPipeline()
 	vertex_input.flags = 0;
 	vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(this->attribute_descriptions.size());
 	vertex_input.pVertexAttributeDescriptions = this->attribute_descriptions.data();
-	vertex_input.vertexBindingDescriptionCount = 1;
-	vertex_input.pVertexBindingDescriptions = &binding_description;
+	vertex_input.vertexBindingDescriptionCount = 0;
+	vertex_input.pVertexBindingDescriptions = nullptr;
+	if (!this->attribute_descriptions.empty())
+	{
+		vertex_input.vertexBindingDescriptionCount = 1;
+		vertex_input.pVertexBindingDescriptions = &binding_description;
+	}
 
 	VkPipelineDynamicStateCreateInfo dynamic_state{};
 	dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -191,6 +196,7 @@ void PipelineManager::createPipeline()
 	pipelineInfo.stageCount = static_cast<uint32_t>(this->shader_stages.size());
 	pipelineInfo.pStages = this->shader_stages.data();
 	pipelineInfo.pVertexInputState = &vertex_input;
+
 	pipelineInfo.pInputAssemblyState = &this->input_assembly;
 	pipelineInfo.pTessellationState = nullptr;
 	pipelineInfo.pViewportState = &this->viewport_state;

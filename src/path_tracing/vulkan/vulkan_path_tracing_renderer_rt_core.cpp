@@ -57,6 +57,10 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 		return result;
 	};
 
+	this->vertex_buffer_manager.clear();
+	this->vertex_buffer_manager.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+	this->vertex_buffer_manager.init();
+
 	for (size_t i = 0; i < scene.objects.size(); i++)
 	{
 		auto& object = scene.objects[i];
@@ -79,6 +83,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->tlas_buffer_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->scratch_buffer_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->sbt_buffer_manager = StagingBufferManager(context_manager_sptr, command_manager_sptr);
+	this->object_address_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 
 	for (int i = 0; i < 2; i++)
 	{
@@ -93,6 +98,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->pipeline_manager = PipelineManager(context_manager_sptr, PipelineType::PathTracing);
 	this->present_pipeline_manager = PipelineManager(context_manager_sptr);
 
+	setupObjectAddress();
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		this->uniform_buffer_managers[i] = UniformBufferManager(context_manager_sptr, command_manager_sptr);
@@ -109,19 +115,20 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 
 	this->setupGraphicsPipelines();
 	this->setupPresentPipeline();
-
 	
-
 	createShaderBindingTable();
 }
 
 struct PushConstantRay
 {
-	glm::vec4 clearColor = glm::vec4(0, 0, 0, 1);
-	glm::vec3 lightPosition;
-	float lightIntensity;
-	int lightType;
+	Vector3f position;
+	int image_index;
+
+	Vector3f look;
 	int frame;
+
+	Vector3f up;
+	int pad;
 };
 
 void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index)
@@ -130,6 +137,20 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 	std::array<VkClearValue, 2> clear_values{};
 	clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 	clear_values[1].depthStencil = {1.0f, 0};
+
+	/* Dynamic setting of viewport */
+	VkViewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(this->swap_chain_manager.extent.width);
+	viewport.height = static_cast<float>(this->swap_chain_manager.extent.height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	/* Dynamic setting of scissor rectangle */
+	VkRect2D scissor{};
+	scissor.offset = {0, 0};
+	scissor.extent = this->swap_chain_manager.extent;
 
 	VkCommandBufferBeginInfo command_begin{};
 	command_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -145,7 +166,9 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, this->pipeline_manager.pipeline);
 
 	PushConstantRay temp{};
+	temp.image_index = current_frame;
 	temp.frame = 0;
+	temp.position = this->camera_position;
 	vkCmdPushConstants(command_buffer,
 					   this->pipeline_manager.layout,
 					   VK_SHADER_STAGE_RAYGEN_BIT_KHR,
@@ -183,6 +206,10 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 	vkCmdBeginRenderPass(command_buffer, &render_pass_begin, VK_SUBPASS_CONTENTS_INLINE);
 
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->present_pipeline_manager.pipeline);
+
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
 	vkCmdBindDescriptorSets(command_buffer,
 							VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -262,7 +289,6 @@ void VulkanPathTracingRendererRTCore::createBLAS()
 	acceleration_creates.resize(geometry_numbers);
 
 	this->blas.resize(geometry_numbers);
-	auto& commands = this->indirect_buffer_manager.commands;
 
 	VkDeviceSize all_size = 0;
 	VkDeviceSize min_build_size = 0;
@@ -325,11 +351,7 @@ void VulkanPathTracingRendererRTCore::createBLAS()
 		acceleration_creates[i].deviceAddress = 0;
 
 		all_size += build_size.accelerationStructureSize;
-
-		if (all_size % 256 != 0)
-		{
-			all_size = all_size - (all_size % 256) + 256;
-		}
+		all_size = align(all_size, 256);
 
 		min_build_size = std::max(min_build_size, build_size.buildScratchSize);
 	}
@@ -546,19 +568,25 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	layout_binding.pImmutableSamplers = nullptr;
 	this->descriptor_managers[index].addLayoutBinding(layout_binding);
 
-	/* Camera information binding */
+	/* Camera information descriptor */
 	this->descriptor_managers[index].addLayoutBinding(
 		this->uniform_buffer_managers[index].getLayoutBinding(2, VK_SHADER_STAGE_RAYGEN_BIT_KHR));
 
-	/* ========== Pool size infomation ========== */
-	/* TLAS pool size */
-	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1);
+	/* Texture sampler descriptor */
+	this->descriptor_managers[index].addDescriptor(
+		this->texture_manager.getDescriptor(3, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
-	/* Result image pool size */
-	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1);
+	/* Object's vertex and index address descriptor */
+	this->descriptor_managers[index].addDescriptor(
+		this->object_address_manager.getDescriptor(4, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
-	/* Camera pool size */
-	this->descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
+	/* Material index descriptor */
+	this->descriptor_managers[index].addDescriptor(
+		this->material_index_manager.getDescriptor(5, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+
+	/* Material data descriptor */
+	this->descriptor_managers[index].addDescriptor(
+		this->material_ssbo_manager.getDescriptor(6, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
 	/* ========== Write Descriptor Set ========== */
 	/* TLAS write */
@@ -581,7 +609,6 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	this->descriptor_managers[index].addWrite(tlas_write);
 
 	/* Result image */
-
 	result_images.resize(2);
 	for (size_t i = 0; i < 2; i++)
 	{

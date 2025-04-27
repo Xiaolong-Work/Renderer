@@ -12,6 +12,13 @@ struct HitPayload
 	uint seed;
 };
 
+struct PointLight
+{
+	vec3 position;
+	vec3 color;
+	float intensity;
+};
+
 struct ShadowPayload
 {
 	bool is_hit;
@@ -26,7 +33,7 @@ struct Camera
 	float fov;
 };
 
-struct Vectex
+struct Vertex
 {
 	/* The position of the vertex in 3D space. */
 	vec3 position;
@@ -39,5 +46,35 @@ struct Vectex
 
 	/* The color of the vertex */
 	vec4 color;
+};
+
+struct Material
+{
+	/* ========== Blinn-Phong ========== */
+	vec3 ka;
+	float ns;
+
+	vec3 kd;
+	int diffuse_texture;
+
+	vec3 ks;
+	int specular_texture;
+
+	vec3 tr;
+	float ni;
+
+	/* ========== PBR ========== */
+	vec4 albedo;
+	int albedo_texture;
+	float metallic;
+	float roughness;
+
+	int type;
+};
+
+struct ObjectAddress
+{
+	uint64_t vertex_address;		   // Address of the Vertex buffer
+	uint64_t index_address;		   // Address of the index buffer
 };
 

@@ -205,3 +205,9 @@ VkWriteDescriptorSet TextureManager::getWriteInformation(const uint32_t binding)
 
 	return texture_write;
 }
+
+std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> TextureManager::getDescriptor(
+	const uint32_t binding, const VkShaderStageFlags flag)
+{
+	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
+}

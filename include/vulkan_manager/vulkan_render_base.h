@@ -138,15 +138,27 @@ public:
 			this->shadow_map_manager.init();
 		}
 		
+		this->camera_position = scene.camera.position;
+		this->camera_up = scene.camera.up;
+		this->camera_look = scene.camera.look;
+		this->fov = scene.camera.fov;
+
+		yaw = glm::degrees(atan2(camera_look.z, camera_look.x));
+		pitch = glm::degrees(asin(camera_look.y));
+
+		createUniformBufferObjects();
+
 	}
 
 protected:
-	glm::vec3 cameraPosition = glm::vec3(15, 5, 1);
-	glm::vec3 cameraFront = glm::vec3(1, 0, 0);
-	glm::vec3 cameraUp = glm::vec3(0, 1, 0);
+	glm::vec3 camera_position = glm::vec3(15, 5, 1);
+	glm::vec3 camera_look = glm::vec3(1, 0, 0);
+	glm::vec3 camera_up = glm::vec3(0, 1, 0);
 
-	float yaw = -90.0f; // ≥ı º≥Ø -Z ∑ΩœÚ
+	float yaw = 0.0f;
 	float pitch = 0.0f;
+	float fov = 90.0f;
+
 	bool firstMouse = true;
 	bool mouseCaptured = false;
 
@@ -189,7 +201,7 @@ protected:
 
 		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
 		{
-			std::cout << self->cameraPosition.x << "," << self->cameraPosition.y << "," << self->cameraPosition.z
+			std::cout << self->camera_position.x << "," << self->camera_position.y << "," << self->camera_position.z
 					  << std::endl;
 		}
 
@@ -217,9 +229,9 @@ protected:
 		direction.x = cos(glm::radians(self->yaw)) * cos(glm::radians(self->pitch));
 		direction.y = sin(glm::radians(self->pitch));
 		direction.z = sin(glm::radians(self->yaw)) * cos(glm::radians(self->pitch));
-		self->cameraFront = glm::normalize(direction);
+		self->camera_look = glm::normalize(direction);
 
-		self->ubo.view = glm::lookAt(self->cameraPosition, self->cameraPosition + self->cameraFront, self->cameraUp);
+		self->ubo.view = glm::lookAt(self->camera_position, self->camera_position + self->camera_look, self->camera_up);
 	}
 
 	static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -235,39 +247,39 @@ protected:
 		{
 		case GLFW_KEY_W:
 			{
-				self->cameraPosition -= forward * moveSpeed;
+				self->camera_position -= forward * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_A:
 			{
-				self->cameraPosition -= right * moveSpeed;
+				self->camera_position -= right * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_S:
 			{
-				self->cameraPosition += forward * moveSpeed;
+				self->camera_position += forward * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_D:
 			{
-				self->cameraPosition += right * moveSpeed;
+				self->camera_position += right * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_SPACE:
 			{
-				self->cameraPosition += up * moveSpeed;
+				self->camera_position += up * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_LEFT_SHIFT:
 			{
-				self->cameraPosition -= up * moveSpeed;
+				self->camera_position -= up * moveSpeed;
 				break;
 			}
 		default:
 			break;
 		}
 
-		self->ubo.view = glm::lookAt(self->cameraPosition, self->cameraPosition - forward, up);
+		self->ubo.view = glm::lookAt(self->camera_position, self->camera_position - forward, up);
 	}
 
 	void handleWindowResize()
@@ -299,8 +311,8 @@ protected:
 	void createUniformBufferObjects()
 	{
 		ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = glm::lookAt(cameraPosition, cameraFront + cameraPosition, cameraUp);
-		ubo.project = glm::perspective(glm::radians(90.0f),
+		ubo.view = glm::lookAt(camera_position, camera_look, camera_up);
+		ubo.project = glm::perspective(glm::radians(this->fov),
 									   (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
 									   0.1f,
 									   1000.0f);
@@ -371,7 +383,7 @@ protected:
 
 		createSyncObjects();
 
-		createUniformBufferObjects();
+		
 
 		if (mask == 1)
 		{

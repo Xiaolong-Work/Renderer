@@ -34,6 +34,9 @@ public:
 
 	VkWriteDescriptorSet getWriteInformation(const uint32_t binding);
 
+	std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> getDescriptor(const uint32_t binding,
+																				const VkShaderStageFlags flag);
+
 	std::vector<VkImage> images{};
 	std::vector<VkDeviceMemory> memories{};
 	std::vector<VkImageView> views{};

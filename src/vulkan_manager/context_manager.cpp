@@ -407,6 +407,7 @@ void ContextManager::createLogicalDevice()
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
 	deviceFeatures.imageCubeArray = VK_TRUE;
 	deviceFeatures.multiDrawIndirect = VK_TRUE;
+	deviceFeatures.shaderInt64 = VK_TRUE;
 
 	VkPhysicalDeviceVulkan11Features features11{};
 	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;

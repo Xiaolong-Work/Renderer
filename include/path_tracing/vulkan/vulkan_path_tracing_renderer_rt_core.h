@@ -28,6 +28,7 @@ public:
 	void setData(const Scene& scene);
 
 	void recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index) override;
+
 	void updateUniformBufferObjects(const int index) override
 	{
 		UBOMVP temp;
@@ -49,6 +50,7 @@ public:
 		this->present_descriptor_managers[index].init();
 	}
 
+	PipelineManager present_pipeline_manager{};
 	void setupPresentPipeline()
 	{
 		std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
@@ -73,10 +75,33 @@ public:
 		this->render_pass_manager.init();
 	}
 
-	PipelineManager present_pipeline_manager{};
 
-	std::vector<VkFramebuffer> buffers;
-	VkRenderPass pass;
+	StorageBufferManager object_address_manager{};
+	void setupObjectAddress()
+	{
+		struct ObjectAddress
+		{
+			uint64_t vertex_address;
+			uint64_t index_address;
+		};
+		std::vector<ObjectAddress> all_object_address;
+
+		uint64_t base_vertex_address = this->vertex_buffer_manager.getBufferAddress();
+		uint64_t base_index_address = this->index_buffer_manager.getBufferAddress();
+		auto& commands = this->indirect_buffer_manager.commands;
+		for (auto& command : commands)
+		{
+			uint64_t vertex_address = base_vertex_address + command.vertexOffset * sizeof(Vertex);
+			uint64_t index_address = base_index_address + command.firstIndex * sizeof(Index);
+			ObjectAddress address{vertex_address, index_address};
+			all_object_address.push_back(address);
+		}
+
+		this->object_address_manager.setData(
+			all_object_address.data(), all_object_address.size() * sizeof(ObjectAddress), all_object_address.size());
+		this->object_address_manager.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		this->object_address_manager.init();
+	}
 
 protected:
 	void getFeatureProperty();

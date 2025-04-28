@@ -159,7 +159,7 @@ protected:
 		this->gbuffer_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 0);
 		this->gbuffer_pipeline_manager.setVertexInput(0b1111);
 		std::vector<VkDescriptorSetLayout> layout = {this->gbuffer_descriptor_managers[0].layout};
-		this->gbuffer_pipeline_manager.setDescriptorSetLayout(layout);
+		this->gbuffer_pipeline_manager.setLayout(layout);
 
 		for (size_t i = 1; i < 4; i++)
 		{
@@ -276,7 +276,7 @@ protected:
 		this->light_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 1);
 		this->light_pipeline_manager.setVertexInput(0);
 		std::vector<VkDescriptorSetLayout> layout = {this->light_descriptor_managers[0].layout};
-		this->light_pipeline_manager.setDescriptorSetLayout(layout);
+		this->light_pipeline_manager.setLayout(layout);
 		this->light_pipeline_manager.init();
 	}
 

@@ -80,7 +80,7 @@ protected:
 		this->pipeline_manager.setRenderPass(this->render_pass_manager.pass);
 		this->pipeline_manager.setVertexInput(0b1111);
 		std::vector<VkDescriptorSetLayout> layout = {this->descriptor_managers[0].layout};
-		this->pipeline_manager.setDescriptorSetLayout(layout);
+		this->pipeline_manager.setLayout(layout);
 
 		this->pipeline_manager.init();
 	}

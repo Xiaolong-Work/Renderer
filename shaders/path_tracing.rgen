@@ -9,12 +9,12 @@
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
-layout(set = 0, binding = 0) uniform accelerationStructureEXT top_level_acceleration_structure;
+layout(set = 0, binding = 0) uniform accelerationStructureEXT tlas;
 layout(set = 0, binding = 1, rgba32f) uniform image2D image[];
 layout(set = 0, binding = 2) uniform _GlobalUniforms { GlobalUniforms uni; };
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
-const int NBSAMPLES = 10;
+const int NBSAMPLES = 4;
 
 void main()
 {
@@ -30,7 +30,7 @@ void main()
 
 
 	vec3 hit_value = vec3(0);
-
+	payload.seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pcRay.frame);
 	for(int smpl = 0; smpl < NBSAMPLES; smpl++)
 	{
 		float r1 = rnd(seed);
@@ -48,9 +48,11 @@ void main()
 		float time_min     = 0.001;
 		float time_max     = 10000.0;
 
-		payload.seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pcRay.frame);
+		payload.hit_value = vec3(0);
+		
+		payload.depth = 0;
 
-		traceRayEXT(top_level_acceleration_structure,     
+		traceRayEXT(tlas,     
 			        ray_flags,      
 				    0xFF,           
 					0,              
@@ -66,12 +68,16 @@ void main()
 		hit_value += payload.hit_value;
 	}
 	payload.hit_value = hit_value / NBSAMPLES;
+	vec3  old_color = imageLoad(image[(pcRay.image_index + 1) % 2], ivec2(gl_LaunchIDEXT.xy)).xyz;
+	imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, payload.hit_value, 0.8), 1.f));
+	//imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(payload.hit_value, 1.f));
+	return;
 
   // Do accumulation over time
 	if(pcRay.frame > 0)
 	{
 		float a         = 1.0f / float(pcRay.frame + 1);
-		vec3  old_color = imageLoad(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy)).xyz;
+		vec3  old_color = imageLoad(image[(pcRay.image_index + 1) % 2], ivec2(gl_LaunchIDEXT.xy)).xyz;
 		imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, payload.hit_value, a), 1.f));
 	}
 	else

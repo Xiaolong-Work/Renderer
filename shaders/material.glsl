@@ -1,5 +1,3 @@
-
-
 struct Material
 {
 	/* ========== Blinn-Phong ========== */
@@ -22,4 +20,14 @@ struct Material
 	float roughness;
 
 	int type;
+};
+
+layout(std430, binding = 6) readonly buffer MaterialIndexBuffer
+{
+	int material_indices[];
+};
+
+layout(std430, binding = 7) readonly buffer MaterialBuffer
+{
+	Material materials[];
 };

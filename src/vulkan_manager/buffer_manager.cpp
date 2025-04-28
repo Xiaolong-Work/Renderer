@@ -276,8 +276,6 @@ StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& context_man
 
 void StorageBufferManager::init()
 {
-	VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-
 	if (this->enable_ray_tracing)
 	{
 		usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;

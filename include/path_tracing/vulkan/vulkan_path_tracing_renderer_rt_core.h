@@ -22,6 +22,8 @@ public:
 	VulkanPathTracingRendererRTCore();
 	~VulkanPathTracingRendererRTCore();
 
+	int frame_count = 0;
+
 	void init();
 	void clear();
 
@@ -64,7 +66,7 @@ public:
 		this->present_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 0);
 		this->present_pipeline_manager.setVertexInput(0b0000);
 		std::vector<VkDescriptorSetLayout> layout = {this->present_descriptor_managers[0].layout};
-		this->present_pipeline_manager.setDescriptorSetLayout(layout);
+		this->present_pipeline_manager.setLayout(layout);
 
 		this->present_pipeline_manager.init();
 	}
@@ -75,6 +77,7 @@ public:
 		this->render_pass_manager.init();
 	}
 
+	StorageBufferManager object_luminous_indices_manager{};
 	StorageBufferManager object_address_manager{};
 	StorageBufferManager object_property_manager{};
 	void setupObjectAddress(const Scene& scene)
@@ -89,24 +92,32 @@ public:
 		{
 			Vector3f radiance{0};
 			int is_light{0};
-			Vector3f color{1};
+			int triangle_count{0};
 			float area{0};
 		};
 
 		std::vector<ObjectAddress> all_object_address;
 		std::vector<ObjectProperty> all_object_property;
+		std::vector<int> luminous_indices{};
 
 		uint64_t base_vertex_address = this->vertex_buffer_manager.getBufferAddress();
 		uint64_t base_index_address = this->index_buffer_manager.getBufferAddress();
 		auto& commands = this->indirect_buffer_manager.commands;
 		for (size_t i = 0; i < commands.size(); i++)
 		{
-			auto& object = scene.objects[i];
+			auto object = scene.objects[i];
 			auto& command = commands[i];
 			uint64_t vertex_address = base_vertex_address + command.vertexOffset * sizeof(Vertex);
 			uint64_t index_address = base_index_address + command.firstIndex * sizeof(Index);
 			ObjectAddress address{vertex_address, index_address};
-			ObjectProperty property{object.radiance, object.is_light, object.radiance, object.area};
+
+			if (object.is_light)
+			{
+				object.getArea();
+				luminous_indices.push_back(i);
+			}
+
+			ObjectProperty property{object.radiance, object.is_light, object.triangle_count, object.area};
 			all_object_address.push_back(address);
 			all_object_property.push_back(property);
 		}
@@ -120,6 +131,10 @@ public:
 											  all_object_property.size() * sizeof(ObjectProperty),
 											  all_object_property.size());
 		this->object_property_manager.init();
+
+		this->object_luminous_indices_manager.setData(
+			luminous_indices.data(), luminous_indices.size() * sizeof(int), luminous_indices.size());
+		this->object_luminous_indices_manager.init();
 	}
 
 protected:
@@ -167,6 +182,10 @@ private:
 	PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
 
 	PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
+
+	PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
+
+	PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
 
 	std::array<UniformBufferManager, MAX_FRAMES_IN_FLIGHT> uniform_buffer_managers{};
 

@@ -7,8 +7,13 @@ layout(location = 0) out vec4 outColor;
 
 layout(set = 0, binding = 9, rgba32f) readonly uniform image2D textureSampler;
 
+vec3 gammaCorrect(vec3 color) 
+{
+    return pow(color, vec3(2.2));
+}
+
 void main() 
 {
 	outColor = vec4(1,0,0,1);
-    outColor = imageLoad(textureSampler, ivec2(gl_FragCoord.xy));
+    outColor = vec4(gammaCorrect(imageLoad(textureSampler, ivec2(gl_FragCoord.xy)).xyz), 1);
 }

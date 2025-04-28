@@ -46,8 +46,29 @@ float geometrySmith(vec3 n, vec3 v, vec3 l, float roughness)
 	return ggx1 * ggx2;
 }
 
+vec3 sampleGGXVNDF(vec3 normal, vec3 wi, float roughness, float rand1, float rand2)
+{
+	// 变换粗糙度到半角方向空间
+	float a = roughness * roughness;
 
-vec4 shaderPBR(vec3 radiance, vec3 wi, vec3 wo, float roughness, float metallic, vec4 color, vec3 normal)
+	// 坐标系
+	vec3 up = abs(normal.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+	vec3 tangentX = normalize(cross(up, normal));
+	vec3 tangentY = cross(normal, tangentX);
+
+	// 坐标系中采样
+	float phi = 2.0 * 3.14159265 * rand1;
+	float cosTheta = sqrt((1.0 - rand2) / (1.0 + (a * a - 1.0) * rand2));
+	float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+	vec3 h = cos(phi) * sinTheta * tangentX + sin(phi) * sinTheta * tangentY + cosTheta * normal;
+	vec3 result = reflect(-wi, h);
+
+	return normalize(result);
+}
+
+
+vec3 shaderPBR(vec3 wi, vec3 wo, float roughness, float metallic, vec4 color, vec3 normal)
 {
 	vec3 l = normalize(wo);
 	vec3 v = normalize(wi);
@@ -71,18 +92,14 @@ vec4 shaderPBR(vec3 radiance, vec3 wi, vec3 wo, float roughness, float metallic,
 	float NdotL = max(dot(n, l), 0.0);
 	vec3 diffuse = (vec3(color) / 3.14159265) * kd;
 
-	return vec4((diffuse + specular) * radiance * NdotL, 1.0);
+	return diffuse + specular;  
 }
 
-vec4 shaderPointLightPBR(vec3 position, vec4 color, vec3 normal, vec3 camera_position, PointLight light,  Material material)
+vec3 shaderPointLightPBR(vec3 position, vec4 color, vec3 normal, vec3 camera_position, PointLight light,  Material material)
 {
 	vec3 light_position = light.position;
 	float intensity = light.intensity;
 	vec3 light_color = light.color;
 
-	float r2 = dot((light_position - position), (light_position - position));
-	float irradiance = intensity / (4.0 * 3.14159265 * r2);
-	vec3 radiance = irradiance * light_color;
-
-	return shaderPBR(radiance, camera_position - position, light_position - position, material.roughness, material.metallic, color, normal);
+	return shaderPBR(camera_position - position, light_position - position, material.roughness, material.metallic, color, normal);
 }

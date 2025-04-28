@@ -26,6 +26,16 @@ void VulkanPathTracingRendererRTCore::init()
 
 	this->vkGetRayTracingShaderGroupHandlesKHR = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(
 		this->context_manager.device, "vkGetRayTracingShaderGroupHandlesKHR");
+
+	this->vkGetAccelerationStructureBuildSizesKHR = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(
+		this->context_manager.device, "vkGetAccelerationStructureBuildSizesKHR");
+
+	this->vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(
+		this->context_manager.device, "vkCreateAccelerationStructureKHR");
+
+	this->vkGetAccelerationStructureDeviceAddressKHR =
+		(PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(
+			this->context_manager.device, "vkGetAccelerationStructureDeviceAddressKHR");
 }
 
 void VulkanPathTracingRendererRTCore::clear()
@@ -85,6 +95,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->sbt_buffer_manager = StagingBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_address_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_property_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
+	this->object_luminous_indices_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 
 	for (int i = 0; i < 2; i++)
 	{
@@ -116,7 +127,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 
 	this->setupGraphicsPipelines();
 	this->setupPresentPipeline();
-	
+
 	createShaderBindingTable();
 }
 
@@ -168,7 +179,7 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 
 	PushConstantRay temp{};
 	temp.image_index = current_frame;
-	temp.frame = 0;
+	temp.frame = frame_count++;
 	temp.position = this->camera_position;
 	vkCmdPushConstants(command_buffer,
 					   this->pipeline_manager.layout,
@@ -233,17 +244,46 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 
 void VulkanPathTracingRendererRTCore::setupGraphicsPipelines()
 {
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups(4);
+	for (auto& group : groups)
+	{
+		group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+		group.pNext = nullptr;
+		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+		group.generalShader = VK_SHADER_UNUSED_KHR;
+		group.closestHitShader = VK_SHADER_UNUSED_KHR;
+		group.anyHitShader = VK_SHADER_UNUSED_KHR;
+		group.intersectionShader = VK_SHADER_UNUSED_KHR;
+		group.pShaderGroupCaptureReplayHandle = nullptr;
+	}
+
 	this->pipeline_manager.addShaderStage("path_tracing_rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+	groups[0].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	groups[0].generalShader = 0;
+
 	this->pipeline_manager.addShaderStage("path_tracing_rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
+	groups[1].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	groups[1].generalShader = 1;
+
 	this->pipeline_manager.addShaderStage("path_tracing_rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+	groups[2].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+	groups[2].closestHitShader = 2;
+
+	this->pipeline_manager.addShaderStage("path_tracing_shadow_rahit.spv", VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
+	this->pipeline_manager.addShaderStage("path_tracing_shadow_rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+	groups[3].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+	groups[3].anyHitShader = 3;
+	groups[3].closestHitShader = 4;
+
+	this->pipeline_manager.setShaderGroups(groups);
 
 	std::vector<VkPushConstantRange> push(1);
 	push[0].offset = 0;
 	push[0].size = sizeof(PushConstantRay);
 	push[0].stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	std::vector<VkDescriptorSetLayout> descriptor = {this->descriptor_managers[0].layout};
 
-	std::vector<VkDescriptorSetLayout> layout = {this->descriptor_managers[0].layout};
-	this->pipeline_manager.setDescriptorSetLayout(layout, push);
+	this->pipeline_manager.setLayout(descriptor, push);
 
 	this->pipeline_manager.init();
 }
@@ -275,18 +315,14 @@ void VulkanPathTracingRendererRTCore::createBLAS()
 
 	std::vector<VkAccelerationStructureGeometryTrianglesDataKHR> triangle_datas{};
 	std::vector<VkAccelerationStructureGeometryKHR> geometries{};
-
 	std::vector<VkAccelerationStructureBuildGeometryInfoKHR> build_geometries{};
 	std::vector<VkAccelerationStructureBuildRangeInfoKHR> build_ranges{};
-
 	std::vector<VkAccelerationStructureCreateInfoKHR> acceleration_creates{};
 
 	triangle_datas.resize(geometry_numbers);
 	geometries.resize(geometry_numbers);
-
 	build_geometries.resize(geometry_numbers);
 	build_ranges.resize(geometry_numbers);
-
 	acceleration_creates.resize(geometry_numbers);
 
 	this->blas.resize(geometry_numbers);
@@ -331,11 +367,7 @@ void VulkanPathTracingRendererRTCore::createBLAS()
 		VkAccelerationStructureBuildSizesInfoKHR build_size{};
 		build_size.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 		build_size.pNext = nullptr;
-
 		uint32_t counts[] = {this->all_index_managers[i].indices.size() / 3};
-		auto vkGetAccelerationStructureBuildSizesKHR = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(
-			this->context_manager.device, "vkGetAccelerationStructureBuildSizesKHR");
-
 		vkGetAccelerationStructureBuildSizesKHR(this->context_manager.device,
 												VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 												&build_geometries[i],
@@ -371,8 +403,6 @@ void VulkanPathTracingRendererRTCore::createBLAS()
 	for (size_t i = 0; i < geometry_numbers; i++)
 	{
 		acceleration_creates[i].buffer = this->all_blas_buffer_manager.buffer;
-		auto vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(
-			this->context_manager.device, "vkCreateAccelerationStructureKHR");
 		vkCreateAccelerationStructureKHR(
 			this->context_manager.device, &acceleration_creates[i], nullptr, &this->blas[i]);
 	}
@@ -381,14 +411,12 @@ void VulkanPathTracingRendererRTCore::createBLAS()
 	{
 		build_geometries[i].dstAccelerationStructure = this->blas[i];
 		build_geometries[i].scratchData.deviceAddress = this->scratch_buffer_manager.getBufferAddress();
+		VkAccelerationStructureBuildRangeInfoKHR* ranges[] = {&build_ranges[i]};
 
-		VkAccelerationStructureBuildRangeInfoKHR* temp_range[] = {&build_ranges[i]};
 		auto command_buffer = this->command_manager.beginGraphicsCommands();
 
-		auto vkCmdBuildAccelerationStructuresKHR = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(
-			this->context_manager.device, "vkCmdBuildAccelerationStructuresKHR");
+		vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &build_geometries[i], ranges);
 
-		vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &build_geometries[i], temp_range);
 		this->command_manager.endGraphicsCommands(command_buffer);
 	}
 
@@ -401,18 +429,15 @@ void VulkanPathTracingRendererRTCore::createTLAS()
 	instances.resize(this->blas.size());
 	for (size_t i = 0; i < this->blas.size(); i++)
 	{
+		VkAccelerationStructureDeviceAddressInfoKHR address{};
+		address.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+		address.accelerationStructure = this->blas[i];
+
 		instances[i].transform = this->model_matrixes[i];
 		instances[i].instanceCustomIndex = static_cast<uint32_t>(i);
 		instances[i].mask = 0xFF;
 		instances[i].instanceShaderBindingTableRecordOffset = 0;
 		instances[i].flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-
-		VkAccelerationStructureDeviceAddressInfoKHR address{};
-		address.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-		address.accelerationStructure = this->blas[i];
-		auto vkGetAccelerationStructureDeviceAddressKHR =
-			(PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(
-				this->context_manager.device, "vkGetAccelerationStructureDeviceAddressKHR");
 		instances[i].accelerationStructureReference =
 			vkGetAccelerationStructureDeviceAddressKHR(this->context_manager.device, &address);
 	}
@@ -451,11 +476,7 @@ void VulkanPathTracingRendererRTCore::createTLAS()
 	VkAccelerationStructureBuildSizesInfoKHR build_size{};
 	build_size.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 	build_size.pNext = nullptr;
-
 	uint32_t counts[] = {this->blas.size()};
-	auto vkGetAccelerationStructureBuildSizesKHR = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(
-		this->context_manager.device, "vkGetAccelerationStructureBuildSizesKHR");
-
 	vkGetAccelerationStructureBuildSizesKHR(this->context_manager.device,
 											VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 											&build_geometry,
@@ -488,10 +509,12 @@ void VulkanPathTracingRendererRTCore::createTLAS()
 	build_geometry.scratchData.deviceAddress = this->scratch_buffer_manager.getBufferAddress();
 
 	VkAccelerationStructureBuildRangeInfoKHR build_range{this->blas.size(), 0, 0, 0};
-	VkAccelerationStructureBuildRangeInfoKHR* temp_range[] = {&build_range};
+	VkAccelerationStructureBuildRangeInfoKHR* ranges[] = {&build_range};
 
 	auto command_buffer = this->command_manager.beginGraphicsCommands();
-	vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &build_geometry, temp_range);
+
+	vkCmdBuildAccelerationStructuresKHR(command_buffer, 1, &build_geometry, ranges);
+
 	this->command_manager.endGraphicsCommands(command_buffer);
 
 	this->scratch_buffer_manager.clear();
@@ -499,54 +522,71 @@ void VulkanPathTracingRendererRTCore::createTLAS()
 
 void VulkanPathTracingRendererRTCore::createShaderBindingTable()
 {
-	uint32_t miss_shader_count{1};
-	uint32_t hit_shader_count{1};
+	/* Number of shader groups */
+	uint32_t ray_gen_shader_count = 1; // ray generation
+	uint32_t miss_shader_count = 1;	   // miss shader
+	uint32_t hit_shader_count = 2;	   // 2 hit groups: main hit + shadow hit
 
-	uint32_t handle_count = 1 + miss_shader_count + hit_shader_count; // ray generate + miss hit + close hit
+	uint32_t handle_count = ray_gen_shader_count + miss_shader_count + hit_shader_count;
 
 	uint32_t handle_size = this->ray_tracing_property.shaderGroupHandleSize;
 	uint32_t alignment = this->ray_tracing_property.shaderGroupHandleAlignment;
-
 	uint32_t handle_size_aligned = align(handle_size, alignment);
 
+	// Ray Generation Region
 	this->ray_generate_region.stride = align(handle_size_aligned, this->ray_tracing_property.shaderGroupBaseAlignment);
 	this->ray_generate_region.size = this->ray_generate_region.stride;
 
+	// Miss Region
 	this->ray_miss_region.stride = handle_size_aligned;
 	this->ray_miss_region.size =
 		align(miss_shader_count * handle_size_aligned, this->ray_tracing_property.shaderGroupBaseAlignment);
 
+	// Hit Region
 	this->ray_hit_region.stride = handle_size_aligned;
 	this->ray_hit_region.size =
 		align(hit_shader_count * handle_size_aligned, this->ray_tracing_property.shaderGroupBaseAlignment);
 
+	// 获取所有着色器组的句柄
 	std::vector<uint8_t> handles(handle_count * handle_size);
 	vkGetRayTracingShaderGroupHandlesKHR(this->context_manager.device,
 										 this->pipeline_manager.pipeline,
-										 0,
-										 handle_count,
+										 0,			   // 第一个组
+										 handle_count, // 组数量
 										 static_cast<uint32_t>(handles.size()),
 										 handles.data());
 
+	// 计算 SBT 总大小
 	VkDeviceSize sbt_size = ray_generate_region.size + ray_miss_region.size + ray_hit_region.size;
 
+	// 初始化 SBT Buffer
 	this->sbt_buffer_manager.usage =
 		VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-
 	this->sbt_buffer_manager.size = sbt_size;
 	this->sbt_buffer_manager.init();
 
+	/* Set the device address of each SBT area */
 	VkDeviceAddress sbt_address = this->sbt_buffer_manager.getBufferAddress();
 	this->ray_generate_region.deviceAddress = sbt_address;
 	this->ray_miss_region.deviceAddress = sbt_address + this->ray_generate_region.size;
 	this->ray_hit_region.deviceAddress = sbt_address + this->ray_generate_region.size + this->ray_miss_region.size;
 
+	// 复制句柄到 SBT Buffer
 	uint8_t* sbt_data = reinterpret_cast<uint8_t*>(this->sbt_buffer_manager.mapped);
-	memcpy(sbt_data, handles.data(), handle_size);												  // 复制光线生成句柄
-	memcpy(sbt_data + this->ray_generate_region.size, handles.data() + handle_size, handle_size); // 复制未命中句柄
-	memcpy(sbt_data + this->ray_generate_region.size + this->ray_miss_region.size,
-		   handles.data() + 2 * handle_size,
-		   handle_size); // 复制命中句柄
+
+	// 1. Ray Generation Shader (index 0)
+	memcpy(sbt_data, handles.data(), handle_size);
+
+	// 2. Miss Shader (index 1)
+	memcpy(sbt_data + ray_generate_region.size, handles.data() + handle_size, handle_size);
+
+	// 3. Hit Groups (index 2 and 3)
+	// - Default Hit Group (closest hit)
+	memcpy(sbt_data + ray_generate_region.size + ray_miss_region.size, handles.data() + 2 * handle_size, handle_size);
+	// - Shadow Hit Group (any hit + closest hit)
+	memcpy(sbt_data + ray_generate_region.size + ray_miss_region.size + handle_size_aligned,
+		   handles.data() + 3 * handle_size,
+		   handle_size);
 }
 
 void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
@@ -557,7 +597,7 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	layout_binding.binding = 0;
 	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 	layout_binding.descriptorCount = 1;
-	layout_binding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	layout_binding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 	layout_binding.pImmutableSamplers = nullptr;
 	this->descriptor_managers[index].addLayoutBinding(layout_binding);
 
@@ -593,9 +633,12 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	this->descriptor_managers[index].addDescriptor(
 		this->material_ssbo_manager.getDescriptor(7, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
+	/* Luminous object index descriptor */
+	this->descriptor_managers[index].addDescriptor(
+		this->object_luminous_indices_manager.getDescriptor(8, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+
 	/* ========== Write Descriptor Set ========== */
 	/* TLAS write */
-
 	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
 	write.pNext = nullptr;
 	write.accelerationStructureCount = 1;

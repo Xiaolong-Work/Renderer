@@ -31,50 +31,12 @@ public:
 
 	void setRenderPass(const VkRenderPass render_pass, const uint32_t subpass = 0);
 
-	void setVertexInput(const uint32_t mask)
-	{
-		if ((mask & 0b1000) >> 3 == 1)
-		{
-			VkVertexInputAttributeDescription attribute{};
-			attribute.binding = 0;
-			attribute.location = 0;
-			attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-			attribute.offset = offsetof(Vertex, position);
-			this->attribute_descriptions.push_back(attribute);
-		}
-		if ((mask & 0b100) >> 2 == 1)
-		{
-			VkVertexInputAttributeDescription attribute{};
-			attribute.binding = 0;
-			attribute.location = 1;
-			attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-			attribute.offset = offsetof(Vertex, normal);
-			this->attribute_descriptions.push_back(attribute);
-		}
-		if ((mask & 0b10) >> 1 == 1)
-		{
-			VkVertexInputAttributeDescription attribute{};
-			attribute.binding = 0;
-			attribute.location = 2;
-			attribute.format = VK_FORMAT_R32G32_SFLOAT;
-			attribute.offset = offsetof(Vertex, texture);
-			this->attribute_descriptions.push_back(attribute);
-		}
-		if ((mask & 0b1) >> 0 == 1)
-		{
-			VkVertexInputAttributeDescription attribute{};
-			attribute.binding = 0;
-			attribute.location = 3;
-			attribute.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-			attribute.offset = offsetof(Vertex, color);
-			this->attribute_descriptions.push_back(attribute);
-		}
-	}
+	void setVertexInput(const uint32_t mask);
 
-	std::vector<VkVertexInputAttributeDescription> attribute_descriptions{};
+	void setLayout(const std::vector<VkDescriptorSetLayout>& descriptor_layouts,
+				   const std::vector<VkPushConstantRange>& push_constants = {});
 
-	void setDescriptorSetLayout(const std::vector<VkDescriptorSetLayout>& descriptor_layouts,
-								const std::vector<VkPushConstantRange>& push_constants = {});
+	void setShaderGroups(const std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups);
 
 	/* Optional Values */
 	void* next{nullptr};
@@ -104,6 +66,8 @@ private:
 	std::vector<ShaderManager> shader_managers;
 	std::vector<VkPipelineShaderStageCreateInfo> shader_stages;
 
+	std::vector<VkVertexInputAttributeDescription> attribute_descriptions{};
+
 	VkViewport viewport{};
 	VkRect2D scissor{};
 	VkPipelineViewportStateCreateInfo viewport_state{};
@@ -114,4 +78,6 @@ private:
 	ContextManagerSPtr context_manager_sptr;
 
 	PipelineType type;
+
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shader_groups{};
 };

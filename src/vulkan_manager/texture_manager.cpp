@@ -27,7 +27,7 @@ void TextureManager::createEmptyTexture()
 	VkDeviceMemory image_memory;
 	VkImageView view;
 
-	createImage(this->extent,
+	createImage(VkExtent3D{1, 1, 1},
 				VK_FORMAT_R32G32B32A32_SFLOAT,
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -43,6 +43,11 @@ void TextureManager::createEmptyTexture()
 	this->images.push_back(image);
 	this->memories.push_back(image_memory);
 	this->views.push_back(view);
+
+	VkSampler sampler;
+	ImageManager::createSampler(
+		VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT, sampler, true);
+	this->samplers.push_back(sampler);
 }
 
 void TextureManager::createTexture(const Texture& texture)

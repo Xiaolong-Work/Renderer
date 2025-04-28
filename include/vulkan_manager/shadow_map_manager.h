@@ -319,7 +319,7 @@ public:
 		this->point_pipeline_manager.setRenderPass(this->render_pass_manager.pass);
 		this->point_pipeline_manager.setVertexInput(0b1010);
 		std::vector<VkDescriptorSetLayout> layout = {this->descriptor_manager.layout};
-		this->point_pipeline_manager.setDescriptorSetLayout(layout);
+		this->point_pipeline_manager.setLayout(layout);
 		this->point_pipeline_manager.init();
 	}
 

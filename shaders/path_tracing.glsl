@@ -1,14 +1,8 @@
-/*****************************************************************//**
- * @file   path_tracing.glsl
- * @brief  Ray tracing shader input and output definitions.
- * 
- * @author Xiaolong
- * @date   April 2025
- *********************************************************************/
-
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 struct HitPayload
 {
 	vec3 hit_value;
+	int depth;
 	uint seed;
 };
 
@@ -51,7 +45,7 @@ struct ObjectProperty
 {
 	vec3 radiance;
 	int is_light;
-	vec3 color;
+	int triangle_count;
 	float area;
 };
 

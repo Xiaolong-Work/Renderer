@@ -6,77 +6,57 @@
 #extension GL_EXT_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "path_tracing.glsl"
+#include "path_tracing_vertex.glsl"
 #include "pbr.glsl"
 
+layout(set = 0, binding = 0) uniform accelerationStructureEXT tlas;
+
+layout(binding = 3) uniform sampler2D textures[];
+
+
+
 layout(location = 0) rayPayloadInEXT HitPayload payload;
+layout(location = 1) rayPayloadEXT ShadowPayload shadow_payload;
 
-layout(binding = 3) uniform sampler2D textures[]; 
-layout(std430, binding = 4) readonly buffer ObjectAddressBuffer { ObjectAddress object_address[]; };
-layout(std430, binding = 5) readonly buffer ObjectPropertyBuffer { ObjectProperty object_properties[]; };
-layout(std430, binding = 6) readonly buffer MaterialIndexBuffer { int material_indices[]; };
-layout(std430, binding = 7) readonly buffer MaterialBuffer { Material materials[]; };
-
-layout(buffer_reference, std430) buffer Indices { int data[]; }; 
-layout(buffer_reference, std430) buffer Vertices { float data[]; }; 
-hitAttributeEXT vec2 attributes;
-
-Vertex unpackVertex(Vertices vertices, int start_index)
-{
-    Vertex vertex;
-    vertex.position = vec3(vertices.data[start_index + 0], vertices.data[start_index + 1], vertices.data[start_index + 2]);
-    vertex.normal = vec3(vertices.data[start_index + 3], vertices.data[start_index + 4], vertices.data[start_index + 5]);
-    vertex.texture = vec2(vertices.data[start_index + 6], vertices.data[start_index + 7]);
-    vertex.color = vec4(vertices.data[start_index + 8], vertices.data[start_index + 9], vertices.data[start_index + 10], vertices.data[start_index + 11]);
-    return vertex;
-}
-
-Vertex interpolate(Vertex vertex1, Vertex vertex2, Vertex vertex3, vec3 barycentrics)
-{
-    float a = barycentrics.x;
-    float b = barycentrics.y;
-    float c = barycentrics.z;
-
-    Vertex result;
-    result.position = vertex1.position * a + vertex2.position * b + vertex3.position * c;
-    result.normal = normalize(vertex1.normal * a + vertex2.normal * b + vertex3.normal * c);
-    result.texture = vertex1.texture * a + vertex2.texture * b + vertex3.texture * c;
-    result.color = vertex1.color * a + vertex2.color * b + vertex3.color * c;
-    
-    return result;
-}
 
 void main()
 {
+	uint  ray_flags = gl_RayFlagsNoneEXT;
+	float time_min     = 0.001;
+	float time_max     = 10000.0;
+
 	int material_index = material_indices[gl_InstanceCustomIndexEXT];
 	Material material = materials[material_index];
-
-	ObjectAddress address = object_address[gl_InstanceCustomIndexEXT];
-	Indices indices = Indices(address.index_address);
-	Vertices vertices = Vertices(address.vertex_address);
-
 	ObjectProperty property = object_properties[gl_InstanceCustomIndexEXT];
 
-	int index1 = indices.data[gl_PrimitiveID * 3 + 0];
-	int index2 = indices.data[gl_PrimitiveID * 3 + 1];
-	int index3 = indices.data[gl_PrimitiveID * 3 + 2];
+	Vertex interpolation = getInterpolateVertex();
 
-	Vertex vertex1 = unpackVertex(vertices, index1 * 12);
-	Vertex vertex2 = unpackVertex(vertices, index2 * 12);
-	Vertex vertex3 = unpackVertex(vertices, index3 * 12);
+	vec3 object_position = vec3(gl_ObjectToWorldEXT * vec4(interpolation.position, 1.0));
+	vec3 object_normal = normalize(vec3(interpolation.normal * gl_WorldToObjectEXT));
 
-	vec3 barycentrics = vec3(1.0 - attributes.x - attributes.y, attributes.x, attributes.y);
-	Vertex interpolation = interpolate(vertex1, vertex2, vertex3, barycentrics);
+	vec3 light_position;
+	vec3 light_normal;
+	vec3 light_radiance;
+	float light_pdf;
 
-	vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(interpolation.position, 1.0));
-	vec3 world_normal = normalize(vec3(interpolation.normal * gl_WorldToObjectEXT));
+	sampleLight(light_radiance, light_position, light_normal, light_pdf, payload.seed);
+	light_radiance;
 
+	/* Pointing from the shading point to the camera */
+	vec3 wi = -normalize(gl_WorldRayDirectionEXT);
 
+	/* Pointing from the shading point to the light */
+	vec3 wl = normalize(light_position - object_position);
+
+	/* Rays hit the light source */ 
 	if (property.is_light == 1)
 	{
 		payload.hit_value = property.radiance;
 		return;
 	}
+
+	/* Shadow ray test */
+	traceRayEXT(tlas, ray_flags, 0xFF, 1, 0, 0, object_position, time_min, wl, time_max, 1);
 
 	vec4 color = vec4(0.0f);
 	if (material.albedo_texture != -1)
@@ -87,7 +67,35 @@ void main()
 	{
 		color = material.albedo;
 	}
-	payload.hit_value = vec3(color);
+
+	vec3 result_color = vec3(0);
+	if (shadow_payload.is_hit) 
+	{
+		float distance = length(light_position - object_position);
+
+		vec3 brdf = shaderPBR(wi, wl, material.roughness, material.metallic, color, object_normal);
+		float cos_theta = dot(object_normal, wl);
+		float cos_theta_x = dot(light_normal, -wl);
+		result_color = light_radiance * brdf * cos_theta * cos_theta_x / (distance * distance * light_pdf);
+	}
+	
+	float rand1 = rnd(payload.seed);
+	float rand2 = rnd(payload.seed);
+	vec3 wo = sampleGGXVNDF(object_normal, -wi, material.roughness, rand1, rand2);
+
+	payload.depth++;
+	if (payload.depth >= 5)
+	{
+		payload.hit_value = result_color;
+		return;
+	}
+
+	traceRayEXT(tlas, ray_flags, 0xFF, 0, 0, 0, object_position, time_min, wo, time_max, 0);
+
+	vec3 brdf = shaderPBR(wi, wo, material.roughness, material.metallic, color, object_normal);
+	float pdf_O = 1.0 / 3.14159 * 2;
+	float cos_theta = dot(wo, object_normal);	
+	payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
 	//payload.hit_value = vec3(color * interpolation.color);
 }
 

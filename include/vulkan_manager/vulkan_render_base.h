@@ -120,6 +120,10 @@ public:
 			this->texture_manager.createTexture(texture);
 			this->texture_manager.createSampler(texture);
 		}
+		if (scene.textures.empty())
+		{
+			this->texture_manager.createEmptyTexture();
+		}
 
 		this->shadow_map_manager =
 			ShadowMapManager(std::make_shared<ContextManager>(this->context_manager),

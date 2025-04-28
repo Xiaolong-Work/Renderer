@@ -141,8 +141,48 @@ void PipelineManager::setRenderPass(const VkRenderPass render_pass, const uint32
 	this->subpass = subpass;
 }
 
-void PipelineManager::setDescriptorSetLayout(const std::vector<VkDescriptorSetLayout>& descriptor_layouts,
-											 const std::vector<VkPushConstantRange>& push_constants)
+void PipelineManager::setVertexInput(const uint32_t mask)
+{
+	if ((mask & 0b1000) >> 3 == 1)
+	{
+		VkVertexInputAttributeDescription attribute{};
+		attribute.binding = 0;
+		attribute.location = 0;
+		attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		attribute.offset = offsetof(Vertex, position);
+		this->attribute_descriptions.push_back(attribute);
+	}
+	if ((mask & 0b100) >> 2 == 1)
+	{
+		VkVertexInputAttributeDescription attribute{};
+		attribute.binding = 0;
+		attribute.location = 1;
+		attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		attribute.offset = offsetof(Vertex, normal);
+		this->attribute_descriptions.push_back(attribute);
+	}
+	if ((mask & 0b10) >> 1 == 1)
+	{
+		VkVertexInputAttributeDescription attribute{};
+		attribute.binding = 0;
+		attribute.location = 2;
+		attribute.format = VK_FORMAT_R32G32_SFLOAT;
+		attribute.offset = offsetof(Vertex, texture);
+		this->attribute_descriptions.push_back(attribute);
+	}
+	if ((mask & 0b1) >> 0 == 1)
+	{
+		VkVertexInputAttributeDescription attribute{};
+		attribute.binding = 0;
+		attribute.location = 3;
+		attribute.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attribute.offset = offsetof(Vertex, color);
+		this->attribute_descriptions.push_back(attribute);
+	}
+}
+
+void PipelineManager::setLayout(const std::vector<VkDescriptorSetLayout>& descriptor_layouts,
+								const std::vector<VkPushConstantRange>& push_constants)
 {
 	this->descriptor_layouts = descriptor_layouts;
 	this->push_constants = push_constants;
@@ -160,6 +200,11 @@ void PipelineManager::setDescriptorSetLayout(const std::vector<VkDescriptorSetLa
 	{
 		throw std::runtime_error("Failed to create pipeline layout!");
 	}
+}
+
+void PipelineManager::setShaderGroups(const std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups)
+{
+	this->shader_groups = groups;
 }
 
 void PipelineManager::createPipeline()
@@ -227,36 +272,6 @@ void PipelineManager::createPipeline()
 
 void PipelineManager::createRayTracingPipeline()
 {
-	std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups{};
-	groups.resize(this->shader_stages.size());
-
-	for (auto& group : groups)
-	{
-		group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-		group.pNext = nullptr;
-		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-		group.generalShader = VK_SHADER_UNUSED_KHR;
-		group.closestHitShader = VK_SHADER_UNUSED_KHR;
-		group.anyHitShader = VK_SHADER_UNUSED_KHR;
-		group.intersectionShader = VK_SHADER_UNUSED_KHR;
-		group.pShaderGroupCaptureReplayHandle = nullptr;
-	}
-
-	for (size_t i = 0; i < this->shader_stages.size(); i++)
-	{
-		auto& shader_stage = this->shader_stages[i];
-		if (shader_stage.stage == VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR)
-		{
-			groups[i].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-			groups[i].closestHitShader = static_cast<uint32_t>(i);
-		}
-		else
-		{
-			groups[i].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-			groups[i].generalShader = static_cast<uint32_t>(i);
-		}
-	}
-
 	VkPipelineDynamicStateCreateInfo dynamic_state{};
 	dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamic_state.pNext = nullptr;
@@ -270,9 +285,9 @@ void PipelineManager::createRayTracingPipeline()
 	ray_tracing_pipeline_create.flags = 0;
 	ray_tracing_pipeline_create.stageCount = static_cast<uint32_t>(this->shader_stages.size());
 	ray_tracing_pipeline_create.pStages = this->shader_stages.data();
-	ray_tracing_pipeline_create.groupCount = static_cast<uint32_t>(groups.size());
-	ray_tracing_pipeline_create.pGroups = groups.data();
-	ray_tracing_pipeline_create.maxPipelineRayRecursionDepth = 1;
+	ray_tracing_pipeline_create.groupCount = static_cast<uint32_t>(this->shader_groups.size());
+	ray_tracing_pipeline_create.pGroups = this->shader_groups.data();
+	ray_tracing_pipeline_create.maxPipelineRayRecursionDepth = 5;
 	ray_tracing_pipeline_create.pLibraryInfo = nullptr;
 	ray_tracing_pipeline_create.pLibraryInterface = nullptr;
 	ray_tracing_pipeline_create.pDynamicState = &dynamic_state;

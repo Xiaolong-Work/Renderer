@@ -67,7 +67,7 @@ public:
 
 		// this->point_pipeline_manager.setExtent(swap_chain_manager.extent);
 		// std::vector<VkDescriptorSetLayout> layout = {descriptor_manager.layout};
-		// this->point_pipeline_manager.setDescriptorSetLayout(layout);
+		// this->point_pipeline_manager.setLayout(layout);
 		// this->point_pipeline_manager.setRenderPass(render_pass_manager.pass, 0);
 		// point_pipeline_manager.enable_vertex_inpute = false;
 

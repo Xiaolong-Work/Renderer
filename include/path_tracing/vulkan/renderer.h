@@ -89,7 +89,7 @@ public:
 		this->pipeline_manager.addShaderStage("path_tracing_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
 		std::vector<VkDescriptorSetLayout> layout = {this->descriptorSetLayout};
-		this->pipeline_manager.setDescriptorSetLayout(layout);
+		this->pipeline_manager.setLayout(layout);
 		this->pipeline_manager.setExtent(swap_chain_manager.extent);
 		this->pipeline_manager.setRenderPass(pass, 0);
 		this->pipeline_manager.setVertexInput(0b0000);

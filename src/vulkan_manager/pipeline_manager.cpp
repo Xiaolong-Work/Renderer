@@ -287,7 +287,7 @@ void PipelineManager::createRayTracingPipeline()
 	ray_tracing_pipeline_create.pStages = this->shader_stages.data();
 	ray_tracing_pipeline_create.groupCount = static_cast<uint32_t>(this->shader_groups.size());
 	ray_tracing_pipeline_create.pGroups = this->shader_groups.data();
-	ray_tracing_pipeline_create.maxPipelineRayRecursionDepth = 5;
+	ray_tracing_pipeline_create.maxPipelineRayRecursionDepth = 10;
 	ray_tracing_pipeline_create.pLibraryInfo = nullptr;
 	ray_tracing_pipeline_create.pLibraryInterface = nullptr;
 	ray_tracing_pipeline_create.pDynamicState = &dynamic_state;

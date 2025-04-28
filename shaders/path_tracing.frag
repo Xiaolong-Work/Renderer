@@ -9,7 +9,7 @@ layout(set = 0, binding = 9, rgba32f) readonly uniform image2D textureSampler;
 
 vec3 gammaCorrect(vec3 color) 
 {
-    return pow(color, vec3(2.2));
+    return pow(color, vec3(1.0));
 }
 
 void main() 

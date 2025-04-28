@@ -19,6 +19,33 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(location = 1) rayPayloadEXT ShadowPayload shadow_payload;
 
 
+vec3 glossySample(vec3 wi, vec3 normal, Material material, inout uint random_seed)
+{
+    /* Compute the reflection direction and ensure normalization */
+    vec3 reflect_direction = normalize(reflect(wi, normal));
+
+	float u = rnd(random_seed);
+	float v = rnd(random_seed);
+
+	float exponent = max(material.ns, 0.0f); // Ensure the exponent is non-negative
+	float cos_theta = pow(max(u, 1e-6f), 1.0f / (exponent + 1));
+	float sin_theta = sqrt(1 - cos_theta * cos_theta);
+	float phi = 2.0f * 3.14159 * v;
+
+	float x = sin_theta * cos(phi);
+	float y = sin_theta * sin(phi);
+	float z = cos_theta;
+
+	// Construct an orthonormal basis around the reflection direction
+	vec3 tangent = (abs(reflect_direction.z) > 0.999f) ? vec3(1, 0, 0)
+															: // If too close to the Z-axis, use (1,0,0) as tangent
+					   normalize(cross(reflect_direction, vec3(0, 1, 0)));
+	vec3 bitangent = normalize(cross(tangent, reflect_direction));
+
+	// Transform the sampled direction from local to world space and return
+	return normalize(tangent * x + bitangent * y + reflect_direction * z);
+}
+
 void main()
 {
 	uint  ray_flags = gl_RayFlagsNoneEXT;
@@ -40,7 +67,7 @@ void main()
 	float light_pdf;
 
 	sampleLight(light_radiance, light_position, light_normal, light_pdf, payload.seed);
-	light_radiance;
+	light_radiance = vec3(30);
 
 	/* Pointing from the shading point to the camera */
 	vec3 wi = -normalize(gl_WorldRayDirectionEXT);
@@ -69,22 +96,24 @@ void main()
 	}
 
 	vec3 result_color = vec3(0);
-	if (shadow_payload.is_hit) 
+	if (true) 
 	{
 		float distance = length(light_position - object_position);
 
-		vec3 brdf = shaderPBR(wi, wl, material.roughness, material.metallic, color, object_normal);
+		vec3 brdf = shaderPBR(wi, wl, 1, 0, color, object_normal);
 		float cos_theta = dot(object_normal, wl);
 		float cos_theta_x = dot(light_normal, -wl);
+		light_radiance = vec3(30);
 		result_color = light_radiance * brdf * cos_theta * cos_theta_x / (distance * distance * light_pdf);
 	}
 	
 	float rand1 = rnd(payload.seed);
 	float rand2 = rnd(payload.seed);
-	vec3 wo = sampleGGXVNDF(object_normal, -wi, material.roughness, rand1, rand2);
+	//vec3 wo = sampleGGXVNDF(object_normal, -wi, material.roughness, rand1, rand2);
+	vec3 wo = glossySample(-wi, object_normal, material, payload.seed);
 
 	payload.depth++;
-	if (payload.depth >= 5)
+	if (payload.depth >= 0)
 	{
 		payload.hit_value = result_color;
 		return;
@@ -93,7 +122,7 @@ void main()
 	traceRayEXT(tlas, ray_flags, 0xFF, 0, 0, 0, object_position, time_min, wo, time_max, 0);
 
 	vec3 brdf = shaderPBR(wi, wo, material.roughness, material.metallic, color, object_normal);
-	float pdf_O = 1.0 / 3.14159 * 2;
+	float pdf_O = 1.0 / (3.14159 * 2);
 	float cos_theta = dot(wo, object_normal);	
 	payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
 	//payload.hit_value = vec3(color * interpolation.color);

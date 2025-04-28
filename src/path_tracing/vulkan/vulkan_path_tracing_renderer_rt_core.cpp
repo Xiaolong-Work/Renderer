@@ -179,6 +179,12 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 
 	PushConstantRay temp{};
 	temp.image_index = current_frame;
+	
+	if (this->moved)
+	{
+		this->moved = false;
+		frame_count = 0;
+	}
 	temp.frame = frame_count++;
 	temp.position = this->camera_position;
 	vkCmdPushConstants(command_buffer,

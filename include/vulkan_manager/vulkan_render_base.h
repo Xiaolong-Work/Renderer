@@ -168,6 +168,7 @@ protected:
 
 	bool window_resized = false;
 	double mousePositionX = 0.0f, mousePositionY = 0.0f;
+	bool moved{false};
 
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
@@ -236,6 +237,8 @@ protected:
 		self->camera_look = glm::normalize(direction);
 
 		self->ubo.view = glm::lookAt(self->camera_position, self->camera_position + self->camera_look, self->camera_up);
+
+		self->moved = true;
 	}
 
 	static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)

@@ -19,6 +19,36 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(location = 1) rayPayloadEXT ShadowPayload shadow_payload;
 
 
+vec3 diffuseSample(vec3 normal, inout uint random_seed)
+{
+    /* Generate random numbers */
+    float u = rnd(random_seed);
+    float v = rnd(random_seed);
+
+    /* Cosine-weighted solid angle distribution */
+    float phi = 2 * 3.14159 * u;
+    float cos_theta = sqrt(v);
+    float sin_theta = sqrt(1 - v);
+    float x = cos(phi) * sin_theta;
+    float y = sin(phi) * sin_theta;
+    float z = cos_theta;
+
+    /* Calculate the local coordinate system */
+    vec3 tangent, bitangent;
+	if (abs(normal.z) > 0.999f)
+	{
+		tangent = vec3(1, 0, 0);
+	}
+	else
+	{
+		tangent = normalize(cross(normal, vec3(0, 0, 1)));
+	}
+	bitangent = cross(normal, tangent);
+
+	/* Transform to world coordinates */
+    return tangent * x + bitangent * y + normal * z;
+}
+
 vec3 glossySample(vec3 wi, vec3 normal, Material material, inout uint random_seed)
 {
     /* Compute the reflection direction and ensure normalization */
@@ -47,7 +77,7 @@ vec3 glossySample(vec3 wi, vec3 normal, Material material, inout uint random_see
 }
 
 void main()
-{
+{  
 	uint  ray_flags = gl_RayFlagsNoneEXT;
 	float time_min     = 0.001;
 	float time_max     = 10000.0;
@@ -67,7 +97,6 @@ void main()
 	float light_pdf;
 
 	sampleLight(light_radiance, light_position, light_normal, light_pdf, payload.seed);
-	light_radiance = vec3(30);
 
 	/* Pointing from the shading point to the camera */
 	vec3 wi = -normalize(gl_WorldRayDirectionEXT);
@@ -78,7 +107,14 @@ void main()
 	/* Rays hit the light source */ 
 	if (property.is_light == 1)
 	{
-		payload.hit_value = property.radiance;
+		if (payload.depth == 0)
+		{
+			payload.hit_value = property.radiance;
+		}
+		else
+		{
+			payload.hit_value = vec3(0);
+		}
 		return;
 	}
 
@@ -96,24 +132,22 @@ void main()
 	}
 
 	vec3 result_color = vec3(0);
-	if (true) 
+	if (shadow_payload.is_hit) 
 	{
 		float distance = length(light_position - object_position);
-
-		vec3 brdf = shaderPBR(wi, wl, 1, 0, color, object_normal);
+		vec3 brdf = shaderPBR(wi, wl, material.roughness, material.metallic, color, object_normal);
 		float cos_theta = dot(object_normal, wl);
 		float cos_theta_x = dot(light_normal, -wl);
-		light_radiance = vec3(30);
 		result_color = light_radiance * brdf * cos_theta * cos_theta_x / (distance * distance * light_pdf);
 	}
 	
 	float rand1 = rnd(payload.seed);
 	float rand2 = rnd(payload.seed);
 	//vec3 wo = sampleGGXVNDF(object_normal, -wi, material.roughness, rand1, rand2);
-	vec3 wo = glossySample(-wi, object_normal, material, payload.seed);
-
+	// vec3 wo = glossySample(-wi, object_normal, material, payload.seed);
+	vec3 wo = diffuseSample(object_normal, payload.seed);
 	payload.depth++;
-	if (payload.depth >= 0)
+	if (payload.depth >= 5)
 	{
 		payload.hit_value = result_color;
 		return;
@@ -125,6 +159,7 @@ void main()
 	float pdf_O = 1.0 / (3.14159 * 2);
 	float cos_theta = dot(wo, object_normal);	
 	payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
+	//payload.hit_value = color.xyz;
 	//payload.hit_value = vec3(color * interpolation.color);
 }
 

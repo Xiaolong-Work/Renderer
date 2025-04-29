@@ -14,7 +14,7 @@ layout(set = 0, binding = 1, rgba32f) uniform image2D image[];
 layout(set = 0, binding = 2) uniform _GlobalUniforms { GlobalUniforms uni; };
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
-const int NBSAMPLES = 4;
+const int NBSAMPLES = 1;
 
 void main()
 {

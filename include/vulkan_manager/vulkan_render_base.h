@@ -7,6 +7,7 @@
 #include <buffer_manager.h>
 #include <command_manager.h>
 #include <descriptor_manager.h>
+#include <geometry_buffer_manager.h>
 #include <image_manager.h>
 #include <pipeline_manager.h>
 #include <render_pass_manager.h>
@@ -16,7 +17,6 @@
 #include <swap_chain_manager.h>
 #include <texture_manager.h>
 
-#include <geometry_buffer_manager.h>
 #include <scene.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
@@ -27,31 +27,34 @@ public:
 	VulkanRendererBase() = default;
 	~VulkanRendererBase() = default;
 
+	int fps{0};
+
 	void run()
 	{
-		int count = 0;
-		float sum = 0.0f;
-		while (!glfwWindowShouldClose(context_manager.window))
+		int frame_count = 0;
+		auto now = std::chrono::high_resolution_clock::now();
+		auto last = std::chrono::high_resolution_clock::now();
+		float elapsed = std::chrono::duration<float>(now - last).count();
+
+		while (!glfwWindowShouldClose(this->context_manager.window))
 		{
-			auto begin = std::chrono::system_clock::now();
+			now = std::chrono::high_resolution_clock::now();
+			elapsed = std::chrono::duration<float>(now - last).count();
+
 			glfwPollEvents();
 			draw();
-			auto end = std::chrono::system_clock::now();
 
-			if (sum >= 1000000.0f)
+			frame_count++;
+			if (elapsed >= 1.0f)
 			{
-				outputFrameRate(count);
-				count = 0;
-				sum = 0.0f;
-			}
-			else
-			{
-				count++;
-				sum += (end - begin).count();
+				this->fps = frame_count;
+				outputFrameRate(frame_count);
+				frame_count = 0;
+				last = now;
 			}
 		}
 
-		vkDeviceWaitIdle(context_manager.device);
+		vkDeviceWaitIdle(this->context_manager.device);
 	}
 
 	void setData(const Scene& scene)
@@ -141,27 +144,27 @@ public:
 			this->shadow_map_manager.point_lights = scene.point_lights;
 			this->shadow_map_manager.init();
 		}
-		
+
 		this->camera_position = scene.camera.position;
 		this->camera_up = scene.camera.up;
 		this->camera_look = scene.camera.look;
-		this->fov = scene.camera.fov;
+		this->fovy = scene.camera.fov;
 
-		yaw = glm::degrees(atan2(camera_look.z, camera_look.x));
-		pitch = glm::degrees(asin(camera_look.y));
+		Direction direction = glm::normalize(scene.camera.look - scene.camera.position);
+		yaw = glm::degrees(atan2(direction.z, direction.x));
+		pitch = glm::degrees(asin(direction.y));
 
 		createUniformBufferObjects();
-
 	}
 
 protected:
-	glm::vec3 camera_position = glm::vec3(15, 5, 1);
-	glm::vec3 camera_look = glm::vec3(1, 0, 0);
-	glm::vec3 camera_up = glm::vec3(0, 1, 0);
+	glm::vec3 camera_position{};
+	Direction camera_look{};
+	Direction camera_up{};
 
-	float yaw = 0.0f;
-	float pitch = 0.0f;
-	float fov = 90.0f;
+	float yaw{0.0f};
+	float pitch{0.0f};
+	float fovy{90.0f};
 
 	bool firstMouse = true;
 	bool mouseCaptured = false;
@@ -234,9 +237,9 @@ protected:
 		direction.x = cos(glm::radians(self->yaw)) * cos(glm::radians(self->pitch));
 		direction.y = sin(glm::radians(self->pitch));
 		direction.z = sin(glm::radians(self->yaw)) * cos(glm::radians(self->pitch));
-		self->camera_look = glm::normalize(direction);
+		self->camera_look = glm::normalize(direction) + self->camera_position;
 
-		self->ubo.view = glm::lookAt(self->camera_position, self->camera_position + self->camera_look, self->camera_up);
+		self->ubo.view = glm::lookAt(self->camera_position, self->camera_look, self->camera_up);
 
 		self->moved = true;
 	}
@@ -308,7 +311,7 @@ protected:
 		this->render_pass_manager.recreate();
 
 		this->ubo.project =
-			glm::perspective(glm::radians(90.0f),
+			glm::perspective(glm::radians(this->fovy),
 							 (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
 							 0.1f,
 							 1000.0f);
@@ -318,8 +321,8 @@ protected:
 	void createUniformBufferObjects()
 	{
 		ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = glm::lookAt(camera_position, camera_look, camera_up);
-		ubo.project = glm::perspective(glm::radians(this->fov),
+		ubo.view = glm::lookAt(this->camera_position, this->camera_look, this->camera_up);
+		ubo.project = glm::perspective(glm::radians(this->fovy),
 									   (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
 									   0.1f,
 									   1000.0f);
@@ -389,8 +392,6 @@ protected:
 		this->texture_manager.init();
 
 		createSyncObjects();
-
-		
 
 		if (mask == 1)
 		{

@@ -89,10 +89,9 @@ vec3 shaderPBR(vec3 wi, vec3 wo, float roughness, float metallic, vec4 color, ve
 	vec3 kd = vec3(1.0) - ks;
 	kd *= 1.0 - metallic;
 
-	float NdotL = max(dot(n, l), 0.0);
-	vec3 diffuse = (vec3(color) / 3.14159265) * kd;
+	vec3 diffuse = (vec3(color) / 3.14159265) * max(dot(n, l), 0.0) * kd;
 
-	return diffuse + specular;  
+	return diffuse + specular;
 }
 
 vec3 shaderPointLightPBR(vec3 position, vec4 color, vec3 normal, vec3 camera_position, PointLight light,  Material material)

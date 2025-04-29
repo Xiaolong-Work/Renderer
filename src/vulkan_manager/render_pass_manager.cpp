@@ -85,6 +85,14 @@ void RenderPassManager::recreate()
 
 	this->depth_image_manager.setExtent(swap_chain_manager_sprt->extent);
 	this->depth_image_manager.init();
+
+	this->views.clear();
+	this->views.resize(this->swap_chain_manager_sprt->views.size());
+	for (size_t i = 0; i < this->swap_chain_manager_sprt->views.size(); i++)
+	{
+		this->views[i] = {this->swap_chain_manager_sprt->views[i]};
+	}
+
 	createFrameBuffers();
 }
 

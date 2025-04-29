@@ -114,7 +114,10 @@ public:
 			if (object.is_light)
 			{
 				object.getArea();
-				luminous_indices.push_back(i);
+				if (luminous_indices.empty())
+				{
+					luminous_indices.push_back(i);
+				}
 			}
 
 			ObjectProperty property{object.radiance, object.is_light, object.triangle_count, object.area};

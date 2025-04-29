@@ -181,7 +181,6 @@ void InputOutput::loadXmlFile(const std::string& path)
 				std::istringstream iss(radiance_string);
 				iss >> object.radiance.x >> temp >> object.radiance.y >> temp >> object.radiance.z;
 				object.is_light = true;
-				break;
 			}
 		}
 	}

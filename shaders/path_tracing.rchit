@@ -99,7 +99,7 @@ void main()
 	sampleLight(light_radiance, light_position, light_normal, light_pdf, payload.seed);
 
 	/* Pointing from the shading point to the camera */
-	vec3 wi = -normalize(gl_WorldRayDirectionEXT);
+	vec3 wi = -normalize(gl_WorldRayDirectionEXT); 
 
 	/* Pointing from the shading point to the light */
 	vec3 wl = normalize(light_position - object_position);

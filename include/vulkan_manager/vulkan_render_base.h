@@ -27,28 +27,28 @@ public:
 	VulkanRendererBase() = default;
 	~VulkanRendererBase() = default;
 
-	int fps{0};
+	int frames_per_second{0};
+	double frame_time{0};
 
 	void run()
 	{
 		int frame_count = 0;
-		auto now = std::chrono::high_resolution_clock::now();
 		auto last = std::chrono::high_resolution_clock::now();
-		float elapsed = std::chrono::duration<float>(now - last).count();
-
+		
 		while (!glfwWindowShouldClose(this->context_manager.window))
 		{
-			now = std::chrono::high_resolution_clock::now();
-			elapsed = std::chrono::duration<float>(now - last).count();
+			auto now = std::chrono::high_resolution_clock::now();
+			auto elapsed = std::chrono::duration<double, std::milli>(now - last).count();
 
 			glfwPollEvents();
 			draw();
 
+			outputFrameRate(frames_per_second, frame_time);
+			frame_time = elapsed;
 			frame_count++;
-			if (elapsed >= 1.0f)
+			if (elapsed >= 1000.0f)
 			{
-				this->fps = frame_count;
-				outputFrameRate(frame_count);
+				this->frames_per_second = frame_count;
 				frame_count = 0;
 				last = now;
 			}

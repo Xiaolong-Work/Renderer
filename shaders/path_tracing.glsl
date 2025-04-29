@@ -47,5 +47,7 @@ struct ObjectProperty
 	int is_light;
 	int triangle_count;
 	float area;
+	float pad1;
+	float pad2;
 };
 

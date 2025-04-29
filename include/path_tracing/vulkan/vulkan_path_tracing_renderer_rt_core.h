@@ -82,13 +82,13 @@ public:
 	StorageBufferManager object_property_manager{};
 	void setupObjectAddress(const Scene& scene)
 	{
-		struct ObjectAddress
+		struct alignas(16) ObjectAddress
 		{
 			uint64_t vertex_address;
 			uint64_t index_address;
 		};
 
-		struct ObjectProperty
+		struct alignas(16) ObjectProperty
 		{
 			Vector3f radiance{0};
 			int is_light{0};

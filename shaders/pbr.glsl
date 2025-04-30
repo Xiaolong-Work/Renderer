@@ -14,6 +14,12 @@ vec3 fresnelSchlick(float cos_theta, vec3 r0)
 	return r0 + (1.0 - r0) * pow(1.0 - cos_theta, 5.0);
 }
 
+float fresnelSchlickIor(vec3 n, vec3 v, float ior)
+{
+	float r0 = pow((1.0 - ior) / (1.0 + ior), 2);
+	return (fresnelSchlick(dot(n, v), vec3(r0))).x;
+}
+
 float distributionGGX(vec3 n, vec3 h, float roughness)
 {
 	float a = roughness * roughness;
@@ -44,27 +50,6 @@ float geometrySmith(vec3 n, vec3 v, vec3 l, float roughness)
 	float ggx1 = geometrySchlickGGX(n_dot_v, roughness);
 	float ggx2 = geometrySchlickGGX(n_dot_l, roughness);
 	return ggx1 * ggx2;
-}
-
-vec3 sampleGGXVNDF(vec3 normal, vec3 wi, float roughness, float rand1, float rand2)
-{
-	// 变换粗糙度到半角方向空间
-	float a = roughness * roughness;
-
-	// 坐标系
-	vec3 up = abs(normal.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-	vec3 tangentX = normalize(cross(up, normal));
-	vec3 tangentY = cross(normal, tangentX);
-
-	// 坐标系中采样
-	float phi = 2.0 * 3.14159265 * rand1;
-	float cosTheta = sqrt((1.0 - rand2) / (1.0 + (a * a - 1.0) * rand2));
-	float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
-
-	vec3 h = cos(phi) * sinTheta * tangentX + sin(phi) * sinTheta * tangentY + cosTheta * normal;
-	vec3 result = reflect(-wi, h);
-
-	return normalize(result);
 }
 
 

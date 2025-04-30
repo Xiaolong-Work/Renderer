@@ -3,6 +3,7 @@ struct HitPayload
 {
 	vec3 hit_value;
 	int depth;
+	bool in_object;
 	uint seed;
 };
 

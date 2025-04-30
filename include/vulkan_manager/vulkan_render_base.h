@@ -502,8 +502,8 @@ protected:
 		result = vkQueuePresentKHR(this->context_manager.presentQueue, &present_information);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || window_resized)
 		{
-			window_resized = false;
 			handleWindowResize();
+			window_resized = false;
 		}
 		else if (result != VK_SUCCESS)
 		{

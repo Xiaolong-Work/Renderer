@@ -96,6 +96,28 @@ void InputOutput::loadObjFile(const std::string& path)
 		this->materials[i].ns = material.shininess;
 		this->materials[i].ni = material.ior;
 
+		/* ÅÐ¶Ï²ÄÖÊÀàÐÍ */
+		if (material.shininess > 1.0f)
+		{
+			if (this->materials[i].kd == Vector3f{0.0f, 0.0f, 0.0f} &&
+				this->materials[i].ks == Vector3f{1.0f, 1.0f, 1.0f})
+			{
+				this->materials[i].type = MaterialType::Specular;
+			}
+			else
+			{
+				this->materials[i].type = MaterialType::Glossy;
+			}
+		}
+		else if (this->materials[i].ni > 1.0f)
+		{
+			this->materials[i].type = MaterialType::Refraction;
+		}
+		else
+		{
+			this->materials[i].type = MaterialType::Diffuse;
+		}
+
 		if (material.diffuse_texname != "")
 		{
 			auto diffuse_texture_path = path + material.diffuse_texname;

@@ -79,7 +79,7 @@ vec3 glossySample(vec3 wi, vec3 normal, Material material, inout uint random_see
 void main()
 {  
 	uint  ray_flags = gl_RayFlagsNoneEXT;
-	float time_min     = 0.001;
+	float time_min     = 0.0001;
 	float time_max     = 10000.0;
 
 	int material_index = material_indices[gl_InstanceCustomIndexEXT];
@@ -90,6 +90,7 @@ void main()
 
 	vec3 object_position = vec3(gl_ObjectToWorldEXT * vec4(interpolation.position, 1.0));
 	vec3 object_normal = normalize(vec3(interpolation.normal * gl_WorldToObjectEXT));
+	object_position += object_normal * 0.001;
 
 	vec3 light_position;
 	vec3 light_normal;
@@ -143,9 +144,41 @@ void main()
 	
 	float rand1 = rnd(payload.seed);
 	float rand2 = rnd(payload.seed);
-	//vec3 wo = sampleGGXVNDF(object_normal, -wi, material.roughness, rand1, rand2);
-	// vec3 wo = glossySample(-wi, object_normal, material, payload.seed);
+	//vec3 wo = sampleGGXVNDF(object_normal, wi, material.roughness, rand1, rand2);
+	//vec3 wo = glossySample(-wi, object_normal, material, payload.seed);
 	vec3 wo = diffuseSample(object_normal, payload.seed);
+	float pdf_O = 1.0 / (3.14159 * 2);
+
+	if (material.type == 1)
+	{
+		wo = reflect(-wi, object_normal);
+		pdf_O = 1.0;
+	}
+	else if (material.type == 2)
+	{
+		float p = fresnelSchlickIor(object_normal, wi, material.ni);
+		if (rnd(payload.seed) < p)
+		{
+			wo = reflect(-wi, object_normal);
+			pdf_O = p;
+		}
+		else
+		{
+				wo = -wi;
+				pdf_O = 1.0 - p; 
+				object_position -= object_normal * 0.003;
+				payload.in_object = true;
+		}
+		//} 
+		//else
+		//{
+		//	wo = -wi;
+		//	pdf_O = 1.0; 
+		//	object_position += object_normal * 0.003;
+		//	payload.in_object = false;
+		//}
+	}
+
 	payload.depth++;
 	if (payload.depth >= 5)
 	{
@@ -155,10 +188,17 @@ void main()
 
 	traceRayEXT(tlas, ray_flags, 0xFF, 0, 0, 0, object_position, time_min, wo, time_max, 0);
 
-	vec3 brdf = shaderPBR(wi, wo, material.roughness, material.metallic, color, object_normal);
-	float pdf_O = 1.0 / (3.14159 * 2);
-	float cos_theta = dot(wo, object_normal);	
-	payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
+	if (material.type == 0 || material.type == 3)
+	{
+		vec3 brdf = shaderPBR(wi, wo, material.roughness, material.metallic, color, object_normal);
+		
+		float cos_theta = dot(wo, object_normal);	
+		payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
+	}
+	else
+	{
+		payload.hit_value = payload.hit_value / pdf_O;
+	}
 	//payload.hit_value = color.xyz;
 	//payload.hit_value = vec3(color * interpolation.color);
 }

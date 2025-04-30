@@ -43,7 +43,10 @@ public:
 			glfwPollEvents();
 			draw();
 
-			outputFrameRate(frames_per_second, frame_time);
+			auto next = std::chrono::high_resolution_clock::now();
+			this->frame_time = std::chrono::duration<double, std::milli>(next - now).count();
+
+			outputFrameRate(this->frames_per_second, this->frame_time);
 			frame_time = elapsed;
 			frame_count++;
 			if (elapsed >= 1000.0f)

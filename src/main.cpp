@@ -121,11 +121,23 @@ int main()
 	// pathTracingRender();
 	// pathTracingRTCore();
 
-	int scene_index = 2;
+	int scene_index = 0;
 	std::string path = std::string(ROOT_DIR) + "/models/" + name[scene_index] + "/";
 	InputOutput io(name[scene_index]);
 	io.loadObjFile(path);
 	io.loadXmlFile(path);
+	if (scene_index == 2)
+	{
+		for (auto& vertex : io.objects[3].vertices)
+		{
+			vertex.normal *= -1;
+		}
+		for (auto& vertex : io.objects[4].vertices)
+		{
+			vertex.normal *= -1;
+		}
+	}
+	
 	io.point_lights.push_back(PointLight{{-2, 13, -17}, {1.0f, 1.0f, 1.0f}, 100000.0f});
 
 	// std::string path = std::string(ROOT_DIR) + "/models/viking_room/";

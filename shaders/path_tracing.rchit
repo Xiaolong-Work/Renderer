@@ -90,7 +90,6 @@ void main()
 
 	vec3 object_position = vec3(gl_ObjectToWorldEXT * vec4(interpolation.position, 1.0));
 	vec3 object_normal = normalize(vec3(interpolation.normal * gl_WorldToObjectEXT));
-	object_position += object_normal * 0.001;
 
 	vec3 light_position;
 	vec3 light_normal;
@@ -99,11 +98,20 @@ void main()
 
 	sampleLight(light_radiance, light_position, light_normal, light_pdf, payload.seed);
 
+	
+
 	/* Pointing from the shading point to the camera */
 	vec3 wi = -normalize(gl_WorldRayDirectionEXT); 
 
 	/* Pointing from the shading point to the light */
 	vec3 wl = normalize(light_position - object_position);
+
+	if (payload.depth == 0 && dot(object_normal, wi) < -0.9)
+	{
+		payload.hit_value = vec3(1, 0, 0);
+		object_properties[gl_InstanceCustomIndexEXT].pad1 = 1;
+		return;
+	}
 
 	/* Rays hit the light source */ 
 	if (property.is_light == 1)
@@ -156,31 +164,39 @@ void main()
 	}
 	else if (material.type == 2)
 	{
-		float p = fresnelSchlickIor(object_normal, wi, material.ni);
-		if (rnd(payload.seed) < p)
+		float ior;
+		vec3 temp_normal;
+		if (payload.in_object)
 		{
-			wo = reflect(-wi, object_normal);
-			pdf_O = p;
+			temp_normal = -object_normal;
+			ior = material.ni;
 		}
 		else
 		{
-				wo = -wi;
-				pdf_O = 1.0 - p; 
-				object_position -= object_normal * 0.003;
-				payload.in_object = true;
+			temp_normal = object_normal;
+			ior = 1.0 / material.ni;
 		}
-		//} 
-		//else
-		//{
-		//	wo = -wi;
-		//	pdf_O = 1.0; 
-		//	object_position += object_normal * 0.003;
-		//	payload.in_object = false;
-		//}
+		
+		float p = fresnelSchlickIor(temp_normal, wi, 1.0 / ior);
+		if (rnd(payload.seed) < p)
+		{
+			wo = reflect(-wi, temp_normal);
+			pdf_O = 1.0;
+		}
+		else
+		{
+			wo = refract(-wi, temp_normal, ior);
+			if (length(wo) == 0)
+			{
+				wo = reflect(-wi, temp_normal);
+			}
+			pdf_O = 1.0 - p; 
+			payload.in_object = !payload.in_object;
+		}
 	}
 
 	payload.depth++;
-	if (payload.depth >= 5)
+	if (payload.depth >= 8)
 	{
 		payload.hit_value = result_color;
 		return;

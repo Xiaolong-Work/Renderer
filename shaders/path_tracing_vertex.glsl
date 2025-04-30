@@ -10,7 +10,7 @@ layout(std430, binding = 4) readonly buffer ObjectAddressBuffer
 	ObjectAddress object_address[];
 };
 
-layout(std430, binding = 5) readonly buffer ObjectPropertyBuffer
+layout(std430, binding = 5) buffer ObjectPropertyBuffer
 {
 	ObjectProperty object_properties[];
 };

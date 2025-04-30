@@ -16,30 +16,12 @@ void VulkanPathTracingRendererRTCore::init()
 	VulkanRendererBase::init(1);
 	this->getFeatureProperty();
 
-	this->vkCmdBuildAccelerationStructuresKHR = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(
-		this->context_manager.device, "vkCmdBuildAccelerationStructuresKHR");
-	this->vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(
-		this->context_manager.device, "vkCreateAccelerationStructureKHR");
-
-	this->vkCmdTraceRaysKHR =
-		(PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(this->context_manager.device, "vkCmdTraceRaysKHR");
-
-	this->vkGetRayTracingShaderGroupHandlesKHR = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(
-		this->context_manager.device, "vkGetRayTracingShaderGroupHandlesKHR");
-
-	this->vkGetAccelerationStructureBuildSizesKHR = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(
-		this->context_manager.device, "vkGetAccelerationStructureBuildSizesKHR");
-
-	this->vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(
-		this->context_manager.device, "vkCreateAccelerationStructureKHR");
-
-	this->vkGetAccelerationStructureDeviceAddressKHR =
-		(PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(
-			this->context_manager.device, "vkGetAccelerationStructureDeviceAddressKHR");
+	this->setupFunction();
 }
 
 void VulkanPathTracingRendererRTCore::clear()
 {
+	VulkanRendererBase::clear();
 }
 
 void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
@@ -54,8 +36,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->all_index_managers.resize(scene.objects.size());
 
 	auto getTransformMatrix = [](const Matrix4f& model) {
-		VkTransformMatrixKHR result;
-
+		VkTransformMatrixKHR result{};
 		for (uint32_t row = 0; row < 3; row++)
 		{
 			for (uint32_t col = 0; col < 4; col++)
@@ -63,7 +44,6 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 				result.matrix[row][col] = model[col][row];
 			}
 		}
-
 		return result;
 	};
 
@@ -97,7 +77,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->object_property_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_luminous_indices_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		this->storage_image_managers[i] = StorageImageManager(context_manager_sptr, command_manager_sptr);
 		this->storage_image_managers[i].setExtent(this->swap_chain_manager.extent);
@@ -128,7 +108,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->setupGraphicsPipelines();
 	this->setupPresentPipeline();
 
-	createShaderBindingTable();
+	this->createShaderBindingTable();
 }
 
 struct PushConstantRay
@@ -179,7 +159,7 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 
 	PushConstantRay temp{};
 	temp.image_index = current_frame;
-	
+
 	if (this->moved)
 	{
 		this->moved = false;
@@ -283,11 +263,11 @@ void VulkanPathTracingRendererRTCore::setupGraphicsPipelines()
 
 	this->pipeline_manager.setShaderGroups(groups);
 
+	std::vector<VkDescriptorSetLayout> descriptor = {this->descriptor_managers[0].layout};
 	std::vector<VkPushConstantRange> push(1);
 	push[0].offset = 0;
 	push[0].size = sizeof(PushConstantRay);
 	push[0].stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-	std::vector<VkDescriptorSetLayout> descriptor = {this->descriptor_managers[0].layout};
 
 	this->pipeline_manager.setLayout(descriptor, push);
 
@@ -687,6 +667,28 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	this->descriptor_managers[index].addWrite(this->uniform_buffer_managers[index].getWriteInformation(2));
 
 	this->descriptor_managers[index].init();
+}
+
+void VulkanPathTracingRendererRTCore::setupFunction()
+{
+	this->vkCmdBuildAccelerationStructuresKHR = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(
+		this->context_manager.device, "vkCmdBuildAccelerationStructuresKHR");
+
+	this->vkGetRayTracingShaderGroupHandlesKHR = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(
+		this->context_manager.device, "vkGetRayTracingShaderGroupHandlesKHR");
+
+	this->vkGetAccelerationStructureBuildSizesKHR = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(
+		this->context_manager.device, "vkGetAccelerationStructureBuildSizesKHR");
+
+	this->vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(
+		this->context_manager.device, "vkCreateAccelerationStructureKHR");
+
+	this->vkGetAccelerationStructureDeviceAddressKHR =
+		(PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(
+			this->context_manager.device, "vkGetAccelerationStructureDeviceAddressKHR");
+
+	this->vkCmdTraceRaysKHR =
+		(PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(this->context_manager.device, "vkCmdTraceRaysKHR");
 }
 
 void VulkanPathTracingRendererRTCore::createAcceleration()

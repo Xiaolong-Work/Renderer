@@ -94,6 +94,8 @@ public:
 			int is_light{0};
 			int triangle_count{0};
 			float area{0};
+			float pad1{0};
+			float pad2{0};
 		};
 
 		std::vector<ObjectAddress> all_object_address;
@@ -114,10 +116,8 @@ public:
 			if (object.is_light)
 			{
 				object.getArea();
-				if (luminous_indices.empty())
-				{
-					luminous_indices.push_back(i);
-				}
+
+				luminous_indices.push_back(i);
 			}
 
 			ObjectProperty property{object.radiance, object.is_light, object.triangle_count, object.area};
@@ -139,6 +139,8 @@ public:
 			luminous_indices.data(), luminous_indices.size() * sizeof(int), luminous_indices.size());
 		this->object_luminous_indices_manager.init();
 	}
+
+	void setupFunction();
 
 protected:
 	void getFeatureProperty();

@@ -10,7 +10,7 @@ layout(std430, binding = 4) readonly buffer ObjectAddressBuffer
 	ObjectAddress object_address[];
 };
 
-layout(std430, binding = 5) buffer ObjectPropertyBuffer
+layout(std430, binding = 5) readonly buffer ObjectPropertyBuffer
 {
 	ObjectProperty object_properties[];
 };
@@ -113,7 +113,7 @@ void sampleObject(int index, inout vec3 position, inout vec3 normal, inout uint 
 void sampleLight(inout vec3 radiance, inout vec3 position, inout vec3 normal, inout float pdf, inout uint random_seed)
 {
 	float emit_area_sum = 0;
-	for (int i = 0; i < 1; i++)
+	for (int i = 0; i < light_object_index.length(); i++)
 	{
 		emit_area_sum += object_properties[light_object_index[i]].area;
 	}
@@ -121,7 +121,7 @@ void sampleLight(inout vec3 radiance, inout vec3 position, inout vec3 normal, in
 	float p = rnd(random_seed) * emit_area_sum;
 
 	emit_area_sum = 0;
-	for (int i = 0; i < 1; i++)
+	for (int i = 0; i < light_object_index.length(); i++)
 	{
 		emit_area_sum += object_properties[light_object_index[i]].area;
 		if (p <= emit_area_sum)

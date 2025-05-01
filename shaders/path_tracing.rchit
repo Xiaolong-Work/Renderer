@@ -19,6 +19,70 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(location = 1) rayPayloadEXT ShadowPayload shadow_payload;
 
 
+//// 采样 GGX 微表面法线 h
+//vec3 sampleGGX(float alpha, vec3 N, vec3 T, vec3 B, inout float seed)
+//{
+//	// 计算 theta 和 phi
+//	float phi = 2.0 * PI * xi.x;
+//	float cos_theta = sqrt((1.0 - xi.y) / (1.0 + (alpha * alpha - 1.0) * xi.y));
+//	float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+//
+//	// 构造 h 在局部坐标系
+//	vec3 h_local = vec3(sin_theta * cos(phi), sin_theta * sin(phi), cos_theta);
+//
+//	// 转换到世界坐标系
+//	return normalize(T * h_local.x + B * h_local.y + N * h_local.z);
+//}
+//
+//vec3 sampleSpecularGGX(float roughness, vec3 N, vec3 T, vec3 B, vec3 wi, inout float seed) 
+//{
+//	float alpha = roughness * roughness;
+//    vec3 h = sampleGGX(alpha, N, T, B);
+//    return reflect(-wi, h);  // 注意：V 应指向表面
+//}
+
+//float computeGGXPDF(vec3 N, vec3 H, vec3 V, float alpha) 
+//{
+//    float NdotH = max(dot(N, H), 0.0);
+//    float HdotV = max(dot(H, V), 0.0);
+//    float NdotV = max(dot(N, V), 0.0);
+//    
+//    float D = ggxDistribution(NdotH, alpha); // GGX NDF
+//    return (D * NdotH) / (4.0 * HdotV);
+//}
+
+vec3 sampleGGX(float roughness, vec3 normal, inout uint seed) 
+{
+    float alpha = roughness * roughness;
+	float rand1 = rnd(seed);
+	float rand2 = rnd(seed);
+
+    float phi = 2.0 * 3.14159265 * rand1;
+    float cos_theta = sqrt((1.0 - rand2) / (1.0 + (alpha * alpha - 1.0) * rand2));
+    float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+
+    // 微表面法线在切线空间下的坐标
+    vec3 h_tangent = vec3(
+        sin_theta * cos(phi),
+        sin_theta * sin(phi),
+        cos_theta
+    );
+
+    // 创建与 n 对齐的切线空间基底
+    vec3 up = abs(normal.z) < 0.999 ? vec3(0, 0, 1) : vec3(1, 0, 0);
+    vec3 tangent = normalize(cross(up, normal));
+    vec3 bitangent = cross(normal, tangent);
+
+    // 将切线空间中的方向转换到世界空间
+    vec3 h = normalize(
+        tangent * h_tangent.x +
+        bitangent * h_tangent.y +
+        normal * h_tangent.z
+    );
+
+    return h;
+}
+
 vec3 diffuseSample(vec3 normal, inout uint random_seed)
 {
     /* Generate random numbers */
@@ -106,13 +170,6 @@ void main()
 	/* Pointing from the shading point to the light */
 	vec3 wl = normalize(light_position - object_position);
 
-	if (payload.depth == 0 && dot(object_normal, wi) < -0.9)
-	{
-		payload.hit_value = vec3(1, 0, 0);
-		object_properties[gl_InstanceCustomIndexEXT].pad1 = 1;
-		return;
-	}
-
 	/* Rays hit the light source */ 
 	if (property.is_light == 1)
 	{
@@ -134,7 +191,7 @@ void main()
 	if (material.albedo_texture != -1)
 	{
 		color = texture(textures[material.albedo_texture], interpolation.texture);
-	}
+	} 
 	else
 	{
 		color = material.albedo;
@@ -154,7 +211,11 @@ void main()
 	float rand2 = rnd(payload.seed);
 	//vec3 wo = sampleGGXVNDF(object_normal, wi, material.roughness, rand1, rand2);
 	//vec3 wo = glossySample(-wi, object_normal, material, payload.seed);
+	//vec3 h = sampleGGX(material.roughness, object_normal, payload.seed);
+	//vec3 wo = reflect(-wi, h);
+
 	vec3 wo = diffuseSample(object_normal, payload.seed);
+
 	float pdf_O = 1.0 / (3.14159 * 2);
 
 	if (material.type == 1)
@@ -177,7 +238,7 @@ void main()
 			ior = 1.0 / material.ni;
 		}
 		
-		float p = fresnelSchlickIor(temp_normal, wi, 1.0 / ior);
+		float p = fresnelSchlickIor(wi, wo, ior);
 		if (rnd(payload.seed) < p)
 		{
 			wo = reflect(-wi, temp_normal);
@@ -186,17 +247,22 @@ void main()
 		else
 		{
 			wo = refract(-wi, temp_normal, ior);
+			pdf_O = 1.0 - p; 
 			if (length(wo) == 0)
 			{
 				wo = reflect(-wi, temp_normal);
+				pdf_O = 1;
 			}
-			pdf_O = 1.0 - p; 
+			
 			payload.in_object = !payload.in_object;
 		}
 	}
+	
+		
+	
 
 	payload.depth++;
-	if (payload.depth >= 8)
+	if (payload.depth >= 7) 
 	{
 		payload.hit_value = result_color;
 		return;
@@ -218,48 +284,4 @@ void main()
 	//payload.hit_value = color.xyz;
 	//payload.hit_value = vec3(color * interpolation.color);
 }
-
-//void main()
-//{
-//    // 物体数据
-//    ObjDesc    objResource = objDesc.i[gl_InstanceCustomIndexEXT];
-//    MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
-//    Materials  materials   = Materials(objResource.materialAddress);
-//    Indices    indices     = Indices(objResource.indexAddress);
-//    Vertices   vertices    = Vertices(objResource.vertexAddress);
-//  
-//    // 三角形的索引
-//    ivec3 ind = indices.i[gl_PrimitiveID];
-//  
-//    // 三角形的顶点
-//    Vertex v0 = vertices.v[ind.x];
-//    Vertex v1 = vertices.v[ind.y];
-//    Vertex v2 = vertices.v[ind.z];
-//
-//	 const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
-//	 // 计算命中位置的坐标
-//	const vec3 pos      = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
-//	const vec3 worldPos = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0));  // 将位置转换到世界空间
-//
-//	// 计算命中位置的法线
-//	const vec3 nrm      = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
-//	const vec3 worldNrm = normalize(vec3(nrm * gl_WorldToObjectEXT));  // 将法线转换到世界空间
-//
-//	 // 指向光源的向量
-//	vec3  L;
-//	float lightIntensity = pcRay.lightIntensity;
-//	float lightDistance  = 100000.0;
-//	// 点光源
-//	if(pcRay.lightType == 0)
-//	{
-//	  vec3 lDir      = pcRay.lightPosition - worldPos;
-//	  lightDistance  = length(lDir);
-//	  lightIntensity = pcRay.lightIntensity / (lightDistance * lightDistance);
-//	  L              = normalize(lDir);
-//	}
-//	else  // 方向光
-//	{
-//	  L = normalize(pcRay.lightPosition);
-//	}
-//}
 

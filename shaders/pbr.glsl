@@ -9,15 +9,17 @@
 #include "light.glsl"
 #include "material.glsl"
 
-vec3 fresnelSchlick(float cos_theta, vec3 r0)
+vec3 fresnelSchlick(vec3 h, vec3 wi, vec3 r0)
 {
-	return r0 + (1.0 - r0) * pow(1.0 - cos_theta, 5.0);
+	return r0 + (vec3(1.0) - r0) * pow(1.0 - max(dot(wi, h), 0), 5.0);
 }
 
-float fresnelSchlickIor(vec3 n, vec3 v, float ior)
+float fresnelSchlickIor(vec3 wi, vec3 wo, float ior)
 {
-	float r0 = pow((1.0 - ior) / (1.0 + ior), 2);
-	return (fresnelSchlick(dot(n, v), vec3(r0))).x;
+	vec3 h = normalize(wi + wo);
+	float r0 = (ior - 1.0) / (ior + 1.0);
+	r0 = r0 * r0;
+	return (fresnelSchlick(h, wi, vec3(r0))).x;
 }
 
 float distributionGGX(vec3 n, vec3 h, float roughness)
@@ -25,10 +27,9 @@ float distributionGGX(vec3 n, vec3 h, float roughness)
 	float a = roughness * roughness;
 	float a2 = a * a;
 	float n_dot_h = max(dot(n, h), 0.0);
-	float n_dot_h2 = n_dot_h * n_dot_h;
 
 	float numerator = a2;
-	float denominator = (n_dot_h2 * (a2 - 1.0) + 1.0);
+	float denominator = (n_dot_h * n_dot_h * (a2 - 1.0) + 1.0);
 	denominator = 3.14159265 * denominator * denominator;
 
 	return numerator / denominator;
@@ -55,14 +56,14 @@ float geometrySmith(vec3 n, vec3 v, vec3 l, float roughness)
 
 vec3 shaderPBR(vec3 wi, vec3 wo, float roughness, float metallic, vec4 color, vec3 normal)
 {
-	vec3 l = normalize(wo);
 	vec3 v = normalize(wi);
+	vec3 l = normalize(wo);
 	vec3 n = normalize(normal);
 	vec3 h = normalize(v + l);
 
 	vec3 r0 = mix(vec3(0.04), vec3(color), metallic);
 
-	vec3 f = fresnelSchlick(max(dot(h, v), 0.0), r0);
+	vec3 f = fresnelSchlick(h, v, r0);
 	float d = distributionGGX(n, h, roughness);
 	float g = geometrySmith(n, v, l, roughness);
 
@@ -87,3 +88,4 @@ vec3 shaderPointLightPBR(vec3 position, vec4 color, vec3 normal, vec3 camera_pos
 
 	return shaderPBR(camera_position - position, light_position - position, material.roughness, material.metallic, color, normal);
 }
+

@@ -96,8 +96,8 @@ void InputOutput::loadObjFile(const std::string& path)
 		this->materials[i].ns = material.shininess;
 		this->materials[i].ni = material.ior;
 
-		/* ÅÐ¶Ï²ÄÖÊÀàÐÍ */
-		if (material.shininess > 1.0f)
+		/* Determine the material type */
+		if (this->materials[i].ns > 1.0f)
 		{
 			if (this->materials[i].kd == Vector3f{0.0f, 0.0f, 0.0f} &&
 				this->materials[i].ks == Vector3f{1.0f, 1.0f, 1.0f})

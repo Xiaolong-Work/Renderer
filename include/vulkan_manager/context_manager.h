@@ -24,15 +24,15 @@ public:
 	VkPhysicalDevice physical_device = VK_NULL_HANDLE;
 	VkDevice device;
 
-	uint32_t graphicsFamily;
-	uint32_t transferFamily;
-	uint32_t presentFamily;
-	uint32_t computeFamily;
+	uint32_t graphics_family;
+	uint32_t transfer_family;
+	uint32_t present_family;
+	uint32_t compute_family;
 
-	VkQueue graphicsQueue;
-	VkQueue transferQueue;
-	VkQueue presentQueue;
-	VkQueue computeQueue;
+	VkQueue graphics_queue;
+	VkQueue transfer_queue;
+	VkQueue present_queue;
+	VkQueue compute_queue;
 
 	VkSurfaceKHR surface;
 
@@ -68,8 +68,8 @@ private:
 #else
 	bool enableValidationLayers = true;
 #endif
-	uint32_t windowWidth = 1024;
-	uint32_t windowHeight = 1024;
+	uint32_t window_width = 1024;
+	uint32_t window_height = 1024;
 
 	VkDebugUtilsMessengerEXT debugMessenger;
 };

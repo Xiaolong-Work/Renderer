@@ -20,9 +20,10 @@ public:
 	void addPoolSize(const VkDescriptorType type, const uint32_t size);
 	void addWrite(const VkWriteDescriptorSet& write);
 
-	void addDescriptor(std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> descriptor);
+	void addDescriptor(const std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet>& descriptor);
+	void addDescriptors(const std::vector<std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet>>& descriptors);
 
-	VkDescriptorSetLayout layout{};
+		VkDescriptorSetLayout layout { };
 	VkDescriptorPool pool{};
 	VkDescriptorSet set{};
 

@@ -24,19 +24,19 @@ void CommandManager::createCommandPool()
 	graphicsPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	graphicsPoolInfo.pNext = nullptr;
 	graphicsPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	graphicsPoolInfo.queueFamilyIndex = context_manager_sptr->graphicsFamily;
+	graphicsPoolInfo.queueFamilyIndex = context_manager_sptr->graphics_family;
 
 	VkCommandPoolCreateInfo transferPoolInfo{};
 	transferPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	transferPoolInfo.pNext = nullptr;
 	transferPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-	transferPoolInfo.queueFamilyIndex = context_manager_sptr->transferFamily;
+	transferPoolInfo.queueFamilyIndex = context_manager_sptr->transfer_family;
 
 	VkCommandPoolCreateInfo computePoolInfo{};
 	computePoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	computePoolInfo.pNext = nullptr;
 	computePoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-	computePoolInfo.queueFamilyIndex = context_manager_sptr->computeFamily;
+	computePoolInfo.queueFamilyIndex = context_manager_sptr->compute_family;
 
 	if (vkCreateCommandPool(context_manager_sptr->device, &graphicsPoolInfo, nullptr, &this->graphicsCommandPool) !=
 		VK_SUCCESS)
@@ -111,8 +111,8 @@ void CommandManager::endTransferCommands(VkCommandBuffer command_buffer)
 	submit.signalSemaphoreCount = 0;
 	submit.pSignalSemaphores = nullptr;
 
-	vkQueueSubmit(context_manager_sptr->transferQueue, 1, &submit, VK_NULL_HANDLE);
-	vkQueueWaitIdle(context_manager_sptr->transferQueue);
+	vkQueueSubmit(context_manager_sptr->transfer_queue, 1, &submit, VK_NULL_HANDLE);
+	vkQueueWaitIdle(context_manager_sptr->transfer_queue);
 	vkFreeCommandBuffers(context_manager_sptr->device, this->transferCommandPool, 1, &command_buffer);
 }
 
@@ -153,8 +153,8 @@ void CommandManager::endComputeCommands(VkCommandBuffer command_buffer)
 	submit.signalSemaphoreCount = 0;
 	submit.pSignalSemaphores = nullptr;
 
-	vkQueueSubmit(context_manager_sptr->computeQueue, 1, &submit, VK_NULL_HANDLE);
-	vkQueueWaitIdle(context_manager_sptr->computeQueue);
+	vkQueueSubmit(context_manager_sptr->compute_queue, 1, &submit, VK_NULL_HANDLE);
+	vkQueueWaitIdle(context_manager_sptr->compute_queue);
 	vkFreeCommandBuffers(context_manager_sptr->device, this->computeCommandPool, 1, &command_buffer);
 }
 
@@ -195,7 +195,7 @@ void CommandManager::endGraphicsCommands(VkCommandBuffer command_buffer)
 	submit.signalSemaphoreCount = 0;
 	submit.pSignalSemaphores = nullptr;
 
-	vkQueueSubmit(context_manager_sptr->graphicsQueue, 1, &submit, VK_NULL_HANDLE);
-	vkQueueWaitIdle(context_manager_sptr->graphicsQueue);
+	vkQueueSubmit(context_manager_sptr->graphics_queue, 1, &submit, VK_NULL_HANDLE);
+	vkQueueWaitIdle(context_manager_sptr->graphics_queue);
 	vkFreeCommandBuffers(context_manager_sptr->device, this->graphicsCommandPool, 1, &command_buffer);
 }

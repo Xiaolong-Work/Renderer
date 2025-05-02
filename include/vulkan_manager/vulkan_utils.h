@@ -183,7 +183,7 @@ public:
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(content_manager.graphicsQueue, 1, &submitInfo, inFlightFences) != VK_SUCCESS)
+		if (vkQueueSubmit(content_manager.graphics_queue, 1, &submitInfo, inFlightFences) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to submit draw command buffer!");
 		}
@@ -202,7 +202,7 @@ public:
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
-		if (vkQueuePresentKHR(this->content_manager.presentQueue, &presentInfo) != VK_SUCCESS)
+		if (vkQueuePresentKHR(this->content_manager.present_queue, &presentInfo) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to present swap chain image!");
 		}

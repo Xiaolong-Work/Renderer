@@ -3,7 +3,6 @@
 VulkanPathTracingRendererRTCore::VulkanPathTracingRendererRTCore()
 {
 	this->context_manager.enable_ray_tracing = true;
-	this->init();
 }
 
 VulkanPathTracingRendererRTCore::~VulkanPathTracingRendererRTCore()
@@ -15,7 +14,6 @@ void VulkanPathTracingRendererRTCore::init()
 {
 	VulkanRendererBase::init(1);
 	this->getFeatureProperty();
-
 	this->setupFunction();
 }
 
@@ -76,6 +74,7 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->object_address_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_property_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_luminous_indices_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
+	this->geometry_buffer_manager = GeometryBufferManager(context_manager_sptr, command_manager_sptr);
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -90,12 +89,17 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->pipeline_manager = PipelineManager(context_manager_sptr, PipelineType::PathTracing);
 	this->present_pipeline_manager = PipelineManager(context_manager_sptr);
 
+	this->geometry_buffer_manager.setExtent(this->swap_chain_manager.extent);
+	this->geometry_buffer_manager.setUsage(VK_IMAGE_USAGE_STORAGE_BIT);
+	this->geometry_buffer_manager.init();
+
 	setupObjectAddress(scene);
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		this->uniform_buffer_managers[i] = UniformBufferManager(context_manager_sptr, command_manager_sptr);
 		this->uniform_buffer_managers[i].setData(&this->ubo, sizeof(UBOMVP), 1);
 		this->uniform_buffer_managers[i].init();
+
 		this->descriptor_managers[i] = DescriptorManager(context_manager_sptr);
 		this->setupDescriptor(i);
 		this->present_descriptor_managers[i] = DescriptorManager(context_manager_sptr);
@@ -622,6 +626,9 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	/* Luminous object index descriptor */
 	this->descriptor_managers[index].addDescriptor(
 		this->object_luminous_indices_manager.getDescriptor(8, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+
+	this->descriptor_managers[index].addDescriptors(
+		this->geometry_buffer_manager.getDescriptors(9, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
 	/* ========== Write Descriptor Set ========== */
 	/* TLAS write */

@@ -152,6 +152,7 @@ public:
 		this->camera_up = scene.camera.up;
 		this->camera_look = scene.camera.look;
 		this->fovy = scene.camera.fov;
+		
 
 		Direction direction = glm::normalize(scene.camera.look - scene.camera.position);
 		yaw = glm::degrees(atan2(direction.z, direction.x));
@@ -160,10 +161,19 @@ public:
 		createUniformBufferObjects();
 	}
 
+	void setWindowSize(const Scene& scene)
+	{
+		this->width = scene.camera.width;
+		this->heigth = scene.camera.height;
+	}
+
 protected:
 	glm::vec3 camera_position{};
 	Direction camera_look{};
 	Direction camera_up{};
+
+	uint32_t width{1024};
+	uint32_t heigth{1024};
 
 	float yaw{0.0f};
 	float pitch{0.0f};
@@ -372,6 +382,7 @@ protected:
 			this->context_manager.enable_ray_tracing = true;
 		}
 
+		this->context_manager.setExtent(VkExtent2D{this->width, this->heigth});
 		this->context_manager.init();
 		auto context_manager_sptr = std::make_shared<ContextManager>(this->context_manager);
 
@@ -485,7 +496,7 @@ protected:
 		submit_information.pCommandBuffers = &command_manager.graphicsCommandBuffers[current_frame];
 		submit_information.signalSemaphoreCount = 1;
 		submit_information.pSignalSemaphores = &render_finished[current_frame];
-		result = vkQueueSubmit(context_manager.graphicsQueue, 1, &submit_information, inFlightFences[current_frame]);
+		result = vkQueueSubmit(context_manager.graphics_queue, 1, &submit_information, inFlightFences[current_frame]);
 		if (result != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to submit draw command buffer!");
@@ -502,7 +513,7 @@ protected:
 		present_information.pImageIndices = &image_index;
 		present_information.pResults = nullptr;
 
-		result = vkQueuePresentKHR(this->context_manager.presentQueue, &present_information);
+		result = vkQueuePresentKHR(this->context_manager.present_queue, &present_information);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || window_resized)
 		{
 			handleWindowResize();

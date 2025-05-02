@@ -61,6 +61,8 @@ void pathTracingGPU(const PathTracingScene& scene, const int spp)
 void pathTracingRTCore(const Scene& scene)
 {
 	VulkanPathTracingRendererRTCore renderer{};
+	renderer.setWindowSize(scene);
+	renderer.init();
 	renderer.setData(scene);
 	try
 	{
@@ -121,7 +123,7 @@ int main()
 	// pathTracingRender();
 	// pathTracingRTCore();
 
-	int scene_index = 0;
+	int scene_index = 1;
 	std::string path = std::string(ROOT_DIR) + "/models/" + name[scene_index] + "/";
 	InputOutput io(name[scene_index]);
 	io.loadObjFile(path);

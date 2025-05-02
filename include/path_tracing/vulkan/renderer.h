@@ -366,7 +366,7 @@ public:
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(context_manager.graphicsQueue, 1, &submitInfo, inFlightFences[current_frame]) != VK_SUCCESS)
+		if (vkQueueSubmit(context_manager.graphics_queue, 1, &submitInfo, inFlightFences[current_frame]) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to submit draw command buffer!");
 		}
@@ -385,7 +385,7 @@ public:
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
-		result = vkQueuePresentKHR(this->context_manager.presentQueue, &presentInfo);
+		result = vkQueuePresentKHR(this->context_manager.present_queue, &presentInfo);
 
 		/*if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
 		{

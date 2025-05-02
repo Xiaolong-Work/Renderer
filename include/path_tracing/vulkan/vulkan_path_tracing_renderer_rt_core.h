@@ -31,12 +31,19 @@ public:
 
 	void recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index) override;
 
+
+
 	void updateUniformBufferObjects(const int index) override
 	{
+
+
 		UBOMVP temp;
 		temp.model = this->ubo.project * this->ubo.view;
 		temp.view = glm::inverse(this->ubo.view);
 		temp.project = glm::inverse(this->ubo.project);
+
+		this->last_camera_matrix = this->current_camera_matrix;
+		this->current_camera_matrix = temp.project * temp.view;
 
 		this->uniform_buffer_managers[index].update(&temp);
 	}
@@ -46,6 +53,9 @@ public:
 	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> present_descriptor_managers{};
 	void setupPresentDescriptor(const int index)
 	{
+		this->present_descriptor_managers[index].addDescriptors(
+			this->geometry_buffer_manager.getDescriptors(0, VK_SHADER_STAGE_FRAGMENT_BIT));
+
 		this->present_descriptor_managers[index].addDescriptor(
 			this->storage_image_managers[index].getDescriptor(9, VK_SHADER_STAGE_FRAGMENT_BIT));
 
@@ -209,4 +219,9 @@ private:
 
 	std::vector<VkDescriptorImageInfo> result_images{};
 	VkWriteDescriptorSetAccelerationStructureKHR write{};
+
+	GeometryBufferManager geometry_buffer_manager{};
+
+	Matrix4f last_camera_matrix{1.0};
+	Matrix4f current_camera_matrix{1.0};
 };

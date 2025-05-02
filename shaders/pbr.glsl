@@ -14,12 +14,11 @@ vec3 fresnelSchlick(vec3 h, vec3 wi, vec3 r0)
 	return r0 + (vec3(1.0) - r0) * pow(1.0 - max(dot(wi, h), 0), 5.0);
 }
 
-float fresnelSchlickIor(vec3 wi, vec3 wo, float ior)
+float fresnelSchlickIor(vec3 wi, vec3 normal, float ior)
 {
-	vec3 h = normalize(wi + wo);
 	float r0 = (ior - 1.0) / (ior + 1.0);
 	r0 = r0 * r0;
-	return (fresnelSchlick(h, wi, vec3(r0))).x;
+	return (fresnelSchlick(normal, wi, vec3(r0))).x;
 }
 
 float distributionGGX(vec3 n, vec3 h, float roughness)
@@ -68,7 +67,7 @@ vec3 shaderPBR(vec3 wi, vec3 wo, float roughness, float metallic, vec4 color, ve
 	float g = geometrySmith(n, v, l, roughness);
 
 	vec3 numerator = d * g * f;
-	float denominator = 4.0 * max(dot(n, v), 0.0) * max(dot(n, l), 0.0) + 0.0001;
+	float denominator = 4.0 * max(dot(n, v), 1e-6) * max(dot(n, l), 1e-6);
 	vec3 specular = numerator / denominator;
 
 	vec3 ks = f;

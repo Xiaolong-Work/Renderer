@@ -18,6 +18,11 @@ layout(binding = 3) uniform sampler2D textures[];
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(location = 1) rayPayloadEXT ShadowPayload shadow_payload;
 
+layout(binding = 9, rgba32f) uniform image2D position;
+layout(binding = 10, rgba32f) uniform image2D normal_depth;
+layout(binding = 11, rgba32f) uniform image2D albedo;
+layout(binding = 12, rgba32f) uniform image2D material_ssao;
+
 
 //// 采样 GGX 微表面法线 h
 //vec3 sampleGGX(float alpha, vec3 N, vec3 T, vec3 B, inout float seed)
@@ -179,12 +184,19 @@ float GGX_PDF(vec3 n, vec3 h, vec3 wo, float roughness)
 void main()
 {  
 	uint  ray_flags = gl_RayFlagsNoneEXT;
-	float time_min     = 0.0001;
+	float time_min     = 0.001;
 	float time_max     = 10000.0;
+
+	ObjectProperty property = object_properties[gl_InstanceCustomIndexEXT];
+	/* Rays hit the light source */ 
+	if (property.is_light == 1)
+	{
+		payload.hit_value = property.radiance;
+		return;
+	}
 
 	int material_index = material_indices[gl_InstanceCustomIndexEXT];
 	Material material = materials[material_index];
-	ObjectProperty property = object_properties[gl_InstanceCustomIndexEXT];
 
 	Vertex interpolation = getInterpolateVertex();
 
@@ -204,24 +216,6 @@ void main()
 	/* Pointing from the shading point to the light */
 	vec3 wl = normalize(light_position - object_position);
 
-	/* Rays hit the light source */ 
-	if (property.is_light == 1)
-	{
-		if (payload.depth == 0)
-		{
-			payload.hit_value = property.radiance;
-		}
-		else if (material.type != Diffuse)
-		{
-			payload.hit_value = property.radiance;
-		}
-		else
-		{
-			payload.hit_value = vec3(0);
-		}
-		return;
-	}
-
 	/* Shadow ray test */
 	traceRayEXT(tlas, ray_flags, 0xFF, 1, 0, 0, object_position, time_min, wl, time_max, 1);
 
@@ -240,8 +234,8 @@ void main()
 	{
 		float distance = length(light_position - object_position);
 		vec3 brdf = shaderPBR(wi, wl, material.roughness, material.metallic, color, object_normal);
-		float cos_theta = dot(object_normal, wl);
-		float cos_theta_x = dot(light_normal, -wl);
+		float cos_theta = max(dot(object_normal, wl), 0);
+		float cos_theta_x = max(dot(light_normal, -wl), 0);
 		result_color = light_radiance * brdf * cos_theta * cos_theta_x / (distance * distance * light_pdf);
 	}
 	
@@ -250,13 +244,8 @@ void main()
 	vec3 h = sampleGGX(material.roughness, object_normal, payload.seed);
 	if(material.type == Diffuse)
 	{
-		wo = h;
-		pdf_O = distributionGGX(object_normal, h, material.roughness) * dot(object_normal, h);
-	}
-	else if (material.type == Glossy)
-	{
-		wo = reflect(-wi, h);
-		pdf_O = distributionGGX(object_normal, h, material.roughness) * dot(object_normal, h) / (4 * dot(wo, h));
+		wo = diffuseSample(object_normal, payload.seed);
+		pdf_O = 1.0 / (2 * pi);
 	}
 	else if (material.type == Specular)
 	{
@@ -278,7 +267,7 @@ void main()
 			ior = 1.0 / material.ni;
 		}
 		
-		float p = fresnelSchlickIor(wi, wl, ior);
+		float p = fresnelSchlickIor(wi, temp_normal, ior);
 		if (rnd(payload.seed) < p)
 		{
 			wo = reflect(-wi, temp_normal);
@@ -297,6 +286,11 @@ void main()
 			payload.in_object = !payload.in_object;
 		}
 	}
+	else if (material.type == Glossy)
+	{
+		wo = reflect(-wi, h);
+		pdf_O = distributionGGX(object_normal, h, material.roughness) * dot(object_normal, h) / (4.0 * max(dot(wo, object_normal), 1e-6));
+	}
 	
 	payload.depth++;
 	if (payload.depth >= 10) 
@@ -310,7 +304,7 @@ void main()
 	if (material.type == Diffuse || material.type == Glossy)
 	{
 		vec3 brdf = shaderPBR(wi, wo, material.roughness, material.metallic, color, object_normal);
-		float cos_theta = dot(wo, object_normal);	
+		float cos_theta = max(dot(wo, object_normal), 0);	
 		if (pdf_O > 1e-6)
 		{
 			payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
@@ -319,6 +313,13 @@ void main()
 	else if (material.type == Specular || material.type == Refraction)
 	{
 		payload.hit_value = payload.hit_value * 0.99;
+	}
+
+	/* Write geometry buffer */
+	if (payload.depth == 1)
+	{
+		imageStore(position, ivec2(gl_LaunchIDEXT.xy), vec4(object_position, gl_InstanceCustomIndexEXT));
+		imageStore(normal_depth, ivec2(gl_LaunchIDEXT.xy), vec4(object_normal, gl_HitTEXT));
 	}
 }
 

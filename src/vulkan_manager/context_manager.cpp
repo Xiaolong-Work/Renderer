@@ -52,8 +52,8 @@ void ContextManager::clear()
 
 void ContextManager::setExtent(const VkExtent2D& extent)
 {
-	this->windowWidth = extent.width;
-	this->windowHeight = extent.height;
+	this->window_width = extent.width;
+	this->window_height = extent.height;
 }
 
 void ContextManager::createWindow()
@@ -64,7 +64,7 @@ void ContextManager::createWindow()
 	{
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	}
-	this->window = glfwCreateWindow(this->windowWidth, this->windowHeight, "Vulkan", nullptr, nullptr);
+	this->window = glfwCreateWindow(this->window_width, this->window_height, "Vulkan", nullptr, nullptr);
 }
 
 void ContextManager::createInstance()
@@ -322,10 +322,10 @@ bool ContextManager::isDeviceSuitable(VkPhysicalDevice physical_device)
 
 	if (graphics != -1 && transfer != -1 && present != -1 && compute != -1)
 	{
-		this->graphicsFamily = static_cast<uint32_t>(graphics);
-		this->transferFamily = static_cast<uint32_t>(transfer);
-		this->presentFamily = static_cast<uint32_t>(present);
-		this->computeFamily = static_cast<uint32_t>(compute);
+		this->graphics_family = static_cast<uint32_t>(graphics);
+		this->transfer_family = static_cast<uint32_t>(transfer);
+		this->present_family = static_cast<uint32_t>(present);
+		this->compute_family = static_cast<uint32_t>(compute);
 		return true;
 	}
 	else
@@ -386,7 +386,7 @@ void ContextManager::createLogicalDevice()
 {
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 	std::set<uint32_t> uniqueQueueFamilies = {
-		this->graphicsFamily, this->transferFamily, this->presentFamily, this->computeFamily};
+		this->graphics_family, this->transfer_family, this->present_family, this->compute_family};
 
 	float queuePriority = 1.0f;
 	for (uint32_t queueFamily : uniqueQueueFamilies)
@@ -470,10 +470,10 @@ void ContextManager::createLogicalDevice()
 	}
 
 	/* Get Queues */
-	vkGetDeviceQueue(this->device, this->graphicsFamily, 0, &this->graphicsQueue);
-	vkGetDeviceQueue(this->device, this->transferFamily, 0, &this->transferQueue);
-	vkGetDeviceQueue(this->device, this->presentFamily, 0, &this->presentQueue);
-	vkGetDeviceQueue(this->device, this->computeFamily, 0, &this->computeQueue);
+	vkGetDeviceQueue(this->device, this->graphics_family, 0, &this->graphics_queue);
+	vkGetDeviceQueue(this->device, this->transfer_family, 0, &this->transfer_queue);
+	vkGetDeviceQueue(this->device, this->present_family, 0, &this->present_queue);
+	vkGetDeviceQueue(this->device, this->compute_family, 0, &this->compute_queue);
 }
 
 void ContextManager::createSurface()

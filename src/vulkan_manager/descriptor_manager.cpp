@@ -81,7 +81,7 @@ void DescriptorManager::createDescriptorSet()
 		context_manager_sptr->device, static_cast<uint32_t>(this->writes.size()), this->writes.data(), 0, nullptr);
 }
 
-void DescriptorManager::addDescriptor(std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> descriptor)
+void DescriptorManager::addDescriptor(const std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet>& descriptor)
 {
 	auto& binding = descriptor.first;
 
@@ -97,6 +97,15 @@ void DescriptorManager::addDescriptor(std::pair<VkDescriptorSetLayoutBinding, Vk
 	}
 
 	this->writes.push_back(descriptor.second);
+}
+
+void DescriptorManager::addDescriptors(
+	const std::vector<std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet>>& descriptors)
+{
+	for (auto& descriptor : descriptors)
+	{
+		addDescriptor(descriptor);
+	}
 }
 
 void DescriptorManager::addLayoutBinding(const VkDescriptorSetLayoutBinding& binding)

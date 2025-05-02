@@ -14,38 +14,45 @@
 #include <material.h>
 #include <vertex.h>
 
-struct SSBOMaterial
+struct alignas(16) SSBOMaterial
 {
 	/* ========== Blinn-Phong ========== */
 	/* Ambient reflectance component (ka). */
-	alignas(16) glm::vec3 ka{0.0f};
+	glm::vec3 ka{0.0f};
 
 	/* Shininess coefficient (glossiness factor). */
 	float ns{0.0f};
 
 	/* Diffuse reflectance component (kd). */
-	alignas(16) glm::vec3 kd{0.0f};
+	glm::vec3 kd{0.0f};
 
 	/* The diffuse texture index of the object, -1 means no texture data */
 	Index diffuse_texture{-1};
 
 	/* Specular reflectance component (ks). */
-	alignas(16) glm::vec3 ks{0.0f};
+	glm::vec3 ks{0.0f};
 
 	/* The specular texture index of the object, -1 means no texture data */
 	Index specular_texture{-1};
 
 	/* Transmittance component (tr). */
-	alignas(16) glm::vec3 tr{0.0f};
+	glm::vec3 tr{0.0f};
 
 	/* Refractive index of the material (ni). */
 	float ni{0.0f};
 
 	/* ========== PBR ========== */
-	alignas(16) Vector4f albedo;
+	glm::vec4 albedo;
 	int albedo_texture;
 	float metallic;
 	float roughness;
+
+	float pad{0};
+
+	glm::vec4 bottom_albedo;
+	int bottom_albedo_texture{-1};
+	float bottom_metallic;
+	float bottom_roughness;
 
 	int type{0};
 
@@ -64,6 +71,11 @@ struct SSBOMaterial
 		this->metallic = material.metallic;
 		this->roughness = material.roughness;
 		this->albedo_texture = material.albedo_texture;
+
+		this->bottom_albedo = material.bottom_albedo;
+		this->bottom_metallic = material.bottom_metallic;
+		this->bottom_roughness = material.bottom_roughness;
+		this->bottom_albedo_texture = material.bottom_albedo_texture;
 
 		this->type = int(material.type);
 	}

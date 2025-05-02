@@ -29,7 +29,7 @@ float distributionGGX(vec3 n, vec3 h, float roughness)
 	float n_dot_h = max(dot(n, h), 0.0);
 
 	float numerator = a2;
-	float denominator = (n_dot_h * n_dot_h * (a2 - 1.0) + 1.0);
+	float denominator = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
 	denominator = 3.14159265 * denominator * denominator;
 
 	return numerator / denominator;
@@ -77,7 +77,7 @@ vec3 shaderPBR(vec3 wi, vec3 wo, float roughness, float metallic, vec4 color, ve
 
 	vec3 diffuse = (vec3(color) / 3.14159265) * max(dot(n, l), 0.0) * kd;
 
-	return diffuse + specular;
+	return  specular + diffuse;
 }
 
 vec3 shaderPointLightPBR(vec3 position, vec4 color, vec3 normal, vec3 camera_position, PointLight light,  Material material)

@@ -61,7 +61,7 @@ struct Material
 
 	void transferToPBR()
 	{
-		this->roughness = 1.0 - clamp(0.0, 1.0, std::sqrt(2.0 / (this->ns + 1)));
+		this->roughness = clamp(0.0, 1.0, std::sqrt(2.0 / (this->ns + 2.0)));
 		this->metallic = clamp(0.0, 1.0, length(ks) / (length(ks) + length(kd) + 0.0001));
 		this->albedo = metallic > 0.5 ? Vector4f{ks, 1.0f} : Vector4f{kd, 1.0f};
 		this->albedo_texture = this->diffuse_texture;

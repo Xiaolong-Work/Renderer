@@ -54,33 +54,34 @@ layout(location = 1) rayPayloadEXT ShadowPayload shadow_payload;
 vec3 sampleGGX(float roughness, vec3 normal, inout uint seed) 
 {
     float alpha = roughness * roughness;
-	float rand1 = rnd(seed);
-	float rand2 = rnd(seed);
+    float rand1 = rnd(seed);
+    float rand2 = clamp(rnd(seed), 1e-6, 1.0 - 1e-6);
 
     float phi = 2.0 * 3.14159265 * rand1;
+    float cos_phi = cos(phi);
+    float sin_phi = sin(phi);
     float cos_theta = sqrt((1.0 - rand2) / (1.0 + (alpha * alpha - 1.0) * rand2));
     float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
     // 微表面法线在切线空间下的坐标
     vec3 h_tangent = vec3(
-        sin_theta * cos(phi),
-        sin_theta * sin(phi),
+        sin_theta * cos_phi,
+        sin_theta * sin_phi,
         cos_theta
     );
 
     // 创建与 n 对齐的切线空间基底
-    vec3 up = abs(normal.z) < 0.999 ? vec3(0, 0, 1) : vec3(1, 0, 0);
+    normal = normalize(normal);
+    vec3 up = abs(normal.y) > 0.999 ? vec3(0, 0, 1) : vec3(0, 1, 0);
     vec3 tangent = normalize(cross(up, normal));
     vec3 bitangent = cross(normal, tangent);
 
     // 将切线空间中的方向转换到世界空间
-    vec3 h = normalize(
+    return normalize(
         tangent * h_tangent.x +
         bitangent * h_tangent.y +
         normal * h_tangent.z
     );
-
-    return h;
 }
 
 vec3 diffuseSample(vec3 normal, inout uint random_seed)
@@ -116,7 +117,7 @@ vec3 diffuseSample(vec3 normal, inout uint random_seed)
 vec3 glossySample(vec3 wi, vec3 normal, Material material, inout uint random_seed)
 {
     /* Compute the reflection direction and ensure normalization */
-    vec3 reflect_direction = normalize(reflect(wi, normal));
+    vec3 reflect_direction = normalize(reflect(-wi, normal));
 
 	float u = rnd(random_seed);
 	float v = rnd(random_seed);
@@ -138,6 +139,41 @@ vec3 glossySample(vec3 wi, vec3 normal, Material material, inout uint random_see
 
 	// Transform the sampled direction from local to world space and return
 	return normalize(tangent * x + bitangent * y + reflect_direction * z);
+}
+
+ float pi = 3.14159265358979;
+
+vec3 evaluateMaterial(vec3 wi, vec3 wo, vec3 normal, vec3 color, Material material)
+{
+	if (material.type == Diffuse)
+	{
+		return max(dot(normal, wo), 0.0f) * color / pi;
+	}
+	else if (material.type == Glossy)
+	{
+		vec3 diffuse = max(dot(normal, wo), 0.0f) * color / pi;
+
+		vec3 half_direction = normalize(wi + wo);
+		vec3 specular = pow(max(dot(half_direction, normal), 0.0f), material.ns) * material.ks;
+
+		return diffuse + specular;
+	}
+	else
+	{
+		return material.kd / pi;
+	}
+}
+
+float GGX_PDF(vec3 n, vec3 h, vec3 wo, float roughness) 
+{
+	float alpha = roughness * roughness;
+    float NdotH = max(dot(n, h), 0.0);
+    float WoDotH = max(dot(wo, h), 0.0);
+
+    float a2 = alpha * alpha;
+    float D = a2 / (pi * pow(NdotH * NdotH * (a2 - 1.0) + 1.0, 2.0));
+
+    return (D * NdotH) / (4.0 * WoDotH);
 }
 
 void main()
@@ -162,8 +198,6 @@ void main()
 
 	sampleLight(light_radiance, light_position, light_normal, light_pdf, payload.seed);
 
-	
-
 	/* Pointing from the shading point to the camera */
 	vec3 wi = -normalize(gl_WorldRayDirectionEXT); 
 
@@ -174,6 +208,10 @@ void main()
 	if (property.is_light == 1)
 	{
 		if (payload.depth == 0)
+		{
+			payload.hit_value = property.radiance;
+		}
+		else if (material.type != Diffuse)
 		{
 			payload.hit_value = property.radiance;
 		}
@@ -207,24 +245,26 @@ void main()
 		result_color = light_radiance * brdf * cos_theta * cos_theta_x / (distance * distance * light_pdf);
 	}
 	
-	float rand1 = rnd(payload.seed);
-	float rand2 = rnd(payload.seed);
-	//vec3 wo = sampleGGXVNDF(object_normal, wi, material.roughness, rand1, rand2);
-	//vec3 wo = glossySample(-wi, object_normal, material, payload.seed);
-	//vec3 h = sampleGGX(material.roughness, object_normal, payload.seed);
-	//vec3 wo = reflect(-wi, h);
-
-	vec3 wo = diffuseSample(object_normal, payload.seed);
-
-	float pdf_O = 1.0 / (3.14159 * 2);
-
-	if (material.type == 1)
+	vec3 wo;
+	float pdf_O;
+	vec3 h = sampleGGX(material.roughness, object_normal, payload.seed);
+	if(material.type == Diffuse)
+	{
+		wo = h;
+		pdf_O = distributionGGX(object_normal, h, material.roughness) * dot(object_normal, h);
+	}
+	else if (material.type == Glossy)
+	{
+		wo = reflect(-wi, h);
+		pdf_O = distributionGGX(object_normal, h, material.roughness) * dot(object_normal, h) / (4 * dot(wo, h));
+	}
+	else if (material.type == Specular)
 	{
 		wo = reflect(-wi, object_normal);
 		pdf_O = 1.0;
 	}
-	else if (material.type == 2)
-	{
+	else if (material.type == Refraction)
+	{ 
 		float ior;
 		vec3 temp_normal;
 		if (payload.in_object)
@@ -238,7 +278,7 @@ void main()
 			ior = 1.0 / material.ni;
 		}
 		
-		float p = fresnelSchlickIor(wi, wo, ior);
+		float p = fresnelSchlickIor(wi, wl, ior);
 		if (rnd(payload.seed) < p)
 		{
 			wo = reflect(-wi, temp_normal);
@@ -258,11 +298,8 @@ void main()
 		}
 	}
 	
-		
-	
-
 	payload.depth++;
-	if (payload.depth >= 7) 
+	if (payload.depth >= 10) 
 	{
 		payload.hit_value = result_color;
 		return;
@@ -270,18 +307,18 @@ void main()
 
 	traceRayEXT(tlas, ray_flags, 0xFF, 0, 0, 0, object_position, time_min, wo, time_max, 0);
 
-	if (material.type == 0 || material.type == 3)
+	if (material.type == Diffuse || material.type == Glossy)
 	{
 		vec3 brdf = shaderPBR(wi, wo, material.roughness, material.metallic, color, object_normal);
-		
 		float cos_theta = dot(wo, object_normal);	
-		payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
+		if (pdf_O > 1e-6)
+		{
+			payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
+		}
 	}
-	else
+	else if (material.type == Specular || material.type == Refraction)
 	{
-		payload.hit_value = payload.hit_value / pdf_O;
+		payload.hit_value = payload.hit_value * 0.99;
 	}
-	//payload.hit_value = color.xyz;
-	//payload.hit_value = vec3(color * interpolation.color);
 }
 

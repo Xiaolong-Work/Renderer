@@ -121,7 +121,7 @@ int main()
 	// pathTracingRender();
 	// pathTracingRTCore();
 
-	int scene_index = 2;
+	int scene_index = 0;
 	std::string path = std::string(ROOT_DIR) + "/models/" + name[scene_index] + "/";
 	InputOutput io(name[scene_index]);
 	io.loadObjFile(path);

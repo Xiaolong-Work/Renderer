@@ -1,3 +1,8 @@
+#define Diffuse 0
+#define Specular 1
+#define Refraction 2
+#define Glossy 3
+
 struct Material
 {
 	/* ========== Blinn-Phong ========== */

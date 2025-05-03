@@ -331,6 +331,6 @@ void main()
 		payload.hit_value = payload.hit_value * 0.9;
 	}
 
-
+	 
 }
 

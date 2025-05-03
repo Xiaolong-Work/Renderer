@@ -99,7 +99,7 @@ struct Material
 		case MaterialType::Glossy:
 			{
 				/* Top layer (mirror layer) */
-				this->roughness = clamp(0.0, 1.0, std::sqrt(2.0 / (this->ns / 10.0 + 2.0)));
+				this->roughness = clamp(0.0, 1.0, std::sqrt(2.0 / (this->ns + 2.0)));
 				this->metallic = 0.0;
 				this->albedo = Vector4f{ks, 1.0f};
 				this->albedo_texture = this->specular_texture;

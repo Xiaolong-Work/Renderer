@@ -19,6 +19,10 @@
 
 #include <scene.h>
 
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
+
 #define MAX_FRAMES_IN_FLIGHT 2
 
 class VulkanRendererBase
@@ -47,7 +51,7 @@ public:
 			this->frame_time = std::chrono::duration<double, std::milli>(next - now).count();
 
 			outputFrameRate(this->frames_per_second, this->frame_time);
-			frame_time = elapsed;
+
 			frame_count++;
 			if (elapsed >= 1000.0f)
 			{
@@ -168,16 +172,17 @@ public:
 	}
 
 protected:
-	glm::vec3 camera_position{};
+	Coordinate3D camera_position{};
 	Direction camera_look{};
 	Direction camera_up{};
+	float fovy{90.0f};
 
 	uint32_t width{1024};
 	uint32_t heigth{1024};
 
 	float yaw{0.0f};
 	float pitch{0.0f};
-	float fovy{90.0f};
+	
 
 	bool firstMouse = true;
 	bool mouseCaptured = false;
@@ -303,6 +308,40 @@ protected:
 		}
 
 		self->ubo.view = glm::lookAt(self->camera_position, self->camera_position - forward, up);
+		self->moved = true;
+	}
+
+	void setupImgui()
+	{
+		// 1. 创建 ImGui 上下文
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO();
+		// io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // 可选功能
+
+		// 2. 初始化平台（GLFW）
+		ImGui_ImplGlfw_InitForVulkan(this->context_manager.window, true); // GLFWwindow*
+
+		// 3. 设置 Vulkan 初始化信息
+		ImGui_ImplVulkan_InitInfo init = {};
+		init.Instance = this->context_manager.instance;
+		init.PhysicalDevice = this->context_manager.physical_device;
+		init.Device = this->context_manager.device;
+		init.Queue = this->context_manager.graphics_queue;
+		init.DescriptorPoolSize = 2;
+		init.MinImageCount = this->swap_chain_manager.images.size();
+		init.ImageCount = this->swap_chain_manager.images.size();
+		init.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+		init.QueueFamily = this->context_manager.graphics_family;
+		init.PipelineCache = VK_NULL_HANDLE;
+		init.Allocator = nullptr;
+		init.CheckVkResultFn = nullptr;
+		init.RenderPass = this->render_pass_manager.pass;
+
+		ImGui_ImplVulkan_Init(&init);
+
+		// 4. 上传字体纹理
+		ImGui_ImplVulkan_CreateFontsTexture();
 	}
 
 	void handleWindowResize()
@@ -415,6 +454,10 @@ protected:
 
 	void clear()
 	{
+
+		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{

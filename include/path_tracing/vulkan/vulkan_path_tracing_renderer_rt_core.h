@@ -120,6 +120,54 @@ public:
 		this->present_pipeline_manager.init();
 	}
 
+	void setupDenoiseSingleFrameSubpass()
+	{
+		AttachmentReference reference{};
+		reference.color.push_back(VkAttachmentReference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
+
+		VkSubpassDependency dependency{};
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependency.dstSubpass = 0;
+
+		dependency.srcStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+		dependency.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+
+		dependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+		this->render_pass_manager.addDependency(dependency);
+		this->render_pass_manager.addSubpass(reference);
+	}
+
+	void setupDenoiseSingleFrameDescriptorSet()
+	{
+	}
+
+	void setupDenoiseSingleFramePipeline()
+	{
+		std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+		this->denoise_single_frame.dynamic_states = dynamic_states;
+
+		this->denoise_single_frame.addShaderStage("empty_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		this->denoise_single_frame.addShaderStage("path_tracing_denoise_single_frame_frag.spv",
+												  VK_SHADER_STAGE_FRAGMENT_BIT);
+
+		this->denoise_single_frame.setDefaultFixedState();
+		this->denoise_single_frame.setExtent(this->swap_chain_manager.extent);
+		this->denoise_single_frame.setRenderPass(this->render_pass_manager.pass, 0);
+		this->denoise_single_frame.setVertexInput(0);
+		std::vector<VkDescriptorSetLayout> layout = {/*this->light_descriptor_managers[0].layout*/};
+		this->denoise_single_frame.setLayout(layout);
+		this->denoise_single_frame.init();
+	}
+
+	void setupPostProcessingRenderPass()
+	{
+		this->render_pass_manager.type = RenderPassType::Custom;
+	}
+
 	void setupPresentRenderPass()
 	{
 		this->render_pass_manager.type = RenderPassType::Render;
@@ -190,6 +238,59 @@ public:
 	}
 
 	void setupFunction();
+
+	void updateImgui(VkCommandBuffer command_buffer)
+	{
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		frame_times[frame_index] = this->frame_time;
+		frame_index = (frame_index + 1) % NUM_SAMPLES;
+
+		ImGui::Begin("Hello");
+
+		ImGui::Text("FPS %d", this->frames_per_second);
+		ImGui::Text("Frame time %f ms", this->frame_time);
+		ImGui::PlotLines("##Frame time", frame_times, NUM_SAMPLES, frame_index, nullptr, 0.0f, 100.0f, ImVec2(0, 40));
+
+		ImGui::Separator();
+
+		ImGui::Text("Object count %d", this->indirect_buffer_manager.commands.size());
+		ImGui::Text("Vertex count %d", this->vertex_buffer_manager.vertices.size());
+		ImGui::Text("Mesh count %d", this->index_buffer_manager.indices.size() / 3);
+
+		ImGui::Separator();
+
+		ImGui::Text("Camera Position");
+		ImGui::InputFloat3("##Camera Position", &camera_position.x);
+		ImGui::Text("Camera Look");
+		ImGui::InputFloat3("##Camera Look", &camera_look.x);
+		ImGui::Text("Camera Up");
+		ImGui::InputFloat3("##Camera Up", &camera_up.x);
+		ImGui::Text("Field of View Y");
+		float temp = this->fovy;
+		ImGui::SliderFloat("##FOVY", &this->fovy, 10.0f, 120.0f, "%.1f deg");
+		if (temp != this->fovy)
+		{
+			this->moved = true;
+		}
+
+		ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(this->camera_position, this->camera_look, this->camera_up);
+		ubo.project = glm::perspective(glm::radians(this->fovy),
+									   (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
+									   0.1f,
+									   1000.0f);
+		ubo.project[1][1] *= -1;
+
+		ImGui::Separator();
+
+		ImGui::End();
+
+		ImGui::Render();
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
+	}
 
 protected:
 	void getFeatureProperty();
@@ -263,4 +364,10 @@ private:
 
 	Matrix4f last_camera_matrix{1.0};
 	Matrix4f current_camera_matrix{1.0};
+
+	PipelineManager denoise_single_frame{};
+
+	static const int NUM_SAMPLES = 100;
+	float frame_times[NUM_SAMPLES] = {}; // ³õÊ¼»¯Îª0
+	int frame_index = 0;
 };

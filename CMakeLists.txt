@@ -47,6 +47,7 @@ target_link_libraries(Renderer VulkanManager)
 target_link_libraries(Renderer Rasterizer)
 target_link_libraries(Renderer glfw)
 
+
 # OpenMp support
 if (MSVC)
     target_compile_options(PathTracing PRIVATE /openmp)
@@ -73,3 +74,17 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi /DEBUG")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
 endif()
+
+target_include_directories(Renderer PUBLIC
+    3rd_party/imgui
+    3rd_party/imgui/backends
+)
+
+target_sources(Renderer PUBLIC
+    3rd_party/imgui/imgui.cpp
+    3rd_party/imgui/imgui_draw.cpp
+    3rd_party/imgui/imgui_tables.cpp
+    3rd_party/imgui/imgui_widgets.cpp
+    3rd_party/imgui/backends/imgui_impl_glfw.cpp
+	3rd_party/imgui/backends/imgui_impl_vulkan.cpp
+)

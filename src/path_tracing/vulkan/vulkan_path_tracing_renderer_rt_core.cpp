@@ -113,6 +113,8 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->setupPresentPipeline();
 
 	this->createShaderBindingTable();
+
+	setupImgui();
 }
 
 struct PushConstantRay
@@ -242,6 +244,8 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 					   &temp1);
 
 	vkCmdDraw(command_buffer, 6, 1, 0, 0);
+
+	updateImgui(command_buffer);
 
 	vkCmdEndRenderPass(command_buffer);
 

@@ -74,7 +74,6 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->object_address_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_property_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_luminous_indices_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
-	this->geometry_buffer_manager = GeometryBufferManager(context_manager_sptr, command_manager_sptr);
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -89,13 +88,14 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->pipeline_manager = PipelineManager(context_manager_sptr, PipelineType::PathTracing);
 	this->present_pipeline_manager = PipelineManager(context_manager_sptr);
 
-	this->geometry_buffer_manager.setExtent(this->swap_chain_manager.extent);
-	this->geometry_buffer_manager.setUsage(VK_IMAGE_USAGE_STORAGE_BIT);
-	this->geometry_buffer_manager.init();
-
 	setupObjectAddress(scene);
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
+		this->geometry_buffer_managers[i] = GeometryBufferManager(context_manager_sptr, command_manager_sptr);
+		this->geometry_buffer_managers[i].setExtent(this->swap_chain_manager.extent);
+		this->geometry_buffer_managers[i].setUsage(VK_IMAGE_USAGE_STORAGE_BIT);
+		this->geometry_buffer_managers[i].init();
+
 		this->uniform_buffer_managers[i] = UniformBufferManager(context_manager_sptr, command_manager_sptr);
 		this->uniform_buffer_managers[i].setData(&this->ubo, sizeof(UBOMVP), 1);
 		this->uniform_buffer_managers[i].init();
@@ -221,6 +221,25 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 							&this->present_descriptor_managers[current_frame].set,
 							0,
 							nullptr);
+
+	struct PushConstantData
+	{
+		Matrix4f last_camera_matrix;
+		int frame_index;
+		int frame_count;
+	};
+
+	PushConstantData temp1{};
+	temp1.frame_index = current_frame;
+	temp1.last_camera_matrix = this->last_camera_matrix;
+	temp1.frame_count = frame_count;
+
+	vkCmdPushConstants(command_buffer,
+					   this->present_pipeline_manager.layout,
+					   VK_SHADER_STAGE_FRAGMENT_BIT,
+					   0,
+					   sizeof(PushConstantData),
+					   &temp1);
 
 	vkCmdDraw(command_buffer, 6, 1, 0, 0);
 
@@ -627,8 +646,8 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	this->descriptor_managers[index].addDescriptor(
 		this->object_luminous_indices_manager.getDescriptor(8, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
-	this->descriptor_managers[index].addDescriptors(
-		this->geometry_buffer_manager.getDescriptors(9, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+	this->descriptor_managers[index].addDescriptors(this->geometry_buffer_managers[index].getDescriptors(
+		9, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_RAYGEN_BIT_KHR));
 
 	/* ========== Write Descriptor Set ========== */
 	/* TLAS write */

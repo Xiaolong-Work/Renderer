@@ -31,11 +31,8 @@ public:
 
 	void recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index) override;
 
-
-
 	void updateUniformBufferObjects(const int index) override
 	{
-
 
 		UBOMVP temp;
 		temp.model = this->ubo.project * this->ubo.view;
@@ -43,7 +40,7 @@ public:
 		temp.project = glm::inverse(this->ubo.project);
 
 		this->last_camera_matrix = this->current_camera_matrix;
-		this->current_camera_matrix = temp.project * temp.view;
+		this->current_camera_matrix = this->ubo.project * this->ubo.view;
 
 		this->uniform_buffer_managers[index].update(&temp);
 	}
@@ -54,10 +51,37 @@ public:
 	void setupPresentDescriptor(const int index)
 	{
 		this->present_descriptor_managers[index].addDescriptors(
-			this->geometry_buffer_manager.getDescriptors(0, VK_SHADER_STAGE_FRAGMENT_BIT));
+			this->geometry_buffer_managers[index].getDescriptors(0, VK_SHADER_STAGE_FRAGMENT_BIT));
 
-		this->present_descriptor_managers[index].addDescriptor(
-			this->storage_image_managers[index].getDescriptor(9, VK_SHADER_STAGE_FRAGMENT_BIT));
+		VkDescriptorSetLayoutBinding layout_binding{};
+		/* Result image binding */
+		layout_binding.binding = 9;
+		layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		layout_binding.descriptorCount = 2;
+		layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		layout_binding.pImmutableSamplers = nullptr;
+		this->present_descriptor_managers[index].addLayoutBinding(layout_binding);
+
+		/* Result image */
+		result_images.resize(2);
+		for (size_t i = 0; i < 2; i++)
+		{
+			result_images[i].sampler = this->storage_image_managers[i].sampler;
+			result_images[i].imageView = this->storage_image_managers[i].view;
+			result_images[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		}
+		VkWriteDescriptorSet result_image_write{};
+		result_image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		result_image_write.pNext = nullptr;
+		result_image_write.dstSet = VK_NULL_HANDLE;
+		result_image_write.dstBinding = 9;
+		result_image_write.dstArrayElement = 0;
+		result_image_write.descriptorCount = static_cast<uint32_t>(result_images.size());
+		result_image_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		result_image_write.pBufferInfo = nullptr;
+		result_image_write.pImageInfo = result_images.data();
+		result_image_write.pTexelBufferView = nullptr;
+		this->present_descriptor_managers[index].addWrite(result_image_write);
 
 		this->present_descriptor_managers[index].init();
 	}
@@ -76,7 +100,22 @@ public:
 		this->present_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 0);
 		this->present_pipeline_manager.setVertexInput(0b0000);
 		std::vector<VkDescriptorSetLayout> layout = {this->present_descriptor_managers[0].layout};
-		this->present_pipeline_manager.setLayout(layout);
+
+		struct PushConstantData
+		{
+			Matrix4f last_camera_matrix;
+			int frame_index;
+			int frame_count;
+		};
+
+		std::vector<VkPushConstantRange> all_push_constants{};
+		VkPushConstantRange push_constant{};
+		push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		push_constant.offset = 0;
+		push_constant.size = sizeof(PushConstantData);
+		all_push_constants.push_back(push_constant);
+
+		this->present_pipeline_manager.setLayout(layout, all_push_constants);
 
 		this->present_pipeline_manager.init();
 	}
@@ -206,6 +245,8 @@ private:
 
 	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> descriptor_managers{};
 
+	std::array<GeometryBufferManager, MAX_FRAMES_IN_FLIGHT> geometry_buffer_managers{};
+
 	PipelineManager pipeline_manager{};
 
 	VkStridedDeviceAddressRegionKHR ray_generate_region{};
@@ -219,8 +260,6 @@ private:
 
 	std::vector<VkDescriptorImageInfo> result_images{};
 	VkWriteDescriptorSetAccelerationStructureKHR write{};
-
-	GeometryBufferManager geometry_buffer_manager{};
 
 	Matrix4f last_camera_matrix{1.0};
 	Matrix4f current_camera_matrix{1.0};

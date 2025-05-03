@@ -183,9 +183,29 @@ float GGX_PDF(vec3 n, vec3 h, vec3 wo, float roughness)
 
 void main()
 {  
+
+	
+
 	uint  ray_flags = gl_RayFlagsNoneEXT;
 	float time_min     = 0.001;
 	float time_max     = 10000.0;
+
+	int material_index = material_indices[gl_InstanceCustomIndexEXT];
+	Material material = materials[material_index];
+
+	Vertex interpolation = getInterpolateVertex();
+
+	vec3 object_position = vec3(gl_ObjectToWorldEXT * vec4(interpolation.position, 1.0));
+	vec3 object_normal = normalize(vec3(interpolation.normal * gl_WorldToObjectEXT));
+	/* Write geometry buffer */
+	if (payload.depth == 0)
+	{
+		imageStore(position, ivec2(gl_LaunchIDEXT.xy), vec4(object_position, 0));
+		imageStore(normal_depth, ivec2(gl_LaunchIDEXT.xy), vec4(object_normal, gl_HitTEXT));
+
+		float id = imageLoad(albedo, ivec2(gl_LaunchIDEXT.xy)).x;
+		imageStore(albedo, ivec2(gl_LaunchIDEXT.xy), vec4(gl_InstanceCustomIndexEXT, id, 0.0, 0.0));
+	}
 
 	ObjectProperty property = object_properties[gl_InstanceCustomIndexEXT];
 	/* Rays hit the light source */ 
@@ -195,13 +215,9 @@ void main()
 		return;
 	}
 
-	int material_index = material_indices[gl_InstanceCustomIndexEXT];
-	Material material = materials[material_index];
 
-	Vertex interpolation = getInterpolateVertex();
 
-	vec3 object_position = vec3(gl_ObjectToWorldEXT * vec4(interpolation.position, 1.0));
-	vec3 object_normal = normalize(vec3(interpolation.normal * gl_WorldToObjectEXT));
+
 
 	vec3 light_position;
 	vec3 light_normal;
@@ -312,14 +328,9 @@ void main()
 	}
 	else if (material.type == Specular || material.type == Refraction)
 	{
-		payload.hit_value = payload.hit_value * 0.99;
+		payload.hit_value = payload.hit_value * 0.9;
 	}
 
-	/* Write geometry buffer */
-	if (payload.depth == 1)
-	{
-		imageStore(position, ivec2(gl_LaunchIDEXT.xy), vec4(object_position, gl_InstanceCustomIndexEXT));
-		imageStore(normal_depth, ivec2(gl_LaunchIDEXT.xy), vec4(object_normal, gl_HitTEXT));
-	}
+
 }
 

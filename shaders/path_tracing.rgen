@@ -19,6 +19,7 @@ const int NBSAMPLES = 1;
 void main()
 {
 
+
 	vec2 size = gl_LaunchSizeEXT.xy;
 
 	vec2 pixel_index = gl_LaunchIDEXT.xy;
@@ -71,16 +72,18 @@ void main()
 	
 
   // Do accumulation over time
-	if(pcRay.frame > 0)
-	{
-		float a         = 1.0f / float(pcRay.frame + 1);
-		vec3  old_color = imageLoad(image[(pcRay.image_index + 1) % 2], ivec2(gl_LaunchIDEXT.xy)).xyz;
-		imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, payload.hit_value, a), 1.f));
-	}
-	else
-	{
-		// First frame, replace the value in the buffer
-		imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(payload.hit_value, 1.f));
-	}
+	//if(pcRay.frame > 0)
+	//{
+	//	float a         = 1.0f / float(pcRay.frame + 1);
+	//	vec3  old_color = imageLoad(image[(pcRay.image_index + 1) % 2], ivec2(gl_LaunchIDEXT.xy)).xyz;
+	//	imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, payload.hit_value, a), 1.f));
+	//}
+	//else
+	//{
+	//	// First frame, replace the value in the buffer
+	//	imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(payload.hit_value, 1.f));
+	//}
+
+	imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(payload.hit_value, 1.f));
 }
 

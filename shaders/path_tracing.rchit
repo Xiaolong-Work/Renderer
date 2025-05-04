@@ -19,9 +19,8 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(location = 1) rayPayloadEXT ShadowPayload shadow_payload;
 
 layout(binding = 9, rgba32f) uniform image2D position;
-layout(binding = 10, rgba32f) uniform image2D normal_depth;
-layout(binding = 11, rgba32f) uniform image2D albedo;
-layout(binding = 12, rgba32f) uniform image2D material_ssao;
+layout(binding = 10, rgba32f) uniform image2D normal;
+layout(binding = 11, rgba32f) uniform image2D id;
 
 
 //// 采样 GGX 微表面法线 h
@@ -200,11 +199,11 @@ void main()
 	/* Write geometry buffer */
 	if (payload.depth == 0)
 	{
-		imageStore(position, ivec2(gl_LaunchIDEXT.xy), vec4(object_position, 0));
-		imageStore(normal_depth, ivec2(gl_LaunchIDEXT.xy), vec4(object_normal, gl_HitTEXT));
+		imageStore(position, ivec2(gl_LaunchIDEXT.xy), vec4(object_position, 1.0));
+		imageStore(normal, ivec2(gl_LaunchIDEXT.xy), vec4(object_normal, 1.0));
 
-		float id = imageLoad(albedo, ivec2(gl_LaunchIDEXT.xy)).x;
-		imageStore(albedo, ivec2(gl_LaunchIDEXT.xy), vec4(gl_InstanceCustomIndexEXT, id, 0.0, 0.0));
+		float last_id = imageLoad(id, ivec2(gl_LaunchIDEXT.xy)).x;
+		imageStore(id, ivec2(gl_LaunchIDEXT.xy), vec4(gl_InstanceCustomIndexEXT, last_id, 0.0, 1.0));
 	}
 
 	ObjectProperty property = object_properties[gl_InstanceCustomIndexEXT];
@@ -257,7 +256,6 @@ void main()
 	
 	vec3 wo;
 	float pdf_O;
-	vec3 h = sampleGGX(material.roughness, object_normal, payload.seed);
 	if(material.type == Diffuse)
 	{
 		wo = diffuseSample(object_normal, payload.seed);
@@ -304,6 +302,7 @@ void main()
 	}
 	else if (material.type == Glossy)
 	{
+		vec3 h = sampleGGX(material.roughness, object_normal, payload.seed);
 		wo = reflect(-wi, h);
 		pdf_O = distributionGGX(object_normal, h, material.roughness) * dot(object_normal, h) / (4.0 * max(dot(wo, object_normal), 1e-6));
 	}
@@ -321,7 +320,7 @@ void main()
 	{
 		vec3 brdf = shaderPBR(wi, wo, material.roughness, material.metallic, color, object_normal);
 		float cos_theta = max(dot(wo, object_normal), 0);	
-		if (pdf_O > 1e-6)
+		if (pdf_O > 1e-2)
 		{
 			payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
 		}

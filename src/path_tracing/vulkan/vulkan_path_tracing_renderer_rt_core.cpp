@@ -75,42 +75,56 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->object_property_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_luminous_indices_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		this->storage_image_managers[i] = StorageImageManager(context_manager_sptr, command_manager_sptr);
-		this->storage_image_managers[i].setExtent(this->swap_chain_manager.extent);
-		this->storage_image_managers[i].init();
-	}
+	this->denoise_single_frame_image_manager = StorageImageManager(context_manager_sptr, command_manager_sptr);
+	this->denoise_single_frame_image_manager.setExtent(this->swap_chain_manager.extent);
+	this->denoise_single_frame_image_manager.init();
+
+	this->gbuffer_position_image_manager = StorageImageManager(context_manager_sptr, command_manager_sptr);
+	this->gbuffer_position_image_manager.setExtent(this->swap_chain_manager.extent);
+	this->gbuffer_position_image_manager.init();
+
+	this->gbuffer_normal_image_manager = StorageImageManager(context_manager_sptr, command_manager_sptr);
+	this->gbuffer_normal_image_manager.setExtent(this->swap_chain_manager.extent);
+	this->gbuffer_normal_image_manager.init();
+
+	this->gbuffer_id_image_manager = StorageImageManager(context_manager_sptr, command_manager_sptr);
+	this->gbuffer_id_image_manager.setExtent(this->swap_chain_manager.extent);
+	this->gbuffer_id_image_manager.init();
+
+	this->noise_image_manager = MultiStorageImageManager(context_manager_sptr, command_manager_sptr);
+	this->noise_image_manager.setExtent(this->swap_chain_manager.extent);
+	this->noise_image_manager.addImage(VK_FORMAT_R32G32B32A32_SFLOAT);
+	this->noise_image_manager.addImage(VK_FORMAT_R32G32B32A32_SFLOAT);
+	this->noise_image_manager.init();
 
 	this->createBLAS();
 	this->createTLAS();
 
 	this->pipeline_manager = PipelineManager(context_manager_sptr, PipelineType::PathTracing);
-	this->present_pipeline_manager = PipelineManager(context_manager_sptr);
+	this->denoise_single_frame_pipeline_manager = PipelineManager(context_manager_sptr);
+	this->denoise_time_accumulate_pipeline_manager = PipelineManager(context_manager_sptr);
 
 	setupObjectAddress(scene);
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		this->geometry_buffer_managers[i] = GeometryBufferManager(context_manager_sptr, command_manager_sptr);
-		this->geometry_buffer_managers[i].setExtent(this->swap_chain_manager.extent);
-		this->geometry_buffer_managers[i].setUsage(VK_IMAGE_USAGE_STORAGE_BIT);
-		this->geometry_buffer_managers[i].init();
-
 		this->uniform_buffer_managers[i] = UniformBufferManager(context_manager_sptr, command_manager_sptr);
 		this->uniform_buffer_managers[i].setData(&this->ubo, sizeof(UBOMVP), 1);
 		this->uniform_buffer_managers[i].init();
 
 		this->descriptor_managers[i] = DescriptorManager(context_manager_sptr);
 		this->setupDescriptor(i);
-		this->present_descriptor_managers[i] = DescriptorManager(context_manager_sptr);
-		this->setupPresentDescriptor(i);
+		this->denoise_single_frame_descriptor_managers[i] = DescriptorManager(context_manager_sptr);
+		this->setupDenoiseSingleFrameDescriptorSet(i);
+		this->denoise_time_accumulate_descriptor_managers[i] = DescriptorManager(context_manager_sptr);
+		this->setupDenoiseTimeAccumulateDescriptorSet(i);
 	}
 
 	this->render_pass_manager = RenderPassManager(context_manager_sptr, swap_chain_manager_sptr, command_manager_sptr);
-	this->setupPresentRenderPass();
+	this->setupDenoisePostProcessingRenderPass();
 
 	this->setupGraphicsPipelines();
-	this->setupPresentPipeline();
+	this->setupDenoiseSingleFramePipeline();
+	this->setupDenoiseTimeAccumulatePipeline();
 
 	this->createShaderBindingTable();
 
@@ -149,6 +163,12 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 	VkRect2D scissor{};
 	scissor.offset = {0, 0};
 	scissor.extent = this->swap_chain_manager.extent;
+
+	/* Push constants used by the denoising shader */
+	DenoisePushConstantData denoise_push_constant{};
+	denoise_push_constant.last_camera_matrix = this->last_camera_matrix;
+	denoise_push_constant.current_index = this->current_frame;
+	denoise_push_constant.frame_count = this->frame_count;
 
 	VkCommandBufferBeginInfo command_begin{};
 	command_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -209,7 +229,10 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 
 	vkCmdBeginRenderPass(command_buffer, &render_pass_begin, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->present_pipeline_manager.pipeline);
+	/* ========== Joint bilateral filtering ========== */
+
+	vkCmdBindPipeline(
+		command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->denoise_single_frame_pipeline_manager.pipeline);
 
 	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
@@ -217,31 +240,47 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 
 	vkCmdBindDescriptorSets(command_buffer,
 							VK_PIPELINE_BIND_POINT_GRAPHICS,
-							this->present_pipeline_manager.layout,
+							this->denoise_single_frame_pipeline_manager.layout,
 							0,
 							1,
-							&this->present_descriptor_managers[current_frame].set,
+							&this->denoise_single_frame_descriptor_managers[current_frame].set,
 							0,
 							nullptr);
 
-	struct PushConstantData
-	{
-		Matrix4f last_camera_matrix;
-		int frame_index;
-		int frame_count;
-	};
-
-	PushConstantData temp1{};
-	temp1.frame_index = current_frame;
-	temp1.last_camera_matrix = this->last_camera_matrix;
-	temp1.frame_count = frame_count;
-
 	vkCmdPushConstants(command_buffer,
-					   this->present_pipeline_manager.layout,
+					   this->denoise_single_frame_pipeline_manager.layout,
 					   VK_SHADER_STAGE_FRAGMENT_BIT,
 					   0,
-					   sizeof(PushConstantData),
-					   &temp1);
+					   sizeof(DenoisePushConstantData),
+					   &denoise_push_constant);
+
+	vkCmdDraw(command_buffer, 6, 1, 0, 0);
+
+	/* ========== Denoise time accumulate subpass ========== */
+	vkCmdNextSubpass(command_buffer, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(
+		command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->denoise_time_accumulate_pipeline_manager.pipeline);
+
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+	vkCmdBindDescriptorSets(command_buffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							this->denoise_time_accumulate_pipeline_manager.layout,
+							0,
+							1,
+							&this->denoise_time_accumulate_descriptor_managers[current_frame].set,
+							0,
+							nullptr);
+
+	vkCmdPushConstants(command_buffer,
+					   this->denoise_time_accumulate_pipeline_manager.layout,
+					   VK_SHADER_STAGE_FRAGMENT_BIT,
+					   0,
+					   sizeof(DenoisePushConstantData),
+					   &denoise_push_constant);
 
 	vkCmdDraw(command_buffer, 6, 1, 0, 0);
 
@@ -614,13 +653,9 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	layout_binding.pImmutableSamplers = nullptr;
 	this->descriptor_managers[index].addLayoutBinding(layout_binding);
 
-	/* Result image binding */
-	layout_binding.binding = 1;
-	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	layout_binding.descriptorCount = 2;
-	layout_binding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-	layout_binding.pImmutableSamplers = nullptr;
-	this->descriptor_managers[index].addLayoutBinding(layout_binding);
+	/* Noisy color result */
+	this->descriptor_managers[index].addDescriptor(
+		this->noise_image_manager.getDescriptor(1, VK_SHADER_STAGE_RAYGEN_BIT_KHR));
 
 	/* Camera information descriptor */
 	this->descriptor_managers[index].addLayoutBinding(
@@ -650,8 +685,14 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	this->descriptor_managers[index].addDescriptor(
 		this->object_luminous_indices_manager.getDescriptor(8, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
 
-	this->descriptor_managers[index].addDescriptors(this->geometry_buffer_managers[index].getDescriptors(
-		9, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_RAYGEN_BIT_KHR));
+	this->descriptor_managers[index].addDescriptor(this->gbuffer_position_image_manager.getDescriptor(
+		9, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR));
+
+	this->descriptor_managers[index].addDescriptor(this->gbuffer_normal_image_manager.getDescriptor(
+		10, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR));
+
+	this->descriptor_managers[index].addDescriptor(this->gbuffer_id_image_manager.getDescriptor(
+		11, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR));
 
 	/* ========== Write Descriptor Set ========== */
 	/* TLAS write */
@@ -671,27 +712,6 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 	tlas_write.pImageInfo = nullptr;
 	tlas_write.pTexelBufferView = nullptr;
 	this->descriptor_managers[index].addWrite(tlas_write);
-
-	/* Result image */
-	result_images.resize(2);
-	for (size_t i = 0; i < 2; i++)
-	{
-		result_images[i].sampler = this->storage_image_managers[i].sampler;
-		result_images[i].imageView = this->storage_image_managers[i].view;
-		result_images[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	}
-	VkWriteDescriptorSet result_image_write{};
-	result_image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	result_image_write.pNext = nullptr;
-	result_image_write.dstSet = VK_NULL_HANDLE;
-	result_image_write.dstBinding = 1;
-	result_image_write.dstArrayElement = 0;
-	result_image_write.descriptorCount = static_cast<uint32_t>(result_images.size());
-	result_image_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	result_image_write.pBufferInfo = nullptr;
-	result_image_write.pImageInfo = result_images.data();
-	result_image_write.pTexelBufferView = nullptr;
-	this->descriptor_managers[index].addWrite(result_image_write);
 
 	/* Camera set write information */
 	this->descriptor_managers[index].addWrite(this->uniform_buffer_managers[index].getWriteInformation(2));

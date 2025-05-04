@@ -38,7 +38,7 @@ public:
 	{
 		int frame_count = 0;
 		auto last = std::chrono::high_resolution_clock::now();
-		
+
 		while (!glfwWindowShouldClose(this->context_manager.window))
 		{
 			auto now = std::chrono::high_resolution_clock::now();
@@ -156,7 +156,6 @@ public:
 		this->camera_up = scene.camera.up;
 		this->camera_look = scene.camera.look;
 		this->fovy = scene.camera.fov;
-		
 
 		Direction direction = glm::normalize(scene.camera.look - scene.camera.position);
 		yaw = glm::degrees(atan2(direction.z, direction.x));
@@ -182,7 +181,6 @@ protected:
 
 	float yaw{0.0f};
 	float pitch{0.0f};
-	
 
 	bool firstMouse = true;
 	bool mouseCaptured = false;
@@ -267,15 +265,16 @@ protected:
 		auto self = static_cast<VulkanRendererBase*>(glfwGetWindowUserPointer(window));
 
 		const float moveSpeed = 0.5f;
-		glm::vec3 forward = glm::vec3(self->ubo.view[0][2], self->ubo.view[1][2], self->ubo.view[2][2]);
-		glm::vec3 right = glm::vec3(self->ubo.view[0][0], self->ubo.view[1][0], self->ubo.view[2][0]);
-		glm::vec3 up = glm::vec3(self->ubo.view[0][1], self->ubo.view[1][1], self->ubo.view[2][1]);
+		glm::vec3 forward = self->camera_look - self->camera_position;
+		glm::vec3 up = self->camera_up;
+		glm::vec3 right = glm::cross(forward, up);
 
+		self->moved = true;
 		switch (key)
 		{
 		case GLFW_KEY_W:
 			{
-				self->camera_position -= forward * moveSpeed;
+				self->camera_position += forward * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_A:
@@ -285,7 +284,7 @@ protected:
 			}
 		case GLFW_KEY_S:
 			{
-				self->camera_position += forward * moveSpeed;
+				self->camera_position -= forward * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_D:
@@ -304,11 +303,14 @@ protected:
 				break;
 			}
 		default:
-			break;
+			{
+				self->moved = false;
+				break;
+			}
 		}
 
-		self->ubo.view = glm::lookAt(self->camera_position, self->camera_position - forward, up);
-		self->moved = true;
+		self->camera_look = self->camera_position + forward;
+		self->ubo.view = glm::lookAt(self->camera_position, self->camera_look, up);
 	}
 
 	void setupImgui()
@@ -337,6 +339,7 @@ protected:
 		init.Allocator = nullptr;
 		init.CheckVkResultFn = nullptr;
 		init.RenderPass = this->render_pass_manager.pass;
+		init.Subpass = this->render_pass_manager.subpasses.size() - 1;
 
 		ImGui_ImplVulkan_Init(&init);
 

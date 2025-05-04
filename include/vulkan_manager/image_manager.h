@@ -96,14 +96,53 @@ public:
 	std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> getDescriptor(const uint32_t binding,
 																				const VkShaderStageFlags flag);
 
-	VkImage image;
-	VkDeviceMemory memory;
-	VkImageView view;
+	void setImage(const VkFormat format, const VkImageUsageFlags usage = 0);
+
+	VkFormat format{VK_FORMAT_R32G32B32A32_SFLOAT};
+	VkImageUsageFlags usage{};          
+
+	VkImage image{};
+	VkDeviceMemory memory{};
+	VkImageView view{};
 
 	VkSampler sampler{};
 
 private:
 	VkDescriptorImageInfo descriptor_image{};
+};
+
+class MultiStorageImageManager : public ImageManager
+{
+public:
+	MultiStorageImageManager() = default;
+	MultiStorageImageManager(const ContextManagerSPtr& context_manager_sptr,
+							 const CommandManagerSPtr& command_manager_sptr);
+
+	void init();
+	void clear();
+
+	void addImage(const VkFormat format, const VkImageUsageFlags usage = 0);
+
+	VkDescriptorSetLayoutBinding getLayoutBinding(const uint32_t binding, const VkShaderStageFlags flag);
+	VkWriteDescriptorSet getWriteInformation(const uint32_t binding);
+	std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> getDescriptor(const uint32_t binding,
+																				const VkShaderStageFlags flag);
+
+	uint32_t image_count{0};
+	std::vector<VkFormat> formats{};
+	std::vector<VkImageUsageFlags> usages{};
+
+	std::vector<VkImage> images{};
+	std::vector<VkDeviceMemory> memories{};
+	std::vector<VkImageView> views{};
+
+	VkSampler sampler{};
+
+protected:
+	void createImageResource(const int index);
+
+private:
+	std::vector<VkDescriptorImageInfo> descriptor_images{};
 };
 
 class PointLightShadowMapImageManager : public ImageManager

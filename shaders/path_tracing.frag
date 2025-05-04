@@ -4,10 +4,10 @@
 
 layout(location = 0) out vec4 out_color;
 
-layout(binding = 9, rgba32f) uniform image2D color[];
-layout(binding = 0, rgba32f) readonly uniform image2D position_id;
-layout(binding = 1, rgba32f) readonly uniform image2D normal_depth;
-layout(binding = 2, rgba32f) readonly uniform image2D albedo;
+layout(binding = 9, rgba32f) uniform image2D color[2];
+layout(binding = 0, rgba32f) readonly uniform image2D position;
+layout(binding = 1, rgba32f) readonly uniform image2D normal;
+layout(binding = 2, rgba32f) readonly uniform image2D id;
 layout(binding = 3, rgba32f) readonly uniform image2D material_ssao;
 
 struct PushConstantData
@@ -42,13 +42,13 @@ float computeWeight(ivec2 i, ivec2 j)
 	float color_distance = length(color_j - color_i);
 	sum -= color_distance * color_distance / (2.0 * sigma_color);
 	
-	vec3 normal_i = imageLoad(normal_depth, i).xyz;
-	vec3 normal_j = imageLoad(normal_depth, j).xyz;
+	vec3 normal_i = imageLoad(normal, i).xyz;
+	vec3 normal_j = imageLoad(normal, j).xyz;
 	float normal_distance = acos(clamp(dot(normal_j, normal_i), 0.0, 1.0));
 	sum -= normal_distance * normal_distance / (2.0 * sigma_normal);
 	
-	vec3 position_i = imageLoad(position_id, i).xyz;
-	vec3 position_j = imageLoad(position_id, j).xyz;
+	vec3 position_i = imageLoad(position, i).xyz;
+	vec3 position_j = imageLoad(position, j).xyz;
 	float plane_distance = max(dot(normal_i, normalize(position_j - position_i)), 0);
 	sum -= plane_distance * plane_distance / (2.0 * sigma_plane);
 
@@ -98,7 +98,7 @@ void main()
 
     vec4 result = vec4(deNoise(), 1.0);
     
-    vec3 world_position = imageLoad(position_id, ivec2(gl_FragCoord.xy)).xyz;
+    vec3 world_position = imageLoad(position, ivec2(gl_FragCoord.xy)).xyz;
     
     vec4 temp = data.last_camera_matrix * vec4(world_position, 1.0);
     vec3 last_clip_position = (temp / temp.w).xyz;
@@ -121,10 +121,10 @@ void main()
         // 获取上一帧对应位置的颜色
         vec4 last_result = imageLoad(color[(data.frame_index + 1) % 2], last_pix);
 
-		float id = imageLoad(albedo, ivec2(gl_FragCoord.xy)).x;
-		float last_id  = imageLoad(albedo, last_pix).y;
+		float now_id = imageLoad(id, ivec2(gl_FragCoord.xy)).x;
+		float last_id  = imageLoad(id, last_pix).y;
 
-		if (id == last_id)
+		if (now_id == last_id)
         result = mix(result, last_result, 0.9);
     }
     

@@ -47,132 +47,155 @@ public:
 
 	void setupGraphicsPipelines();
 
-	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> present_descriptor_managers{};
-	void setupPresentDescriptor(const int index)
-	{
-		this->present_descriptor_managers[index].addDescriptors(
-			this->geometry_buffer_managers[index].getDescriptors(0, VK_SHADER_STAGE_FRAGMENT_BIT));
-
-		VkDescriptorSetLayoutBinding layout_binding{};
-		/* Result image binding */
-		layout_binding.binding = 9;
-		layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		layout_binding.descriptorCount = 2;
-		layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		layout_binding.pImmutableSamplers = nullptr;
-		this->present_descriptor_managers[index].addLayoutBinding(layout_binding);
-
-		/* Result image */
-		result_images.resize(2);
-		for (size_t i = 0; i < 2; i++)
-		{
-			result_images[i].sampler = this->storage_image_managers[i].sampler;
-			result_images[i].imageView = this->storage_image_managers[i].view;
-			result_images[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-		}
-		VkWriteDescriptorSet result_image_write{};
-		result_image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		result_image_write.pNext = nullptr;
-		result_image_write.dstSet = VK_NULL_HANDLE;
-		result_image_write.dstBinding = 9;
-		result_image_write.dstArrayElement = 0;
-		result_image_write.descriptorCount = static_cast<uint32_t>(result_images.size());
-		result_image_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		result_image_write.pBufferInfo = nullptr;
-		result_image_write.pImageInfo = result_images.data();
-		result_image_write.pTexelBufferView = nullptr;
-		this->present_descriptor_managers[index].addWrite(result_image_write);
-
-		this->present_descriptor_managers[index].init();
-	}
-
-	PipelineManager present_pipeline_manager{};
-	void setupPresentPipeline()
-	{
-		std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-		this->present_pipeline_manager.dynamic_states = dynamic_states;
-
-		this->present_pipeline_manager.addShaderStage("path_tracing_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		this->present_pipeline_manager.addShaderStage("path_tracing_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-
-		this->present_pipeline_manager.setDefaultFixedState();
-		this->present_pipeline_manager.setExtent(this->swap_chain_manager.extent);
-		this->present_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 0);
-		this->present_pipeline_manager.setVertexInput(0b0000);
-		std::vector<VkDescriptorSetLayout> layout = {this->present_descriptor_managers[0].layout};
-
-		struct PushConstantData
-		{
-			Matrix4f last_camera_matrix;
-			int frame_index;
-			int frame_count;
-		};
-
-		std::vector<VkPushConstantRange> all_push_constants{};
-		VkPushConstantRange push_constant{};
-		push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		push_constant.offset = 0;
-		push_constant.size = sizeof(PushConstantData);
-		all_push_constants.push_back(push_constant);
-
-		this->present_pipeline_manager.setLayout(layout, all_push_constants);
-
-		this->present_pipeline_manager.init();
-	}
 
 	void setupDenoiseSingleFrameSubpass()
 	{
 		AttachmentReference reference{};
-		reference.color.push_back(VkAttachmentReference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
+		reference.preserve.push_back(0);
 
 		VkSubpassDependency dependency{};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependency.dstSubpass = 0;
-
+		/* Synchronization requires waiting for the ray tracing shader to finish writing */
 		dependency.srcStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
 		dependency.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
+		/* Fragment shader reading for single frame denoising needs to wait for synchronization to complete */
 		dependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		dependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
 		dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 		this->render_pass_manager.addDependency(dependency);
 		this->render_pass_manager.addSubpass(reference);
 	}
 
-	void setupDenoiseSingleFrameDescriptorSet()
+	void setupDenoiseSingleFrameDescriptorSet(const int index)
 	{
+		/* Denoised color result  */
+		this->denoise_single_frame_descriptor_managers[index].addDescriptor(
+			this->denoise_single_frame_image_manager.getDescriptor(0, VK_SHADER_STAGE_FRAGMENT_BIT));
+		/* World Coordinate Geometry Buffer */
+		this->denoise_single_frame_descriptor_managers[index].addDescriptor(
+			this->gbuffer_position_image_manager.getDescriptor(1, VK_SHADER_STAGE_FRAGMENT_BIT));
+		/* World Normal Geometry Buffer */
+		this->denoise_single_frame_descriptor_managers[index].addDescriptor(
+			this->gbuffer_normal_image_manager.getDescriptor(2, VK_SHADER_STAGE_FRAGMENT_BIT));
+		/* Noisy color result */
+		this->denoise_single_frame_descriptor_managers[index].addDescriptor(
+			this->noise_image_manager.getDescriptor(3, VK_SHADER_STAGE_FRAGMENT_BIT));
+
+		this->denoise_single_frame_descriptor_managers[index].init();
 	}
 
 	void setupDenoiseSingleFramePipeline()
 	{
 		std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-		this->denoise_single_frame.dynamic_states = dynamic_states;
+		this->denoise_single_frame_pipeline_manager.dynamic_states = dynamic_states;
 
-		this->denoise_single_frame.addShaderStage("empty_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		this->denoise_single_frame.addShaderStage("path_tracing_denoise_single_frame_frag.spv",
-												  VK_SHADER_STAGE_FRAGMENT_BIT);
+		this->denoise_single_frame_pipeline_manager.addShaderStage("empty_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		this->denoise_single_frame_pipeline_manager.addShaderStage("path_tracing_denoise_single_frame_frag.spv",
+																   VK_SHADER_STAGE_FRAGMENT_BIT);
 
-		this->denoise_single_frame.setDefaultFixedState();
-		this->denoise_single_frame.setExtent(this->swap_chain_manager.extent);
-		this->denoise_single_frame.setRenderPass(this->render_pass_manager.pass, 0);
-		this->denoise_single_frame.setVertexInput(0);
-		std::vector<VkDescriptorSetLayout> layout = {/*this->light_descriptor_managers[0].layout*/};
-		this->denoise_single_frame.setLayout(layout);
-		this->denoise_single_frame.init();
+		this->denoise_single_frame_pipeline_manager.setDefaultFixedState();
+		this->denoise_single_frame_pipeline_manager.setExtent(this->swap_chain_manager.extent);
+		this->denoise_single_frame_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 0);
+		this->denoise_single_frame_pipeline_manager.setVertexInput(0b0000);
+
+		std::vector<VkPushConstantRange> push_constants{};
+		VkPushConstantRange push_constant{};
+		push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		push_constant.offset = 0;
+		push_constant.size = sizeof(DenoisePushConstantData);
+		push_constants.push_back(push_constant);
+		std::vector<VkDescriptorSetLayout> layout = {this->denoise_single_frame_descriptor_managers[0].layout};
+		this->denoise_single_frame_pipeline_manager.setLayout(layout, push_constants);
+
+		this->denoise_single_frame_pipeline_manager.init();
 	}
 
-	void setupPostProcessingRenderPass()
+	void setupDenoiseTimeAccumulateSubpass()
+	{
+		AttachmentReference reference{};
+		reference.color.push_back(VkAttachmentReference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
+
+		VkSubpassDependency dependency{};
+		dependency.srcSubpass = 0;
+		dependency.dstSubpass = 1;
+		/* Synchronization requires waiting for the ray tracing shader to finish writing */
+		dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dependency.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		/* Fragment shader reading for single frame denoising needs to wait for synchronization to complete */
+		dependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+		this->render_pass_manager.addDependency(dependency);
+		this->render_pass_manager.addSubpass(reference);
+	}
+
+	void setupDenoiseTimeAccumulateDescriptorSet(const int index)
+	{
+		this->denoise_time_accumulate_descriptor_managers[index].addDescriptor(
+			this->denoise_single_frame_image_manager.getDescriptor(0, VK_SHADER_STAGE_FRAGMENT_BIT));
+		/* World Coordinate Geometry Buffer */
+		this->denoise_time_accumulate_descriptor_managers[index].addDescriptor(
+			this->gbuffer_position_image_manager.getDescriptor(1, VK_SHADER_STAGE_FRAGMENT_BIT));
+		/* World Normal Geometry Buffer */
+		this->denoise_time_accumulate_descriptor_managers[index].addDescriptor(
+			this->gbuffer_id_image_manager.getDescriptor(2, VK_SHADER_STAGE_FRAGMENT_BIT));
+		/* Noisy color result */
+		this->denoise_time_accumulate_descriptor_managers[index].addDescriptor(
+			this->noise_image_manager.getDescriptor(3, VK_SHADER_STAGE_FRAGMENT_BIT));
+
+		this->denoise_time_accumulate_descriptor_managers[index].init();
+	}
+
+	void setupDenoiseTimeAccumulatePipeline()
+	{
+		std::vector<VkDynamicState> dynamic_states = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+		this->denoise_time_accumulate_pipeline_manager.dynamic_states = dynamic_states;
+
+		this->denoise_time_accumulate_pipeline_manager.addShaderStage("empty_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		this->denoise_time_accumulate_pipeline_manager.addShaderStage("path_tracing_denoise_time_accumulate_frag.spv",
+																	  VK_SHADER_STAGE_FRAGMENT_BIT);
+
+		this->denoise_time_accumulate_pipeline_manager.setDefaultFixedState();
+		this->denoise_time_accumulate_pipeline_manager.setExtent(this->swap_chain_manager.extent);
+		this->denoise_time_accumulate_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 1);
+		this->denoise_time_accumulate_pipeline_manager.setVertexInput(0b0000);
+
+		std::vector<VkPushConstantRange> push_constants{};
+		VkPushConstantRange push_constant{};
+		push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		push_constant.offset = 0;
+		push_constant.size = sizeof(DenoisePushConstantData);
+		push_constants.push_back(push_constant);
+		std::vector<VkDescriptorSetLayout> layout = {this->denoise_time_accumulate_descriptor_managers[0].layout};
+		this->denoise_time_accumulate_pipeline_manager.setLayout(layout, push_constants);
+
+		this->denoise_time_accumulate_pipeline_manager.init();
+	}
+
+	void setupDenoisePostProcessingRenderPass()
 	{
 		this->render_pass_manager.type = RenderPassType::Custom;
-	}
 
-	void setupPresentRenderPass()
-	{
-		this->render_pass_manager.type = RenderPassType::Render;
+		this->render_pass_manager.addColorAttachment(
+			this->swap_chain_manager.format, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+		this->render_pass_manager.setDefaultDepthAttachment();
+
+		this->setupDenoiseSingleFrameSubpass();
+		this->setupDenoiseTimeAccumulateSubpass();
+
+		this->render_pass_manager.views.resize(this->swap_chain_manager.views.size());
+		for (size_t i = 0; i < this->swap_chain_manager.views.size(); i++)
+		{
+			this->render_pass_manager.views[i].push_back(this->swap_chain_manager.views[i]);
+		}
+
 		this->render_pass_manager.init();
 	}
+
 
 	StorageBufferManager object_luminous_indices_manager{};
 	StorageBufferManager object_address_manager{};
@@ -330,6 +353,7 @@ private:
 
 	std::vector<VkTransformMatrixKHR> model_matrixes{};
 
+	/* Extension Functions */
 	PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
 
 	PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
@@ -346,7 +370,9 @@ private:
 
 	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> descriptor_managers{};
 
-	std::array<GeometryBufferManager, MAX_FRAMES_IN_FLIGHT> geometry_buffer_managers{};
+	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> denoise_single_frame_descriptor_managers{};
+
+	std::array<DescriptorManager, MAX_FRAMES_IN_FLIGHT> denoise_time_accumulate_descriptor_managers{};
 
 	PipelineManager pipeline_manager{};
 
@@ -355,19 +381,33 @@ private:
 	VkStridedDeviceAddressRegionKHR ray_hit_region{};
 	VkStridedDeviceAddressRegionKHR call_region{};
 
-	std::array<StorageImageManager, 2> storage_image_managers{};
+	MultiStorageImageManager noise_image_manager{};
 
 	StagingBufferManager sbt_buffer_manager{};
 
-	std::vector<VkDescriptorImageInfo> result_images{};
 	VkWriteDescriptorSetAccelerationStructureKHR write{};
 
 	Matrix4f last_camera_matrix{1.0};
 	Matrix4f current_camera_matrix{1.0};
 
-	PipelineManager denoise_single_frame{};
+	/* Single frame noise reduction */
+	PipelineManager denoise_single_frame_pipeline_manager{};
+	PipelineManager denoise_time_accumulate_pipeline_manager{};
+
+	StorageImageManager denoise_single_frame_image_manager{};
+
+	StorageImageManager gbuffer_position_image_manager{};
+	StorageImageManager gbuffer_normal_image_manager{};
+	StorageImageManager gbuffer_id_image_manager{};
 
 	static const int NUM_SAMPLES = 100;
 	float frame_times[NUM_SAMPLES] = {}; // ³õÊ¼»¯Îª0
 	int frame_index = 0;
+
+	struct DenoisePushConstantData
+	{
+		Matrix4f last_camera_matrix;
+		int current_index;
+		int frame_count;
+	};
 };

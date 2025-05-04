@@ -1,24 +1,21 @@
-#version 450
+#version 460
 #extension GL_KHR_vulkan_glsl : enable	
-#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_nonuniform_qualifier : enable
 
-layout(location = 0) out vec4 out_color;
+layout(binding = 0, rgba32f) writeonly uniform image2D result;
+layout(binding = 1, rgba32f) readonly uniform image2D position;
+layout(binding = 2, rgba32f) readonly uniform image2D normal;
+layout(binding = 3, rgba32f) uniform image2D color[2];
 
-layout(binding = 0, rgba32f) readonly uniform image2D position;
-layout(binding = 1, rgba32f) readonly uniform image2D normal_depth;
-layout(binding = 2, rgba32f) readonly uniform image2D albedo;
-layout(binding = 3, rgba32f) readonly uniform image2D material_ssao;
-layout(binding = 9, rgba32f) uniform image2D color[];
-
-struct PushConstantData
+struct DenoisePushConstantData
 {
 	mat4 last_camera_matrix;
-	int frame_index;
+	int current_index;
 	int frame_count;
 };
-layout(push_constant) uniform PushConstant { PushConstantData param; };
+layout(push_constant) uniform PushConstant { DenoisePushConstantData param; };
 
-int kernel_size = 5;
+int kernel_size = 10;
 float sigma_point = 32.0;
 float sigma_color = 0.6;
 float sigma_normal = 0.1;
@@ -31,13 +28,13 @@ float computeWeight(ivec2 i, ivec2 j)
 	float point_distance = length(i - j);
 	sum -= point_distance * point_distance / (2.0 * sigma_point);
 
-	vec3 color_i = imageLoad(color[param.frame_index], i).xyz;
-	vec3 color_j = imageLoad(color[param.frame_index], j).xyz;
+	vec3 color_i = imageLoad(color[param.current_index], i).xyz;
+	vec3 color_j = imageLoad(color[param.current_index], j).xyz;
 	float color_distance = length(color_j - color_i);
 	sum -= color_distance * color_distance / (2.0 * sigma_color);
 	
-	vec3 normal_i = imageLoad(normal_depth, i).xyz;
-	vec3 normal_j = imageLoad(normal_depth, j).xyz;
+	vec3 normal_i = imageLoad(normal, i).xyz;
+	vec3 normal_j = imageLoad(normal, j).xyz;
 	float normal_distance = acos(clamp(dot(normal_j, normal_i), 0.0, 1.0));
 	sum -= normal_distance * normal_distance / (2.0 * sigma_normal);
 	
@@ -54,9 +51,9 @@ vec4 denoise()
 	ivec2 i = ivec2(gl_FragCoord.xy);
 
 	int min_x = max(0, i.x - kernel_size);
-    int max_x = min(imageSize(color[param.frame_index]).x - 1, i.x + kernel_size);
+    int max_x = min(imageSize(color[param.current_index]).x - 1, i.x + kernel_size);
     int min_y = max(0, i.y - kernel_size);
-    int max_y = min(imageSize(color[param.frame_index]).y - 1, i.y + kernel_size);
+    int max_y = min(imageSize(color[param.current_index]).y - 1, i.y + kernel_size);
 
 	float sum_weight = 0;
 	vec4 sum_color = vec4(0);
@@ -68,7 +65,7 @@ vec4 denoise()
 			ivec2 j = ivec2(x, y);
 			float weight = computeWeight(i, j);
 			sum_weight += weight;
-			vec4 color = imageLoad(color[param.frame_index], j);
+			vec4 color = imageLoad(color[param.current_index], j);
 			sum_color += weight * color;
 		}
 	}
@@ -78,5 +75,5 @@ vec4 denoise()
 
 void main()
 {
-	out_color = denoise();
+	imageStore(result, ivec2(gl_FragCoord.xy), denoise());
 }

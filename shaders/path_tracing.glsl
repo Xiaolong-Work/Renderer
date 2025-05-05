@@ -2,9 +2,10 @@
 struct HitPayload
 {
 	vec3 hit_value;
-	int depth;
-	bool in_object;
+	uint depth;
 	uint seed;
+	bool in_object;
+	bool hit_light;
 };
 
 struct ShadowPayload

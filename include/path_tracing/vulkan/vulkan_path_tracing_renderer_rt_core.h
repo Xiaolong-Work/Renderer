@@ -47,7 +47,6 @@ public:
 
 	void setupGraphicsPipelines();
 
-
 	void setupDenoiseSingleFrameSubpass()
 	{
 		AttachmentReference reference{};
@@ -104,7 +103,7 @@ public:
 		VkPushConstantRange push_constant{};
 		push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		push_constant.offset = 0;
-		push_constant.size = sizeof(DenoisePushConstantData);
+		push_constant.size = sizeof(DenoiseParam);
 		push_constants.push_back(push_constant);
 		std::vector<VkDescriptorSetLayout> layout = {this->denoise_single_frame_descriptor_managers[0].layout};
 		this->denoise_single_frame_pipeline_manager.setLayout(layout, push_constants);
@@ -167,7 +166,7 @@ public:
 		VkPushConstantRange push_constant{};
 		push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		push_constant.offset = 0;
-		push_constant.size = sizeof(DenoisePushConstantData);
+		push_constant.size = sizeof(DenoiseParam);
 		push_constants.push_back(push_constant);
 		std::vector<VkDescriptorSetLayout> layout = {this->denoise_time_accumulate_descriptor_managers[0].layout};
 		this->denoise_time_accumulate_pipeline_manager.setLayout(layout, push_constants);
@@ -195,7 +194,6 @@ public:
 
 		this->render_pass_manager.init();
 	}
-
 
 	StorageBufferManager object_luminous_indices_manager{};
 	StorageBufferManager object_address_manager{};
@@ -274,6 +272,7 @@ public:
 		ImGui::Begin("Hello");
 
 		ImGui::Text("FPS %d", this->frames_per_second);
+		ImGui::Text("Frame count %d", this->frame_count);
 		ImGui::Text("Frame time %f ms", this->frame_time);
 		ImGui::PlotLines("##Frame time", frame_times, NUM_SAMPLES, frame_index, nullptr, 0.0f, 100.0f, ImVec2(0, 40));
 
@@ -401,13 +400,20 @@ private:
 	StorageImageManager gbuffer_id_image_manager{};
 
 	static const int NUM_SAMPLES = 100;
-	float frame_times[NUM_SAMPLES] = {}; // ³õÊ¼»¯Îª0
+	float frame_times[NUM_SAMPLES] = {};
 	int frame_index = 0;
 
-	struct DenoisePushConstantData
+	RandomBufferManager random_buffer_manager{};
+
+	struct DenoiseParam
 	{
-		Matrix4f last_camera_matrix;
-		int current_index;
-		int frame_count;
-	};
+		Matrix4f last_camera_matrix{1};
+		int current_index{0};
+		int frame_count{0};
+		int kernel_size{8};
+		float sigma_point{32.0};
+		float sigma_color{0.6};
+		float sigma_normal{0.1};
+		float sigma_plane{0.1};
+	} denoise_param;
 };

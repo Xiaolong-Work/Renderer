@@ -168,18 +168,6 @@ vec3 evaluateMaterial(vec3 wi, vec3 wo, vec3 normal, vec3 color, Material materi
 	}
 }
 
-float GGX_PDF(vec3 n, vec3 h, vec3 wo, float roughness) 
-{
-	float alpha = roughness * roughness;
-    float NdotH = max(dot(n, h), 0.0);
-    float WoDotH = max(dot(wo, h), 0.0);
-
-    float a2 = alpha * alpha;
-    float D = a2 / (pi * pow(NdotH * NdotH * (a2 - 1.0) + 1.0, 2.0));
-
-    return (D * NdotH) / (4.0 * WoDotH);
-}
-
 void main()
 {  
 
@@ -213,10 +201,6 @@ void main()
 		payload.hit_value = property.radiance;
 		return;
 	}
-
-
-
-
 
 	vec3 light_position;
 	vec3 light_normal;
@@ -322,14 +306,19 @@ void main()
 		float cos_theta = max(dot(wo, object_normal), 0);	
 		if (pdf_O > 1e-2)
 		{
-			payload.hit_value = result_color + payload.hit_value * brdf * cos_theta / pdf_O;
+			vec3 last_result = payload.hit_value * brdf * cos_theta / pdf_O;
+			float weight_direct = light_pdf * light_pdf;
+			float weight_indirect = pdf_O * pdf_O;
+			float weigth_sum = weight_direct + weight_indirect;
+			weight_direct /= weigth_sum;
+			weight_indirect /= weigth_sum;
+
+			payload.hit_value = 1 * result_color + 1 * last_result;
 		}
 	}
 	else if (material.type == Specular || material.type == Refraction)
-	{
+	{ 
 		payload.hit_value = payload.hit_value * 0.9;
 	}
-
-	 
 }
 

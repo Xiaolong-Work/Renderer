@@ -283,7 +283,7 @@ void StorageBufferManager::init()
 		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
 	}
 
-	createDeviceLocalBuffer(this->size, this->data, usage, this->buffer, this->memory);
+	createDeviceLocalBuffer(this->size, this->data, this->usage, this->buffer, this->memory);
 }
 
 void StorageBufferManager::clear()
@@ -337,6 +337,36 @@ std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> StorageBufferManag
 	const uint32_t binding, const VkShaderStageFlags flag)
 {
 	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
+}
+
+RandomBufferManager::RandomBufferManager(const ContextManagerSPtr& context_manager_sptr,
+										 const CommandManagerSPtr& command_manager_sptr)
+{
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
+}
+
+void RandomBufferManager::init()
+{
+	std::vector<float> random_table(this->size);
+#pragma omp parallel for
+	for (size_t i = 0; i < this->size; i++)
+	{
+		random_table[i] = getRandomNumber(0.0, 1.0);
+	}
+
+	StorageBufferManager::setData(random_table.data(), sizeof(float) * this->size, this->size);
+	StorageBufferManager::init();
+}
+
+void RandomBufferManager::clear()
+{
+	StorageBufferManager::clear();
+}
+
+void RandomBufferManager::setSize(const int size)
+{
+	this->size = size;
 }
 
 StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& context_manager_sptr,

@@ -75,6 +75,10 @@ void VulkanPathTracingRendererRTCore::setData(const Scene& scene)
 	this->object_property_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 	this->object_luminous_indices_manager = StorageBufferManager(context_manager_sptr, command_manager_sptr);
 
+	this->random_buffer_manager = RandomBufferManager(context_manager_sptr, command_manager_sptr);
+	this->random_buffer_manager.setSize(this->swap_chain_manager.extent.width * this->swap_chain_manager.extent.height);
+	this->random_buffer_manager.init();
+
 	this->denoise_single_frame_image_manager = StorageImageManager(context_manager_sptr, command_manager_sptr);
 	this->denoise_single_frame_image_manager.setExtent(this->swap_chain_manager.extent);
 	this->denoise_single_frame_image_manager.init();
@@ -145,6 +149,10 @@ struct PushConstantRay
 
 void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index)
 {
+	this->frame_count++;
+	this->denoise_param.current_index = this->current_frame;
+	this->denoise_param.frame_count = this->frame_count;
+
 	/* Clear Value */
 	std::array<VkClearValue, 2> clear_values{};
 	clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -164,12 +172,6 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 	scissor.offset = {0, 0};
 	scissor.extent = this->swap_chain_manager.extent;
 
-	/* Push constants used by the denoising shader */
-	DenoisePushConstantData denoise_push_constant{};
-	denoise_push_constant.last_camera_matrix = this->last_camera_matrix;
-	denoise_push_constant.current_index = this->current_frame;
-	denoise_push_constant.frame_count = this->frame_count;
-
 	VkCommandBufferBeginInfo command_begin{};
 	command_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	command_begin.pNext = nullptr;
@@ -184,14 +186,14 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, this->pipeline_manager.pipeline);
 
 	PushConstantRay temp{};
-	temp.image_index = current_frame;
+	temp.image_index = this->current_frame;
 
 	if (this->moved)
 	{
 		this->moved = false;
-		frame_count = 0;
+		this->frame_count = 0;
 	}
-	temp.frame = frame_count++;
+	temp.frame = this->frame_count;
 	temp.position = this->camera_position;
 	vkCmdPushConstants(command_buffer,
 					   this->pipeline_manager.layout,
@@ -230,7 +232,6 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 	vkCmdBeginRenderPass(command_buffer, &render_pass_begin, VK_SUBPASS_CONTENTS_INLINE);
 
 	/* ========== Joint bilateral filtering ========== */
-
 	vkCmdBindPipeline(
 		command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->denoise_single_frame_pipeline_manager.pipeline);
 
@@ -251,8 +252,8 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 					   this->denoise_single_frame_pipeline_manager.layout,
 					   VK_SHADER_STAGE_FRAGMENT_BIT,
 					   0,
-					   sizeof(DenoisePushConstantData),
-					   &denoise_push_constant);
+					   sizeof(DenoiseParam),
+					   &this->denoise_param);
 
 	vkCmdDraw(command_buffer, 6, 1, 0, 0);
 
@@ -279,8 +280,8 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 					   this->denoise_time_accumulate_pipeline_manager.layout,
 					   VK_SHADER_STAGE_FRAGMENT_BIT,
 					   0,
-					   sizeof(DenoisePushConstantData),
-					   &denoise_push_constant);
+					   sizeof(DenoiseParam),
+					   &this->denoise_param);
 
 	vkCmdDraw(command_buffer, 6, 1, 0, 0);
 
@@ -292,6 +293,8 @@ void VulkanPathTracingRendererRTCore::recordCommandBuffer(VkCommandBuffer comman
 	{
 		throw std::runtime_error("Failed to record command buffer!");
 	}
+
+
 }
 
 void VulkanPathTracingRendererRTCore::setupGraphicsPipelines()
@@ -693,6 +696,9 @@ void VulkanPathTracingRendererRTCore::setupDescriptor(const int index)
 
 	this->descriptor_managers[index].addDescriptor(this->gbuffer_id_image_manager.getDescriptor(
 		11, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR));
+
+	this->descriptor_managers[index].addDescriptor(
+		this->random_buffer_manager.getDescriptor(12, VK_SHADER_STAGE_RAYGEN_BIT_KHR));
 
 	/* ========== Write Descriptor Set ========== */
 	/* TLAS write */

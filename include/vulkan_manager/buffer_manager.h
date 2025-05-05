@@ -230,6 +230,21 @@ private:
 
 typedef std::shared_ptr<StorageBufferManager> StorageBufferManagerSPtr;
 
+class RandomBufferManager : public StorageBufferManager
+{
+public:
+	RandomBufferManager() = default;
+	RandomBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
+
+	void init() override;
+	void clear() override;
+
+	void setSize(const int size);
+
+private:
+	int size{0};
+};
+
 class StagingBufferManager : public BufferManager
 {
 public:

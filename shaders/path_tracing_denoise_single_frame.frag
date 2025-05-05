@@ -12,10 +12,15 @@ struct DenoisePushConstantData
 	mat4 last_camera_matrix;
 	int current_index;
 	int frame_count;
+	int kernel_size;
+	float sigma_point;
+	float sigma_color ;
+	float sigma_normal;
+	float sigma_plane;
 };
 layout(push_constant) uniform PushConstant { DenoisePushConstantData param; };
 
-int kernel_size = 10;
+int kernel_size = 8;
 float sigma_point = 32.0;
 float sigma_color = 0.6;
 float sigma_normal = 0.1;
@@ -64,8 +69,9 @@ vec4 denoise()
 		{
 			ivec2 j = ivec2(x, y);
 			float weight = computeWeight(i, j);
-			sum_weight += weight;
 			vec4 color = imageLoad(color[param.current_index], j);
+			
+			sum_weight += weight;
 			sum_color += weight * color;
 		}
 	}

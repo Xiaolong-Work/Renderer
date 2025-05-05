@@ -16,7 +16,6 @@ public:
 	~VulkanRasterRenderer()
 	{
 		clear();
-		VulkanRendererBase::clear();
 	}
 
 	void setData(const Scene& scene)
@@ -33,6 +32,8 @@ public:
 		this->render_pass_manager.init();
 
 		this->setupGraphicsPipelines();
+
+		setupImgui();
 	}
 
 protected:
@@ -65,6 +66,8 @@ protected:
 			this->uniform_buffer_managers[i].clear();
 			this->descriptor_managers[i].clear();
 		}
+
+		VulkanRendererBase::clear();
 	}
 
 	void setupGraphicsPipelines()
@@ -83,6 +86,62 @@ protected:
 		this->pipeline_manager.setLayout(layout);
 
 		this->pipeline_manager.init();
+	}
+
+	static const int NUM_SAMPLES = 100;
+	float frame_times[NUM_SAMPLES] = {};
+	int frame_index = 0;
+	void updateImgui(VkCommandBuffer command_buffer)
+	{
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		frame_times[frame_index] = this->frame_time;
+		frame_index = (frame_index + 1) % NUM_SAMPLES;
+
+		ImGui::Begin("Hello");
+
+		ImGui::Text("FPS %d", this->frames_per_second);
+		ImGui::Text("Frame time %f ms", this->frame_time);
+		ImGui::PlotLines("##Frame time", frame_times, NUM_SAMPLES, frame_index, nullptr, 0.0f, 100.0f, ImVec2(0, 40));
+
+		ImGui::Separator();
+
+		ImGui::Text("Object count %d", this->indirect_buffer_manager.commands.size());
+		ImGui::Text("Vertex count %d", this->vertex_buffer_manager.vertices.size());
+		ImGui::Text("Mesh count %d", this->index_buffer_manager.indices.size() / 3);
+
+		ImGui::Separator();
+
+		ImGui::Text("Camera Position");
+		ImGui::InputFloat3("##Camera Position", &camera_position.x);
+		ImGui::Text("Camera Look");
+		ImGui::InputFloat3("##Camera Look", &camera_look.x);
+		ImGui::Text("Camera Up");
+		ImGui::InputFloat3("##Camera Up", &camera_up.x);
+		ImGui::Text("Field of View Y");
+		float temp = this->fovy;
+		ImGui::SliderFloat("##FOVY", &this->fovy, 10.0f, 120.0f, "%.1f deg");
+		if (temp != this->fovy)
+		{
+			this->moved = true;
+		}
+
+		ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(this->camera_position, this->camera_look, this->camera_up);
+		ubo.project = glm::perspective(glm::radians(this->fovy),
+									   (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
+									   0.1f,
+									   1000.0f);
+		ubo.project[1][1] *= -1;
+
+		ImGui::Separator();
+
+		ImGui::End();
+
+		ImGui::Render();
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer);
 	}
 
 	void setupDescriptor(const int index)
@@ -250,6 +309,8 @@ protected:
 								 0,
 								 static_cast<uint32_t>(this->indirect_buffer_manager.commands.size()),
 								 sizeof(VkDrawIndexedIndirectCommand));
+
+		updateImgui(command_buffer);
 
 		vkCmdEndRenderPass(command_buffer);
 

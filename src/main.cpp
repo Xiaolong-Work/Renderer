@@ -118,12 +118,46 @@ void pathTracingRender()
 
 int main()
 {
-	// rasterRenderCPU();
+	//rasterRenderCPU();
 
+	//pathTracingRender();
+
+	// std::string path = std::string(ROOT_DIR) + "/models/viking_room/";
+	// InputOutput io{"viking_room"};
+	// io.loadObjFile(path);
 	// pathTracingRender();
-	// pathTracingRTCore();
 
-	int scene_index = 2;
+	// return 0;
+
+	std::string path1 = std::string(ROOT_DIR) + "/models/minecraft/";
+	InputOutput io1{"mill"};
+	Vector3f torches_light_color{1, 0.6875, 0.6875};
+	float torches_light_intensity{150};
+	io1.point_lights.push_back(PointLight{{-2, 13, -17}, {1.0f, 1.0f, 1.0f}, 100000.0f});
+	io1.point_lights.push_back(PointLight{{0.5, -7.4, 7.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{4.5, -7.4, 12.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{8.5, -7.4, 9.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{4.5, -12.4, 12.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{8.5, -12.4, 7.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{4.5, -12.4, 3.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{0.5, -12.4, 7.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{3.5, -17.4, 11.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{1.5, -17.4, 6.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{7.5, -17.4, 5.5}, torches_light_color, torches_light_intensity});
+	io1.point_lights.push_back(PointLight{{-10.5, -15.4, -1.5}, torches_light_color, torches_light_intensity});
+	io1.loadGlbFile(path1);
+	io1.camera.fovy = 45.0;
+	io1.camera.position = Vector3f(0, 0, 0);
+	io1.camera.look = Vector3f(0, 0, 1);
+	io1.camera.up = Vector3f(0, 1, 0);
+	// std::string path = std::string(ROOT_DIR) + "/models/light_test/";
+	// InputOutput io{"light_test"};
+	// io.loadGlbFile(path);
+	Scene scene1;
+	io1.generateScene(scene1);
+	//rasterRender(scene1);
+
+	int scene_index = 0;
 	std::string path = std::string(ROOT_DIR) + "/models/" + name[scene_index] + "/";
 	InputOutput io(name[scene_index]);
 	io.loadObjFile(path);
@@ -139,43 +173,11 @@ int main()
 			vertex.normal *= -1;
 		}
 	}
-	
+
 	io.point_lights.push_back(PointLight{{-2, 13, -17}, {1.0f, 1.0f, 1.0f}, 100000.0f});
-
-	// std::string path = std::string(ROOT_DIR) + "/models/viking_room/";
-	// InputOutput io{"viking_room"};
-	// io.loadObjFile(path);
-	// pathTracingRender();
-
-	// return 0;
-
-	// std::string path = std::string(ROOT_DIR) + "/models/minecraft/";
-	// InputOutput io{"mill"};
-	// Vector3f torches_light_color{1, 0.6875, 0.6875};
-	// float torches_light_intensity{150};
-	// io.point_lights.push_back(PointLight{{-2, 13, -17}, {1.0f, 1.0f, 1.0f}, 100000.0f});
-	// io.point_lights.push_back(PointLight{{0.5, -7.4, 7.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{4.5, -7.4, 12.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{8.5, -7.4, 9.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{4.5, -12.4, 12.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{8.5, -12.4, 7.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{4.5, -12.4, 3.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{0.5, -12.4, 7.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{3.5, -17.4, 11.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{1.5, -17.4, 6.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{7.5, -17.4, 5.5}, torches_light_color, torches_light_intensity});
-	// io.point_lights.push_back(PointLight{{-10.5, -15.4, -1.5}, torches_light_color, torches_light_intensity});
-	// io.loadGlbFile(path);
-
-	// std::string path = std::string(ROOT_DIR) + "/models/light_test/";
-	// InputOutput io{"light_test"};
-	// io.loadGlbFile(path);
-
 	Scene scene;
 	io.generateScene(scene);
 	pathTracingRTCore(scene);
-
-	// rasterRender(scene);
 
 	return 0;
 }

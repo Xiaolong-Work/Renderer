@@ -315,16 +315,12 @@ protected:
 
 	void setupImgui()
 	{
-		// 1. 创建 ImGui 上下文
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO();
-		// io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // 可选功能
 
-		// 2. 初始化平台（GLFW）
-		ImGui_ImplGlfw_InitForVulkan(this->context_manager.window, true); // GLFWwindow*
+		ImGui_ImplGlfw_InitForVulkan(this->context_manager.window, true);
 
-		// 3. 设置 Vulkan 初始化信息
 		ImGui_ImplVulkan_InitInfo init = {};
 		init.Instance = this->context_manager.instance;
 		init.PhysicalDevice = this->context_manager.physical_device;
@@ -342,9 +338,6 @@ protected:
 		init.Subpass = this->render_pass_manager.subpasses.size() - 1;
 
 		ImGui_ImplVulkan_Init(&init);
-
-		// 4. 上传字体纹理
-		ImGui_ImplVulkan_CreateFontsTexture();
 	}
 
 	void handleWindowResize()

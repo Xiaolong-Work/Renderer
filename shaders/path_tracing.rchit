@@ -22,38 +22,7 @@ layout(binding = 9, rgba32f) uniform image2D position;
 layout(binding = 10, rgba32f) uniform image2D normal;
 layout(binding = 11, rgba32f) uniform image2D id;
 
-
-//// 采样 GGX 微表面法线 h
-//vec3 sampleGGX(float alpha, vec3 N, vec3 T, vec3 B, inout float seed)
-//{
-//	// 计算 theta 和 phi
-//	float phi = 2.0 * PI * xi.x;
-//	float cos_theta = sqrt((1.0 - xi.y) / (1.0 + (alpha * alpha - 1.0) * xi.y));
-//	float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-//
-//	// 构造 h 在局部坐标系
-//	vec3 h_local = vec3(sin_theta * cos(phi), sin_theta * sin(phi), cos_theta);
-//
-//	// 转换到世界坐标系
-//	return normalize(T * h_local.x + B * h_local.y + N * h_local.z);
-//}
-//
-//vec3 sampleSpecularGGX(float roughness, vec3 N, vec3 T, vec3 B, vec3 wi, inout float seed) 
-//{
-//	float alpha = roughness * roughness;
-//    vec3 h = sampleGGX(alpha, N, T, B);
-//    return reflect(-wi, h);  // 注意：V 应指向表面
-//}
-
-//float computeGGXPDF(vec3 N, vec3 H, vec3 V, float alpha) 
-//{
-//    float NdotH = max(dot(N, H), 0.0);
-//    float HdotV = max(dot(H, V), 0.0);
-//    float NdotV = max(dot(N, V), 0.0);
-//    
-//    float D = ggxDistribution(NdotH, alpha); // GGX NDF
-//    return (D * NdotH) / (4.0 * HdotV);
-//}
+ float pi = 3.14159265358979;
 
 vec3 sampleGGX(float roughness, vec3 normal, inout uint seed) 
 {
@@ -67,20 +36,17 @@ vec3 sampleGGX(float roughness, vec3 normal, inout uint seed)
     float cos_theta = sqrt((1.0 - rand2) / (1.0 + (alpha * alpha - 1.0) * rand2));
     float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
-    // 微表面法线在切线空间下的坐标
     vec3 h_tangent = vec3(
         sin_theta * cos_phi,
         sin_theta * sin_phi,
         cos_theta
     );
 
-    // 创建与 n 对齐的切线空间基底
     normal = normalize(normal);
     vec3 up = abs(normal.y) > 0.999 ? vec3(0, 0, 1) : vec3(0, 1, 0);
     vec3 tangent = normalize(cross(up, normal));
     vec3 bitangent = cross(normal, tangent);
 
-    // 将切线空间中的方向转换到世界空间
     return normalize(
         tangent * h_tangent.x +
         bitangent * h_tangent.y +
@@ -118,61 +84,8 @@ vec3 diffuseSample(vec3 normal, inout uint random_seed)
     return tangent * x + bitangent * y + normal * z;
 }
 
-vec3 glossySample(vec3 wi, vec3 normal, Material material, inout uint random_seed)
-{
-    /* Compute the reflection direction and ensure normalization */
-    vec3 reflect_direction = normalize(reflect(-wi, normal));
-
-	float u = rnd(random_seed);
-	float v = rnd(random_seed);
-
-	float exponent = max(material.ns, 0.0f); // Ensure the exponent is non-negative
-	float cos_theta = pow(max(u, 1e-6f), 1.0f / (exponent + 1));
-	float sin_theta = sqrt(1 - cos_theta * cos_theta);
-	float phi = 2.0f * 3.14159 * v;
-
-	float x = sin_theta * cos(phi);
-	float y = sin_theta * sin(phi);
-	float z = cos_theta;
-
-	// Construct an orthonormal basis around the reflection direction
-	vec3 tangent = (abs(reflect_direction.z) > 0.999f) ? vec3(1, 0, 0)
-															: // If too close to the Z-axis, use (1,0,0) as tangent
-					   normalize(cross(reflect_direction, vec3(0, 1, 0)));
-	vec3 bitangent = normalize(cross(tangent, reflect_direction));
-
-	// Transform the sampled direction from local to world space and return
-	return normalize(tangent * x + bitangent * y + reflect_direction * z);
-}
-
- float pi = 3.14159265358979;
-
-vec3 evaluateMaterial(vec3 wi, vec3 wo, vec3 normal, vec3 color, Material material)
-{
-	if (material.type == Diffuse)
-	{
-		return max(dot(normal, wo), 0.0f) * color / pi;
-	}
-	else if (material.type == Glossy)
-	{
-		vec3 diffuse = max(dot(normal, wo), 0.0f) * color / pi;
-
-		vec3 half_direction = normalize(wi + wo);
-		vec3 specular = pow(max(dot(half_direction, normal), 0.0f), material.ns) * material.ks;
-
-		return diffuse + specular;
-	}
-	else
-	{
-		return material.kd / pi;
-	}
-}
-
 void main()
 {  
-
-	
-
 	uint  ray_flags = gl_RayFlagsNoneEXT;
 	float time_min     = 0.001;
 	float time_max     = 10000.0;
@@ -199,6 +112,7 @@ void main()
 	if (property.is_light == 1)
 	{
 		payload.hit_value = property.radiance;
+		payload.hit_light = true;
 		return;
 	}
 
@@ -292,7 +206,7 @@ void main()
 	}
 	
 	payload.depth++;
-	if (payload.depth >= 10) 
+	if (payload.depth >= 5) 
 	{
 		payload.hit_value = result_color;
 		return;
@@ -309,11 +223,23 @@ void main()
 			vec3 last_result = payload.hit_value * brdf * cos_theta / pdf_O;
 			float weight_direct = light_pdf * light_pdf;
 			float weight_indirect = pdf_O * pdf_O;
+			if (length(last_result) == 0.0)
+			{
+				weight_indirect = 0;
+			}
+			
 			float weigth_sum = weight_direct + weight_indirect;
 			weight_direct /= weigth_sum;
 			weight_indirect /= weigth_sum;
 
-			payload.hit_value = 1 * result_color + 1 * last_result;
+			if (payload.hit_light && material.type == Diffuse)
+			{
+				weight_indirect = 0;
+				weight_direct = 1;
+				payload.hit_light = false;
+			}
+
+			payload.hit_value = weight_direct * result_color + weight_indirect * last_result;
 		}
 	}
 	else if (material.type == Specular || material.type == Refraction)

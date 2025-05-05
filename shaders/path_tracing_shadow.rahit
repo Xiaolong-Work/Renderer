@@ -1,7 +1,6 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 
-
 #include "path_tracing_vertex.glsl"
 #include "material.glsl"
 
@@ -9,15 +8,12 @@ layout(location = 1) rayPayloadInEXT ShadowPayload payload;
 
 layout(binding = 3) uniform sampler2D textures[]; 
 
-
-void main(){}
+void main(){};
 
 void main1()
 {
 	int material_index = material_indices[gl_InstanceCustomIndexEXT];
 	Material material = materials[material_index];
-
-	ObjectProperty property = object_properties[gl_InstanceCustomIndexEXT];
 
 	Vertex interpolation = getInterpolateVertex();
 	
@@ -31,7 +27,7 @@ void main1()
 		color = material.albedo;
 	}
 
-	if (color.a == 0)
+	if (color.a == 0.0)
 	{
 		//ignoreIntersectionEXT();
 	}

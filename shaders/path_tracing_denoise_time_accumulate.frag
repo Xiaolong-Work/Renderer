@@ -57,6 +57,21 @@ void compute(inout vec4 mu, inout vec4 sigma)
 	sigma = sqrt(sum_color) / 7.0;
 }
 
+vec3 gammaCorrect(vec3 color) 
+{
+    return pow(color, vec3(0.5));
+}
+
+vec3 acesToneMapping(vec3 color) 
+{
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return clamp((color * (a * color + b)) / (color * (c * color + d) + e), 0.0, 1.0);
+}
+
 void main()
 {
 	out_color = imageLoad(denoise, ivec2(gl_FragCoord.xy));
@@ -68,8 +83,9 @@ void main()
 		float a = 1.0f / float(param.frame_count + 1);
 		vec4 old_color = imageLoad(color[(param.current_index + 1) % 2], ivec2(gl_FragCoord.xy));
 		vec4 new_color = imageLoad(color[param.current_index], ivec2(gl_FragCoord.xy));
-		out_color = mix(old_color, new_color, a);
-		imageStore(color[param.current_index], ivec2(gl_FragCoord.xy), out_color);
+		vec4 result_color = mix(old_color, new_color, a);
+		out_color = vec4(gammaCorrect(acesToneMapping(result_color.xyz)), 1.0);
+		imageStore(color[param.current_index], ivec2(gl_FragCoord.xy), result_color);
 		return;
 	}
 
@@ -99,21 +115,21 @@ void main()
 		// 获取上一帧对应位置的颜色
 		vec4 last_result = imageLoad(color[(param.current_index + 1) % 2], last_pix);
 
-		vec4 mu; 
-		vec4 sigma;
-		compute(mu, sigma);
-		last_result = clamp(last_result, mu - sigma, mu + sigma);
+		//vec4 mu; 
+		//vec4 sigma;
+		//compute(mu, sigma);
+		//last_result = clamp(last_result, mu - sigma, mu + sigma);
 
 		float now_id = imageLoad(id, ivec2(gl_FragCoord.xy)).x;
 		float last_id  = imageLoad(id, last_pix).y;
 
 		if (now_id == last_id)
 		{
-			result = mix(result, last_result, 0.9);
+			result = mix(result, last_result, 0.8);
 		}
 	}
 	
 	// 存储结果
 	imageStore(color[param.current_index], ivec2(gl_FragCoord.xy), result);
-	out_color = result;
+	out_color = vec4(gammaCorrect(result.xyz), 1.0);
 }

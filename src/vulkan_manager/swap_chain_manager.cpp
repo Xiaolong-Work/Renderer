@@ -120,8 +120,8 @@ void SwapChainManager::createSwapChain()
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-	uint32_t queueFamilyIndices[] = {context_manager_sptr->graphicsFamily, context_manager_sptr->presentFamily};
-	if (context_manager_sptr->graphicsFamily != context_manager_sptr->presentFamily)
+	uint32_t queueFamilyIndices[] = {context_manager_sptr->graphics_family, context_manager_sptr->present_family};
+	if (context_manager_sptr->graphics_family != context_manager_sptr->present_family)
 	{
 		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 		createInfo.queueFamilyIndexCount = 2;

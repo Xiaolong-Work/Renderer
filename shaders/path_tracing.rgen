@@ -1,0 +1,58 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_ray_flags_primitive_culling : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_nonuniform_qualifier : enable
+
+#include "temp.h"
+#include "path_tracing.glsl"
+
+layout(location = 0) rayPayloadEXT HitPayload payload;
+
+layout(set = 0, binding = 0) uniform accelerationStructureEXT tlas;
+layout(set = 0, binding = 1, rgba32f) uniform image2D image[2];
+layout(set = 0, binding = 2) uniform _GlobalUniforms { GlobalUniforms uni; };
+layout(std430, binding = 12) buffer RandomTable { float random_table[]; };
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+
+const int spp = 1;
+
+void main()
+{
+	vec2 size = gl_LaunchSizeEXT.xy;
+	vec2 pixel_index = gl_LaunchIDEXT.xy;
+
+	vec3 result = vec3(0);
+	uint index = uint(pixel_index.y * size.x + pixel_index.x);
+	payload.seed = uint(random_table[index] * size.x * size.y);
+
+	for(int i = 0; i < spp; i++)
+	{
+		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5f, 0.5f);
+		const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+		vec2       d           = inUV * 2.0 - 1.0;
+
+		vec4 origin    = uni.viewInverse * vec4(0, 0, 0, 1);
+		vec4 target    = uni.projInverse * vec4(d.x, d.y, 1, 1);
+		vec4 direction = uni.viewInverse * vec4(normalize(target.xyz), 0);
+
+		uint  ray_flags = gl_RayFlagsNoneEXT;
+		float time_min     = 0.001;
+		float time_max     = 10000.0;
+
+		payload.hit_value = vec3(0);
+		payload.depth = 0;
+		payload.in_object = false;
+		payload.hit_light = false;
+
+		traceRayEXT(tlas, ray_flags, 0xFF, 0, 0, 0, pcRay.position, time_min, direction.xyz, time_max, 0);
+
+		result += payload.hit_value;
+	}
+	result /= spp;
+	
+	imageStore(image[pcRay.image_index], ivec2(gl_LaunchIDEXT.xy), vec4(result, 1.0f));
+	random_table[index] = payload.seed / (size.x * size.y);
+}
+

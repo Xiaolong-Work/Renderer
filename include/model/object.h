@@ -45,4 +45,34 @@ public:
 
 	/* The emitted radiance of the object if it is a light source. */
 	Vector3f radiance{0.0f, 0.0f, 0.0f};
+
+	void getTriangleData()
+	{
+		for (size_t i = 0; i < this->indices.size(); i += 3)
+		{
+			auto& vertex1 = this->vertices[this->indices[i + 0]];
+			auto& vertex2 = this->vertices[this->indices[i + 1]];
+			auto& vertex3 = this->vertices[this->indices[i + 2]];
+
+			Triangle triangle(vertex1, vertex2, vertex3);
+			this->mesh.push_back(triangle);
+			this->bounding_box.unionBox(triangle.bounding_box);
+			this->area += triangle.area;
+		}
+	}
+
+	int triangle_count{0};
+	void getArea()
+	{
+		for (size_t i = 0; i < this->indices.size(); i += 3)
+		{
+			auto& vertex1 = this->vertices[this->indices[i + 0]];
+			auto& vertex2 = this->vertices[this->indices[i + 1]];
+			auto& vertex3 = this->vertices[this->indices[i + 2]];
+
+			Triangle triangle(vertex1, vertex2, vertex3);
+			this->area += triangle.area;
+			triangle_count++;
+		}
+	}
 };

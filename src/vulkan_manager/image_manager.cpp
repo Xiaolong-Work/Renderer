@@ -463,15 +463,17 @@ StorageImageManager::StorageImageManager(const ContextManagerSPtr& context_manag
 void StorageImageManager::init()
 {
 	createImage(this->extent,
-				VK_FORMAT_R32G32B32A32_SFLOAT,
+				this->format,
 				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				VK_IMAGE_USAGE_STORAGE_BIT | this->usage,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				this->image,
 				this->memory);
-	this->view = createView(this->image, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
+	this->view = createView(this->image, this->format, VK_IMAGE_ASPECT_COLOR_BIT);
 
-	transformLayout(this->image, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+	transformLayout(this->image, this->format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+	createSampler(VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, this->sampler);
 }
 
 void StorageImageManager::clear()
@@ -493,6 +495,158 @@ void StorageImageManager::getData(VkBuffer& stagingBuffer, VkDeviceMemory& stagi
 				 stagingBufferMemory);
 
 	copyImageToBuffer(this->image, stagingBuffer, this->extent);
+}
+
+VkDescriptorSetLayoutBinding StorageImageManager::getLayoutBinding(const uint32_t binding,
+																   const VkShaderStageFlags flag)
+{
+	VkDescriptorSetLayoutBinding layout_binding{};
+	layout_binding.binding = binding;
+	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	layout_binding.descriptorCount = 1;
+	layout_binding.stageFlags = flag;
+	layout_binding.pImmutableSamplers = nullptr;
+
+	return layout_binding;
+}
+
+VkWriteDescriptorSet StorageImageManager::getWriteInformation(const uint32_t binding)
+{
+	this->descriptor_image.sampler = this->sampler;
+	this->descriptor_image.imageView = this->view;
+	this->descriptor_image.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+	VkWriteDescriptorSet image_write{};
+	image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	image_write.pNext = nullptr;
+	image_write.dstSet = VK_NULL_HANDLE;
+	image_write.dstBinding = binding;
+	image_write.dstArrayElement = 0;
+	image_write.descriptorCount = 1;
+	image_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	image_write.pBufferInfo = nullptr;
+	image_write.pImageInfo = &this->descriptor_image;
+	image_write.pTexelBufferView = nullptr;
+
+	return image_write;
+}
+
+std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> StorageImageManager::getDescriptor(
+	const uint32_t binding, const VkShaderStageFlags flag)
+{
+	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
+}
+
+void StorageImageManager::setImage(const VkFormat format, const VkImageUsageFlags usage)
+{
+	this->format = format;
+	this->usage = usage;
+}
+
+MultiStorageImageManager::MultiStorageImageManager(const ContextManagerSPtr& context_manager_sptr,
+												   const CommandManagerSPtr& command_manager_sptr)
+{
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
+}
+
+void MultiStorageImageManager::init()
+{
+	for (size_t i = 0; i < this->image_count; i++)
+	{
+		createImageResource(i);
+	}
+
+	createSampler(VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, this->sampler);
+}
+
+void MultiStorageImageManager::clear()
+{
+	for (auto& image : this->images)
+	{
+		vkDestroyImage(context_manager_sptr->device, image, nullptr);
+	}
+	for (auto& memory : this->memories)
+	{
+		vkFreeMemory(context_manager_sptr->device, this->memory, nullptr);
+	}
+	for (auto& view : this->views)
+	{
+		vkDestroyImageView(context_manager_sptr->device, view, nullptr);
+	}
+}
+
+void MultiStorageImageManager::addImage(const VkFormat format, const VkImageUsageFlags usage)
+{
+	this->formats.push_back(format);
+	this->usages.push_back(usage);
+	this->image_count++;
+}
+
+VkDescriptorSetLayoutBinding MultiStorageImageManager::getLayoutBinding(const uint32_t binding,
+																		const VkShaderStageFlags flag)
+{
+	VkDescriptorSetLayoutBinding layout_binding{};
+	layout_binding.binding = binding;
+	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	layout_binding.descriptorCount = this->image_count;
+	layout_binding.stageFlags = flag;
+	layout_binding.pImmutableSamplers = nullptr;
+
+	return layout_binding;
+}
+
+VkWriteDescriptorSet MultiStorageImageManager::getWriteInformation(const uint32_t binding)
+{
+	this->descriptor_images.resize(this->image_count);
+	for (size_t i = 0; i < this->image_count; i++)
+	{
+		this->descriptor_images[i].sampler = this->sampler;
+		this->descriptor_images[i].imageView = this->views[i];
+		this->descriptor_images[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	}
+
+	VkWriteDescriptorSet image_write{};
+	image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	image_write.pNext = nullptr;
+	image_write.dstSet = VK_NULL_HANDLE;
+	image_write.dstBinding = binding;
+	image_write.dstArrayElement = 0;
+	image_write.descriptorCount = this->image_count;
+	image_write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	image_write.pBufferInfo = nullptr;
+	image_write.pImageInfo = this->descriptor_images.data();
+	image_write.pTexelBufferView = nullptr;
+
+	return image_write;
+}
+
+std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> MultiStorageImageManager::getDescriptor(
+	const uint32_t binding, const VkShaderStageFlags flag)
+{
+	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
+}
+
+void MultiStorageImageManager::createImageResource(const int index)
+{
+	VkImage image{};
+	VkDeviceMemory memory{};
+	VkImageView view{};
+
+	createImage(this->extent,
+				this->formats[index],
+				VK_IMAGE_TILING_OPTIMAL,
+				VK_IMAGE_USAGE_STORAGE_BIT | this->usages[index],
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				image,
+				memory);
+	view = createView(image, this->formats[index], VK_IMAGE_ASPECT_COLOR_BIT);
+
+	transformLayout(image, this->formats[index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+	this->images.push_back(image);
+	this->memories.push_back(memory);
+	this->views.push_back(view);
 }
 
 PointLightShadowMapImageManager::PointLightShadowMapImageManager(const ContextManagerSPtr& context_manager_sptr,

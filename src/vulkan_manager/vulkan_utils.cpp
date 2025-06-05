@@ -77,7 +77,7 @@ void DrawFrame::draw()
 		auto end = std::chrono::system_clock::now();
 		if (sum >= 1000000.0f)
 		{
-			outputFrameRate(count);
+			outputFrameRate(count, 0);
 			count = 0;
 			sum = 0.0f;
 		}

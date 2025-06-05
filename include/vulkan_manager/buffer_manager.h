@@ -14,38 +14,45 @@
 #include <material.h>
 #include <vertex.h>
 
-struct SSBOMaterial
+struct alignas(16) SSBOMaterial
 {
 	/* ========== Blinn-Phong ========== */
 	/* Ambient reflectance component (ka). */
-	alignas(16) glm::vec3 ka{0.0f};
+	glm::vec3 ka{0.0f};
 
 	/* Shininess coefficient (glossiness factor). */
 	float ns{0.0f};
 
 	/* Diffuse reflectance component (kd). */
-	alignas(16) glm::vec3 kd{0.0f};
+	glm::vec3 kd{0.0f};
 
 	/* The diffuse texture index of the object, -1 means no texture data */
 	Index diffuse_texture{-1};
 
 	/* Specular reflectance component (ks). */
-	alignas(16) glm::vec3 ks{0.0f};
+	glm::vec3 ks{0.0f};
 
 	/* The specular texture index of the object, -1 means no texture data */
 	Index specular_texture{-1};
 
 	/* Transmittance component (tr). */
-	alignas(16) glm::vec3 tr{0.0f};
+	glm::vec3 tr{0.0f};
 
 	/* Refractive index of the material (ni). */
 	float ni{0.0f};
 
 	/* ========== PBR ========== */
-	alignas(16) Vector4f albedo;
+	glm::vec4 albedo;
 	int albedo_texture;
 	float metallic;
 	float roughness;
+
+	float pad{0};
+
+	glm::vec4 bottom_albedo;
+	int bottom_albedo_texture{-1};
+	float bottom_metallic;
+	float bottom_roughness;
 
 	int type{0};
 
@@ -64,6 +71,11 @@ struct SSBOMaterial
 		this->metallic = material.metallic;
 		this->roughness = material.roughness;
 		this->albedo_texture = material.albedo_texture;
+
+		this->bottom_albedo = material.bottom_albedo;
+		this->bottom_metallic = material.bottom_metallic;
+		this->bottom_roughness = material.bottom_roughness;
+		this->bottom_albedo_texture = material.bottom_albedo_texture;
 
 		this->type = int(material.type);
 	}
@@ -123,7 +135,9 @@ public:
 	void clear() override;
 
 	std::vector<Vertex> vertices{};
-	bool enable_ray_tracing{false};
+	std::vector<uint32_t> vertex_count{};
+
+	VkBufferUsageFlags usage{VK_BUFFER_USAGE_VERTEX_BUFFER_BIT};
 };
 
 typedef std::shared_ptr<VertexBufferManager> VertexBufferManagerSPtr;
@@ -137,9 +151,8 @@ public:
 	void init() override;
 	void clear() override;
 
-	VkDeviceAddress getAddress();
-
 	std::vector<Index> indices{};
+	bool enable_ray_tracing{false};
 };
 
 typedef std::shared_ptr<IndexBufferManager> IndexBufferManagerSPtr;
@@ -175,6 +188,8 @@ public:
 
 	VkDescriptorSetLayoutBinding getLayoutBinding(const uint32_t binding, const VkShaderStageFlags flag);
 	VkWriteDescriptorSet getWriteInformation(const uint32_t binding);
+	std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> getDescriptor(const uint32_t binding,
+																				const VkShaderStageFlags flag);
 
 private:
 	const void* data{nullptr};
@@ -199,6 +214,11 @@ public:
 
 	VkDescriptorSetLayoutBinding getLayoutBinding(const uint32_t binding, const VkShaderStageFlags flag);
 	VkWriteDescriptorSet getWriteInformation(const uint32_t binding);
+	std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> getDescriptor(const uint32_t binding,
+																				const VkShaderStageFlags flag);
+
+	VkBufferUsageFlags usage{VK_BUFFER_USAGE_STORAGE_BUFFER_BIT};
+	bool enable_ray_tracing{false};
 
 private:
 	const void* data{nullptr};
@@ -209,6 +229,21 @@ private:
 };
 
 typedef std::shared_ptr<StorageBufferManager> StorageBufferManagerSPtr;
+
+class RandomBufferManager : public StorageBufferManager
+{
+public:
+	RandomBufferManager() = default;
+	RandomBufferManager(const ContextManagerSPtr& context_manager_sptr, const CommandManagerSPtr& command_manager_sptr);
+
+	void init() override;
+	void clear() override;
+
+	void setSize(const int size);
+
+private:
+	int size{0};
+};
 
 class StagingBufferManager : public BufferManager
 {
@@ -222,5 +257,6 @@ public:
 
 	void* mapped{nullptr};
 
+	VkBufferUsageFlags usage{VK_BUFFER_USAGE_TRANSFER_SRC_BIT};
 	VkDeviceSize size{0};
 };

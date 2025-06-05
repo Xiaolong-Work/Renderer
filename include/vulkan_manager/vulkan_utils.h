@@ -62,16 +62,17 @@ public:
 
 	void setupGraphicsPipelines()
 	{
-		// this->point_pipeline_manager.addShaderStage("draw_single_frame_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		// this->point_pipeline_manager.addShaderStage("draw_single_frame_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		this->pipeline_manager.addShaderStage("draw_single_frame_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		this->pipeline_manager.addShaderStage("draw_single_frame_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-		// this->point_pipeline_manager.setExtent(swap_chain_manager.extent);
-		// std::vector<VkDescriptorSetLayout> layout = {descriptor_manager.layout};
-		// this->point_pipeline_manager.setDescriptorSetLayout(layout);
-		// this->point_pipeline_manager.setRenderPass(render_pass_manager.pass, 0);
-		// point_pipeline_manager.enable_vertex_inpute = false;
+		this->pipeline_manager.setDefaultFixedState();
+		this->pipeline_manager.setExtent(swap_chain_manager.extent);
+		std::vector<VkDescriptorSetLayout> layout = {descriptor_manager.layout};
+		this->pipeline_manager.setLayout(layout);
+		this->pipeline_manager.setRenderPass(render_pass_manager.pass, 0);
+		this->pipeline_manager.setVertexInput(0b0000);
 
-		// this->point_pipeline_manager.init();
+		this->pipeline_manager.init();
 	}
 
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
@@ -183,7 +184,7 @@ public:
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(content_manager.graphicsQueue, 1, &submitInfo, inFlightFences) != VK_SUCCESS)
+		if (vkQueueSubmit(content_manager.graphics_queue, 1, &submitInfo, inFlightFences) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to submit draw command buffer!");
 		}
@@ -202,7 +203,7 @@ public:
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
-		if (vkQueuePresentKHR(this->content_manager.presentQueue, &presentInfo) != VK_SUCCESS)
+		if (vkQueuePresentKHR(this->content_manager.present_queue, &presentInfo) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to present swap chain image!");
 		}

@@ -261,7 +261,7 @@ void Rasterizer::drawShaderTriangle(const std::array<Vector4f, 3>& position,
 
 void Rasterizer::drawShaderTriangleframe(Model model)
 {
-	updateShadowMaps(model);
+	//updateShadowMaps(model);
 
 	Matrix4f mvp = this->projection * this->view * this->model;
 	Matrix4f mv = this->view * this->model;
@@ -437,6 +437,11 @@ void Rasterizer::drawShaderTriangleframe(Model model)
 
 			auto La = ka * (amb_light_intensity);
 			result_color += La;
+
+			if (count == 0)
+			{
+				result_color = temp->getColor(buffer.texture_coordinate.x, buffer.texture_coordinate.y);
+			}
 
 			Vector2i c{x, y};
 			// setPixel(point, pixel_color);

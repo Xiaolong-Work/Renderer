@@ -7,6 +7,7 @@
 #include <buffer_manager.h>
 #include <command_manager.h>
 #include <descriptor_manager.h>
+#include <geometry_buffer_manager.h>
 #include <image_manager.h>
 #include <pipeline_manager.h>
 #include <render_pass_manager.h>
@@ -16,49 +17,51 @@
 #include <swap_chain_manager.h>
 #include <texture_manager.h>
 
-#include <geometry_buffer_manager.h>
 #include <scene.h>
+
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
 class VulkanRendererBase
 {
 public:
-	VulkanRendererBase()
-	{
-		init();
-	}
+	VulkanRendererBase() = default;
+	~VulkanRendererBase() = default;
 
-	~VulkanRendererBase()
-	{
-		clear();
-	}
+	int frames_per_second{0};
+	double frame_time{0};
 
 	void run()
 	{
-		int count = 0;
-		float sum = 0.0f;
-		while (!glfwWindowShouldClose(context_manager.window))
+		int frame_count = 0;
+		auto last = std::chrono::high_resolution_clock::now();
+
+		while (!glfwWindowShouldClose(this->context_manager.window))
 		{
-			auto begin = std::chrono::system_clock::now();
+			auto now = std::chrono::high_resolution_clock::now();
+			auto elapsed = std::chrono::duration<double, std::milli>(now - last).count();
+
 			glfwPollEvents();
 			draw();
-			auto end = std::chrono::system_clock::now();
 
-			if (sum >= 1000000.0f)
+			auto next = std::chrono::high_resolution_clock::now();
+			this->frame_time = std::chrono::duration<double, std::milli>(next - now).count();
+
+			outputFrameRate(this->frames_per_second, this->frame_time);
+
+			frame_count++;
+			if (elapsed >= 1000.0f)
 			{
-				outputFrameRate(count);
-				count = 0;
-				sum = 0.0f;
-			}
-			else
-			{
-				count++;
-				sum += (end - begin).count();
+				this->frames_per_second = frame_count;
+				frame_count = 0;
+				last = now;
 			}
 		}
 
-		vkDeviceWaitIdle(context_manager.device);
+		vkDeviceWaitIdle(this->context_manager.device);
 	}
 
 	void setData(const Scene& scene)
@@ -77,6 +80,7 @@ public:
 
 			this->vertex_buffer_manager.vertices.insert(
 				this->vertex_buffer_manager.vertices.end(), object.vertices.begin(), object.vertices.end());
+			this->vertex_buffer_manager.vertex_count.push_back(object.vertices.size());
 
 			this->index_buffer_manager.indices.insert(
 				this->index_buffer_manager.indices.end(), object.indices.begin(), object.indices.end());
@@ -126,6 +130,10 @@ public:
 			this->texture_manager.createTexture(texture);
 			this->texture_manager.createSampler(texture);
 		}
+		if (scene.textures.empty())
+		{
+			this->texture_manager.createEmptyTexture();
+		}
 
 		this->shadow_map_manager =
 			ShadowMapManager(std::make_shared<ContextManager>(this->context_manager),
@@ -138,22 +146,48 @@ public:
 							 std::make_shared<StorageBufferManager>(this->material_index_manager),
 							 std::make_shared<StorageBufferManager>(this->material_ssbo_manager));
 
-		this->shadow_map_manager.point_lights = scene.point_lights;
-		this->shadow_map_manager.init();
+		if (!scene.point_lights.empty())
+		{
+			this->shadow_map_manager.point_lights = scene.point_lights;
+			this->shadow_map_manager.init();
+		}
+
+		this->camera_position = scene.camera.position;
+		this->camera_up = scene.camera.up;
+		this->camera_look = scene.camera.look;
+		this->fovy = scene.camera.fov;
+
+		Direction direction = glm::normalize(scene.camera.look - scene.camera.position);
+		yaw = glm::degrees(atan2(direction.z, direction.x));
+		pitch = glm::degrees(asin(direction.y));
+
+		createUniformBufferObjects();
+	}
+
+	void setWindowSize(const Scene& scene)
+	{
+		this->width = scene.camera.width;
+		this->heigth = scene.camera.height;
 	}
 
 protected:
-	glm::vec3 cameraPosition = glm::vec3(15, 5, 1);
-	glm::vec3 cameraFront = glm::vec3(1, 0, 0);
-	glm::vec3 cameraUp = glm::vec3(0, 1, 0);
+	Coordinate3D camera_position{};
+	Direction camera_look{};
+	Direction camera_up{};
+	float fovy{90.0f};
 
-	float yaw = -90.0f; // ≥ı º≥Ø -Z ∑ΩœÚ
-	float pitch = 0.0f;
+	uint32_t width{1024};
+	uint32_t heigth{1024};
+
+	float yaw{0.0f};
+	float pitch{0.0f};
+
 	bool firstMouse = true;
 	bool mouseCaptured = false;
 
 	bool window_resized = false;
 	double mousePositionX = 0.0f, mousePositionY = 0.0f;
+	bool moved{false};
 
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
@@ -191,7 +225,7 @@ protected:
 
 		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
 		{
-			std::cout << self->cameraPosition.x << "," << self->cameraPosition.y << "," << self->cameraPosition.z
+			std::cout << self->camera_position.x << "," << self->camera_position.y << "," << self->camera_position.z
 					  << std::endl;
 		}
 
@@ -219,9 +253,11 @@ protected:
 		direction.x = cos(glm::radians(self->yaw)) * cos(glm::radians(self->pitch));
 		direction.y = sin(glm::radians(self->pitch));
 		direction.z = sin(glm::radians(self->yaw)) * cos(glm::radians(self->pitch));
-		self->cameraFront = glm::normalize(direction);
+		self->camera_look = glm::normalize(direction) + self->camera_position;
 
-		self->ubo.view = glm::lookAt(self->cameraPosition, self->cameraPosition + self->cameraFront, self->cameraUp);
+		self->ubo.view = glm::lookAt(self->camera_position, self->camera_look, self->camera_up);
+
+		self->moved = true;
 	}
 
 	static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -229,47 +265,79 @@ protected:
 		auto self = static_cast<VulkanRendererBase*>(glfwGetWindowUserPointer(window));
 
 		const float moveSpeed = 0.5f;
-		glm::vec3 forward = glm::vec3(self->ubo.view[0][2], self->ubo.view[1][2], self->ubo.view[2][2]);
-		glm::vec3 right = glm::vec3(self->ubo.view[0][0], self->ubo.view[1][0], self->ubo.view[2][0]);
-		glm::vec3 up = glm::vec3(self->ubo.view[0][1], self->ubo.view[1][1], self->ubo.view[2][1]);
+		glm::vec3 forward = self->camera_look - self->camera_position;
+		glm::vec3 up = self->camera_up;
+		glm::vec3 right = glm::cross(forward, up);
 
+		self->moved = true;
 		switch (key)
 		{
 		case GLFW_KEY_W:
 			{
-				self->cameraPosition -= forward * moveSpeed;
+				self->camera_position += forward * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_A:
 			{
-				self->cameraPosition -= right * moveSpeed;
+				self->camera_position -= right * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_S:
 			{
-				self->cameraPosition += forward * moveSpeed;
+				self->camera_position -= forward * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_D:
 			{
-				self->cameraPosition += right * moveSpeed;
+				self->camera_position += right * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_SPACE:
 			{
-				self->cameraPosition += up * moveSpeed;
+				self->camera_position += up * moveSpeed;
 				break;
 			}
 		case GLFW_KEY_LEFT_SHIFT:
 			{
-				self->cameraPosition -= up * moveSpeed;
+				self->camera_position -= up * moveSpeed;
 				break;
 			}
 		default:
-			break;
+			{
+				self->moved = false;
+				break;
+			}
 		}
 
-		self->ubo.view = glm::lookAt(self->cameraPosition, self->cameraPosition - forward, up);
+		self->camera_look = self->camera_position + forward;
+		self->ubo.view = glm::lookAt(self->camera_position, self->camera_look, up);
+	}
+
+	void setupImgui()
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO();
+
+		ImGui_ImplGlfw_InitForVulkan(this->context_manager.window, true);
+
+		ImGui_ImplVulkan_InitInfo init = {};
+		init.Instance = this->context_manager.instance;
+		init.PhysicalDevice = this->context_manager.physical_device;
+		init.Device = this->context_manager.device;
+		init.Queue = this->context_manager.graphics_queue;
+		init.DescriptorPoolSize = 2;
+		init.MinImageCount = this->swap_chain_manager.images.size();
+		init.ImageCount = this->swap_chain_manager.images.size();
+		init.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+		init.QueueFamily = this->context_manager.graphics_family;
+		init.PipelineCache = VK_NULL_HANDLE;
+		init.Allocator = nullptr;
+		init.CheckVkResultFn = nullptr;
+		init.RenderPass = this->render_pass_manager.pass;
+		init.Subpass = this->render_pass_manager.subpasses.size() - 1;
+
+		ImGui_ImplVulkan_Init(&init);
 	}
 
 	void handleWindowResize()
@@ -291,7 +359,7 @@ protected:
 		this->render_pass_manager.recreate();
 
 		this->ubo.project =
-			glm::perspective(glm::radians(90.0f),
+			glm::perspective(glm::radians(this->fovy),
 							 (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
 							 0.1f,
 							 1000.0f);
@@ -301,8 +369,8 @@ protected:
 	void createUniformBufferObjects()
 	{
 		ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = glm::lookAt(cameraPosition, cameraFront + cameraPosition, cameraUp);
-		ubo.project = glm::perspective(glm::radians(90.0f),
+		ubo.view = glm::lookAt(this->camera_position, this->camera_look, this->camera_up);
+		ubo.project = glm::perspective(glm::radians(this->fovy),
 									   (float)swap_chain_manager.extent.width / (float)swap_chain_manager.extent.height,
 									   0.1f,
 									   1000.0f);
@@ -342,8 +410,14 @@ protected:
 		}
 	}
 
-	void init()
+	void init(const uint32_t mask = 0)
 	{
+		if (mask == 1)
+		{
+			this->context_manager.enable_ray_tracing = true;
+		}
+
+		this->context_manager.setExtent(VkExtent2D{this->width, this->heigth});
 		this->context_manager.init();
 		auto context_manager_sptr = std::make_shared<ContextManager>(this->context_manager);
 
@@ -368,11 +442,18 @@ protected:
 
 		createSyncObjects();
 
-		createUniformBufferObjects();
+		if (mask == 1)
+		{
+			this->index_buffer_manager.enable_ray_tracing = true;
+		}
 	}
 
 	void clear()
 	{
+
+		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
@@ -454,7 +535,7 @@ protected:
 		submit_information.pCommandBuffers = &command_manager.graphicsCommandBuffers[current_frame];
 		submit_information.signalSemaphoreCount = 1;
 		submit_information.pSignalSemaphores = &render_finished[current_frame];
-		result = vkQueueSubmit(context_manager.graphicsQueue, 1, &submit_information, inFlightFences[current_frame]);
+		result = vkQueueSubmit(context_manager.graphics_queue, 1, &submit_information, inFlightFences[current_frame]);
 		if (result != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to submit draw command buffer!");
@@ -471,11 +552,11 @@ protected:
 		present_information.pImageIndices = &image_index;
 		present_information.pResults = nullptr;
 
-		result = vkQueuePresentKHR(this->context_manager.presentQueue, &present_information);
+		result = vkQueuePresentKHR(this->context_manager.present_queue, &present_information);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || window_resized)
 		{
-			window_resized = false;
 			handleWindowResize();
+			window_resized = false;
 		}
 		else if (result != VK_SUCCESS)
 		{

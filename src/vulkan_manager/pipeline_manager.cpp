@@ -1,13 +1,21 @@
 #include <pipeline_manager.h>
 
-PipelineManager::PipelineManager(const ContextManagerSPtr& context_manager_sptr)
+PipelineManager::PipelineManager(const ContextManagerSPtr& context_manager_sptr, const PipelineType type)
 {
 	this->context_manager_sptr = context_manager_sptr;
+	this->type = type;
 }
 
 void PipelineManager::init()
 {
-	createPipeline();
+	if (this->type == PipelineType::Rasterize)
+	{
+		createPipeline();
+	}
+	else if (this->type == PipelineType::PathTracing)
+	{
+		createRayTracingPipeline();
+	}
 }
 
 void PipelineManager::clear()
@@ -133,8 +141,48 @@ void PipelineManager::setRenderPass(const VkRenderPass render_pass, const uint32
 	this->subpass = subpass;
 }
 
-void PipelineManager::setDescriptorSetLayout(const std::vector<VkDescriptorSetLayout>& descriptor_layouts,
-											 const std::vector<VkPushConstantRange>& push_constants)
+void PipelineManager::setVertexInput(const uint32_t mask)
+{
+	if ((mask & 0b1000) >> 3 == 1)
+	{
+		VkVertexInputAttributeDescription attribute{};
+		attribute.binding = 0;
+		attribute.location = 0;
+		attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		attribute.offset = offsetof(Vertex, position);
+		this->attribute_descriptions.push_back(attribute);
+	}
+	if ((mask & 0b100) >> 2 == 1)
+	{
+		VkVertexInputAttributeDescription attribute{};
+		attribute.binding = 0;
+		attribute.location = 1;
+		attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		attribute.offset = offsetof(Vertex, normal);
+		this->attribute_descriptions.push_back(attribute);
+	}
+	if ((mask & 0b10) >> 1 == 1)
+	{
+		VkVertexInputAttributeDescription attribute{};
+		attribute.binding = 0;
+		attribute.location = 2;
+		attribute.format = VK_FORMAT_R32G32_SFLOAT;
+		attribute.offset = offsetof(Vertex, texture);
+		this->attribute_descriptions.push_back(attribute);
+	}
+	if ((mask & 0b1) >> 0 == 1)
+	{
+		VkVertexInputAttributeDescription attribute{};
+		attribute.binding = 0;
+		attribute.location = 3;
+		attribute.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attribute.offset = offsetof(Vertex, color);
+		this->attribute_descriptions.push_back(attribute);
+	}
+}
+
+void PipelineManager::setLayout(const std::vector<VkDescriptorSetLayout>& descriptor_layouts,
+								const std::vector<VkPushConstantRange>& push_constants)
 {
 	this->descriptor_layouts = descriptor_layouts;
 	this->push_constants = push_constants;
@@ -146,6 +194,17 @@ void PipelineManager::setDescriptorSetLayout(const std::vector<VkDescriptorSetLa
 	this->pipeline_layout.pSetLayouts = this->descriptor_layouts.data();
 	this->pipeline_layout.pushConstantRangeCount = static_cast<uint32_t>(this->push_constants.size());
 	this->pipeline_layout.pPushConstantRanges = this->push_constants.data();
+
+	if (vkCreatePipelineLayout(context_manager_sptr->device, &this->pipeline_layout, nullptr, &this->layout) !=
+		VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create pipeline layout!");
+	}
+}
+
+void PipelineManager::setShaderGroups(const std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups)
+{
+	this->shader_groups = groups;
 }
 
 void PipelineManager::createPipeline()
@@ -160,21 +219,20 @@ void PipelineManager::createPipeline()
 	vertex_input.flags = 0;
 	vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(this->attribute_descriptions.size());
 	vertex_input.pVertexAttributeDescriptions = this->attribute_descriptions.data();
-	vertex_input.vertexBindingDescriptionCount = 1;
-	vertex_input.pVertexBindingDescriptions = &binding_description;
+	vertex_input.vertexBindingDescriptionCount = 0;
+	vertex_input.pVertexBindingDescriptions = nullptr;
+	if (!this->attribute_descriptions.empty())
+	{
+		vertex_input.vertexBindingDescriptionCount = 1;
+		vertex_input.pVertexBindingDescriptions = &binding_description;
+	}
 
 	VkPipelineDynamicStateCreateInfo dynamic_state{};
 	dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamic_state.pNext = nullptr;
 	dynamic_state.flags = 0;
-	dynamic_state.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
-	dynamic_state.pDynamicStates = dynamic_states.data();
-
-	if (vkCreatePipelineLayout(context_manager_sptr->device, &this->pipeline_layout, nullptr, &this->layout) !=
-		VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create pipeline layout!");
-	}
+	dynamic_state.dynamicStateCount = static_cast<uint32_t>(this->dynamic_states.size());
+	dynamic_state.pDynamicStates = this->dynamic_states.data();
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -183,6 +241,7 @@ void PipelineManager::createPipeline()
 	pipelineInfo.stageCount = static_cast<uint32_t>(this->shader_stages.size());
 	pipelineInfo.pStages = this->shader_stages.data();
 	pipelineInfo.pVertexInputState = &vertex_input;
+
 	pipelineInfo.pInputAssemblyState = &this->input_assembly;
 	pipelineInfo.pTessellationState = nullptr;
 	pipelineInfo.pViewportState = &this->viewport_state;
@@ -208,5 +267,45 @@ void PipelineManager::createPipeline()
 			context_manager_sptr->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &this->pipeline) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create graphics pipeline!");
+	}
+}
+
+void PipelineManager::createRayTracingPipeline()
+{
+	VkPipelineDynamicStateCreateInfo dynamic_state{};
+	dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamic_state.pNext = nullptr;
+	dynamic_state.flags = 0;
+	dynamic_state.dynamicStateCount = static_cast<uint32_t>(this->dynamic_states.size());
+	dynamic_state.pDynamicStates = this->dynamic_states.data();
+
+	VkRayTracingPipelineCreateInfoKHR ray_tracing_pipeline_create{};
+	ray_tracing_pipeline_create.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+	ray_tracing_pipeline_create.pNext = nullptr;
+	ray_tracing_pipeline_create.flags = 0;
+	ray_tracing_pipeline_create.stageCount = static_cast<uint32_t>(this->shader_stages.size());
+	ray_tracing_pipeline_create.pStages = this->shader_stages.data();
+	ray_tracing_pipeline_create.groupCount = static_cast<uint32_t>(this->shader_groups.size());
+	ray_tracing_pipeline_create.pGroups = this->shader_groups.data();
+	ray_tracing_pipeline_create.maxPipelineRayRecursionDepth = 10;
+	ray_tracing_pipeline_create.pLibraryInfo = nullptr;
+	ray_tracing_pipeline_create.pLibraryInterface = nullptr;
+	ray_tracing_pipeline_create.pDynamicState = &dynamic_state;
+	ray_tracing_pipeline_create.layout = this->layout;
+	ray_tracing_pipeline_create.basePipelineHandle = VK_NULL_HANDLE;
+	ray_tracing_pipeline_create.basePipelineIndex = -1;
+
+	auto vkCreateRayTracingPipelinesKHR = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(
+		context_manager_sptr->device, "vkCreateRayTracingPipelinesKHR");
+
+	if (vkCreateRayTracingPipelinesKHR(context_manager_sptr->device,
+									   VK_NULL_HANDLE,
+									   VK_NULL_HANDLE,
+									   1,
+									   &ray_tracing_pipeline_create,
+									   nullptr,
+									   &this->pipeline) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create ray tracing pipeline!");
 	}
 }

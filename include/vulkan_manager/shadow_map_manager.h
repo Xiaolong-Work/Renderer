@@ -297,13 +297,6 @@ public:
 		this->descriptor_manager.addLayoutBinding(
 			this->material_ssbo_manager_sptr->getLayoutBinding(4, VK_SHADER_STAGE_FRAGMENT_BIT));
 
-		/* ========== Pool size infomation ========== */
-		/* Buffer pool size */
-		this->descriptor_manager.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4);
-
-		/* Image pool size*/
-		this->descriptor_manager.addPoolSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1);
-
 		/* ========== Write Descriptor Set ========== */
 		/* Point light MVP SSBO set write information */
 		std::vector<VkWriteDescriptorSet> writes{};
@@ -320,25 +313,14 @@ public:
 	{
 		this->point_pipeline_manager.addShaderStage("shadow_point_generate_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		this->point_pipeline_manager.addShaderStage("shadow_generate_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+
 		this->point_pipeline_manager.setDefaultFixedState();
 		this->point_pipeline_manager.setExtent(VkExtent2D{this->width, this->height});
 		this->point_pipeline_manager.setRenderPass(this->render_pass_manager.pass);
 		this->point_pipeline_manager.setVertexInput(0b1010);
-		std::vector<VkDescriptorSetLayout> layout = {descriptor_manager.layout};
-		this->point_pipeline_manager.setDescriptorSetLayout(layout);
-		this->point_pipeline_manager.enable_vertex_inpute = true;
+		std::vector<VkDescriptorSetLayout> layout = {this->descriptor_manager.layout};
+		this->point_pipeline_manager.setLayout(layout);
 		this->point_pipeline_manager.init();
-
-		/*this->direction_pipeline_manager.addShaderStage("shadow_direction_generate_vert.spv",
-		VK_SHADER_STAGE_VERTEX_BIT); this->direction_pipeline_manager.addShaderStage("shadow_generate_frag.spv",
-		VK_SHADER_STAGE_FRAGMENT_BIT); this->direction_pipeline_manager.setDefaultFixedState();
-		this->direction_pipeline_manager.setExtent(VkExtent2D{this->width, this->height});
-		this->direction_pipeline_manager.setRenderPass(this->render_pass_manager.pass);
-		this->direction_pipeline_manager.setVertexInput(0b1010);
-		std::vector<VkDescriptorSetLayout> layout = {descriptor_manager.layout};
-		this->direction_pipeline_manager.setDescriptorSetLayout(layout);
-		this->direction_pipeline_manager.enable_vertex_inpute = true;
-		this->direction_pipeline_manager.init();*/
 	}
 
 	void recordCommandBuffer(VkCommandBuffer command_buffer)

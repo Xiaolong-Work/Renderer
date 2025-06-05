@@ -96,7 +96,27 @@ void InputOutput::loadObjFile(const std::string& path)
 		this->materials[i].ns = material.shininess;
 		this->materials[i].ni = material.ior;
 
-		this->materials[i].transferToPBR();
+		/* Determine the material type */
+		if (this->materials[i].ns > 1.0f)
+		{
+			if (this->materials[i].kd == Vector3f{0.0f, 0.0f, 0.0f} &&
+				this->materials[i].ks == Vector3f{1.0f, 1.0f, 1.0f})
+			{
+				this->materials[i].type = MaterialType::Specular;
+			}
+			else
+			{
+				this->materials[i].type = MaterialType::Glossy;
+			}
+		}
+		else if (this->materials[i].ni > 1.0f)
+		{
+			this->materials[i].type = MaterialType::Refraction;
+		}
+		else
+		{
+			this->materials[i].type = MaterialType::Diffuse;
+		}
 
 		if (material.diffuse_texname != "")
 		{
@@ -109,6 +129,8 @@ void InputOutput::loadObjFile(const std::string& path)
 
 			this->materials[i].diffuse_texture = this->texture_index[diffuse_texture_path];
 		}
+
+		this->materials[i].transferToPBR();
 	}
 }
 
@@ -181,7 +203,6 @@ void InputOutput::loadXmlFile(const std::string& path)
 				std::istringstream iss(radiance_string);
 				iss >> object.radiance.x >> temp >> object.radiance.y >> temp >> object.radiance.z;
 				object.is_light = true;
-				break;
 			}
 		}
 	}

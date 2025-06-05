@@ -30,9 +30,18 @@ struct Material
 	
 	/* ========== PBR ========== */
 	vec4 albedo;
+
 	int albedo_texture;
 	float metallic;
 	float roughness;
+	float pad;
+
+	vec4 bottom_albedo;
+
+	float bottom_albedo_texture;
+	float bottom_metallic;
+	float bottom_roughness;
+	
 
 	int type;
 };

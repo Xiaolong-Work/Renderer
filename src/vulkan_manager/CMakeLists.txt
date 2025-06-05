@@ -20,6 +20,8 @@ target_include_directories(VulkanManager PUBLIC
     ${CMAKE_SOURCE_DIR}/3rd_party/stb
     ${CMAKE_SOURCE_DIR}/3rd_party/glfw/include
     ${CMAKE_SOURCE_DIR}/3rd_party/tinyobjloader
+	${CMAKE_SOURCE_DIR}/3rd_party/imgui/backends
+	${CMAKE_SOURCE_DIR}/3rd_party/imgui
 )
 
 target_link_libraries(VulkanManager PUBLIC ${Vulkan_LIBRARIES})

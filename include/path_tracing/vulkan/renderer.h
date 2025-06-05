@@ -1,4 +1,4 @@
-#pragma once
+ #pragma once
 
 #include <buffer_manager.h>
 #include <command_manager.h>
@@ -65,6 +65,11 @@ public:
 			this->texture_manager.createTexture(texture_path);
 		}
 
+		if (this->texture_manager.images.size() == 0)
+		{
+			this->texture_manager.createEmptyTexture();
+		}
+
 		createDescriptorSetLayout();
 		createDescriptorPool();
 		createDescriptorSets();
@@ -83,15 +88,16 @@ public:
 
 	void setupGraphicsPipelines()
 	{
-		//this->point_pipeline_manager.addShaderStage("path_tracing_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		//this->point_pipeline_manager.addShaderStage("path_tracing_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		this->pipeline_manager.setDefaultFixedState();
 
-		//std::vector<VkDescriptorSetLayout> layout = {this->descriptorSetLayout};
-		//this->point_pipeline_manager.setDescriptorSetLayout(layout);
-		//this->point_pipeline_manager.setExtent(swap_chain_manager.extent);
-		//this->point_pipeline_manager.setRenderPass(pass, 0);
+		this->pipeline_manager.addShaderStage("path_tracing_vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		this->pipeline_manager.addShaderStage("path_tracing_frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-		//point_pipeline_manager.enable_vertex_inpute = false;
+		std::vector<VkDescriptorSetLayout> layout = {this->descriptorSetLayout};
+		this->pipeline_manager.setLayout(layout);
+		this->pipeline_manager.setExtent(swap_chain_manager.extent);
+		this->pipeline_manager.setRenderPass(pass, 0);
+		this->pipeline_manager.setVertexInput(0b0000);
 	}
 
 	void createRenderPass()
@@ -116,14 +122,6 @@ public:
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorAttachmentRef;
 
-		/*VkSubpassDependency dependency{};
-		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		dependency.dstSubpass = 0;
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-		dependency.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-		dependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-		dependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;*/
 		VkSubpassDependency dependency{};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependency.dstSubpass = 0;
@@ -176,9 +174,6 @@ public:
 
 	std::vector<VkFramebuffer> buffers;
 	VkRenderPass pass;
-
-	ShaderManager vertex_shader_manager{};
-	ShaderManager fragment_shader_manager{};
 
 	VkPipeline graphicsPipeline;
 
@@ -365,7 +360,7 @@ public:
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(context_manager.graphicsQueue, 1, &submitInfo, inFlightFences[current_frame]) != VK_SUCCESS)
+		if (vkQueueSubmit(context_manager.graphics_queue, 1, &submitInfo, inFlightFences[current_frame]) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to submit draw command buffer!");
 		}
@@ -384,7 +379,7 @@ public:
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
-		result = vkQueuePresentKHR(this->context_manager.presentQueue, &presentInfo);
+		result = vkQueuePresentKHR(this->context_manager.present_queue, &presentInfo);
 
 		/*if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
 		{
@@ -424,7 +419,7 @@ public:
 
 		/* Used For fragment shader texture input */
 		layoutBindings[9].binding = 9;
-		layoutBindings[9].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		layoutBindings[9].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		layoutBindings[9].descriptorCount = 1;
 		layoutBindings[9].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		layoutBindings[9].pImmutableSamplers = nullptr;
@@ -458,10 +453,10 @@ public:
 		pool_sizes[0].descriptorCount = 8;
 
 		pool_sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		pool_sizes[1].descriptorCount = 1;
+		pool_sizes[1].descriptorCount = 3;
 
 		pool_sizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		pool_sizes[2].descriptorCount = 2;
+		pool_sizes[2].descriptorCount = 1;
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -506,7 +501,7 @@ public:
 		imageInfo[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		imageInfo[1].imageView = storageImageManager.view;
-		imageInfo[1].sampler = this->texture_manager.samplers[0];
+		imageInfo[1].sampler = storageImageManager.sampler;
 		imageInfo[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		std::vector<VkDescriptorImageInfo> textureInfo;
@@ -542,7 +537,7 @@ public:
 		descriptorWrites[8].pImageInfo = &imageInfo[0];
 		descriptorWrites[8].pTexelBufferView = nullptr;
 
-		descriptorWrites[9].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[9].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		descriptorWrites[9].pBufferInfo = nullptr;
 		descriptorWrites[9].pImageInfo = &imageInfo[1];
 		descriptorWrites[9].pTexelBufferView = nullptr;
@@ -583,14 +578,16 @@ public:
 
 		this->pipeline_manager.clear();
 
+
 		vkDestroyRenderPass(context_manager.device, pass, nullptr);
+
+		this->computeShaderManager.clear();
 
 		this->swap_chain_manager.clear();
 
-		this->command_manager.clear();
+		this->bufferManager.clear();
 
-		this->vertex_shader_manager.clear();
-		this->fragment_shader_manager.clear();
+		this->command_manager.clear();
 
 		this->context_manager.clear();
 	}

@@ -96,7 +96,7 @@ public:
 	void configuration1()
 	{
 		Model model{"F:/C++/Renderer/models/viking_room/viking_room.obj",
-					"F:/C++/Renderer/models/viking_room/viking_room.png"};
+					"F:/C++/Renderer/models/viking_room/textures/viking_room.png"};
 		models.push_back(model);
 
 		rasterizer.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -167,7 +167,7 @@ public:
 
 		rasterizer = Rasterizer(this->width, this->height);
 
-		configuration2();
+		configuration1();
 
 		rasterizer.genetareShadowMaps(models[0]);
 
@@ -235,7 +235,7 @@ public:
 			rasterizer.drawShaderTriangleframe(model);
 		}
 
-		// save();
+		save();
 
 		memcpy(this->buffer_manager.mapped, rasterizer.screen_buffer.data(), sizeof(float) * 4 * width * height);
 

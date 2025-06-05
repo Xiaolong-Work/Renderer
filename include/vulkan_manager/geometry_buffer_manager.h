@@ -17,6 +17,11 @@ public:
 
 	std::vector<VkWriteDescriptorSet> getWriteInformations(const uint32_t begin_binding);
 
+	std::vector<std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet>> getDescriptors(
+		const uint32_t binding, const VkShaderStageFlags flag);
+
+	void setUsage(const VkImageUsageFlags usage);
+
 	std::vector<VkFormat> getFormats()
 	{
 		std::vector<VkFormat> formats{
@@ -65,6 +70,8 @@ private:
 	VkSampler sampler{};
 
 	std::vector<VkDescriptorImageInfo> descriptor_image{};
+
+	VkImageUsageFlags usage{VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT};
 };
 
 typedef std::shared_ptr<GeometryBufferManager> GeometryBufferManagerSPtr;

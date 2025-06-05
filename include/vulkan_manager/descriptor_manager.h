@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <map>
 #include <stdexcept>
 #include <vector>
 
@@ -15,21 +16,25 @@ public:
 	void init();
 	void clear();
 
-	void createDescriptorSetLayout();
-	void createDescriptorPool();
-	void createDescriptorSet();
-
 	void addLayoutBinding(const VkDescriptorSetLayoutBinding& binding);
 	void addPoolSize(const VkDescriptorType type, const uint32_t size);
 	void addWrite(const VkWriteDescriptorSet& write);
 
-	VkDescriptorSetLayout layout;
-	VkDescriptorPool pool;
-	VkDescriptorSet set;
+	void addDescriptor(const std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet>& descriptor);
+	void addDescriptors(const std::vector<std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet>>& descriptors);
+
+		VkDescriptorSetLayout layout { };
+	VkDescriptorPool pool{};
+	VkDescriptorSet set{};
+
+protected:
+	void createDescriptorSetLayout();
+	void createDescriptorPool();
+	void createDescriptorSet();
 
 private:
 	std::vector<VkDescriptorSetLayoutBinding> bindings{};
-	std::vector<VkDescriptorPoolSize> pool_sizes{};
+	std::map<VkDescriptorType, uint32_t> pool_sizes;
 	std::vector<VkWriteDescriptorSet> writes{};
 
 	ContextManagerSPtr context_manager_sptr;

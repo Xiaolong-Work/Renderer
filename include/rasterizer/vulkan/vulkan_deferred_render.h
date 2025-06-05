@@ -17,6 +17,8 @@ public:
 
 	void init()
 	{
+		VulkanRendererBase::init();
+
 		auto context_manager_sptr = std::make_shared<ContextManager>(this->context_manager);
 		auto command_manager_sptr = std::make_shared<CommandManager>(this->command_manager);
 		auto swap_chain_manager_sptr = std::make_shared<SwapChainManager>(this->swap_chain_manager);
@@ -73,8 +75,6 @@ public:
 
 		this->setupGBufferPipeline();
 		this->setupLightPipeline();
-
-		
 	}
 
 protected:
@@ -102,45 +102,21 @@ protected:
 
 	void setupGBufferDescriptorSet(const int index)
 	{
-		/* ========== Layout binding infomation ========== */
 		/* Camera mvp matrices */
-		this->gbuffer_descriptor_managers[index].addLayoutBinding(
-			this->uniform_buffer_managers[index].getLayoutBinding(0, VK_SHADER_STAGE_VERTEX_BIT));
+		this->gbuffer_descriptor_managers[index].addDescriptor(
+			this->uniform_buffer_managers[index].getDescriptor(0, VK_SHADER_STAGE_VERTEX_BIT));
 		/* Object model matrix */
-		this->gbuffer_descriptor_managers[index].addLayoutBinding(
-			this->model_matrix_manager.getLayoutBinding(1, VK_SHADER_STAGE_VERTEX_BIT));
+		this->gbuffer_descriptor_managers[index].addDescriptor(
+			this->model_matrix_manager.getDescriptor(1, VK_SHADER_STAGE_VERTEX_BIT));
 		/* Texture sampler binding */
-		this->gbuffer_descriptor_managers[index].addLayoutBinding(
-			this->texture_manager.getLayoutBinding(2, VK_SHADER_STAGE_FRAGMENT_BIT));
+		this->gbuffer_descriptor_managers[index].addDescriptor(
+			this->texture_manager.getDescriptor(2, VK_SHADER_STAGE_FRAGMENT_BIT));
 		/* Material index bingding */
-		this->gbuffer_descriptor_managers[index].addLayoutBinding(
-			this->material_index_manager.getLayoutBinding(3, VK_SHADER_STAGE_FRAGMENT_BIT));
+		this->gbuffer_descriptor_managers[index].addDescriptor(
+			this->material_index_manager.getDescriptor(3, VK_SHADER_STAGE_FRAGMENT_BIT));
 		/* Material data binding */
-		this->gbuffer_descriptor_managers[index].addLayoutBinding(
-			this->material_ssbo_manager.getLayoutBinding(4, VK_SHADER_STAGE_FRAGMENT_BIT));
-
-		/* ========== Pool size infomation ========== */
-		/* Uniform buffer pool size */
-		this->gbuffer_descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
-		/* Image sampler size */
-		this->gbuffer_descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
-		/* Storage buffer pool size */
-		this->gbuffer_descriptor_managers[index].addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3);
-
-		/* ========== Write Descriptor Set ========== */
-		/* Camera mvp matrices set write information */
-		this->gbuffer_descriptor_managers[index].addWrite(this->uniform_buffer_managers[index].getWriteInformation(0));
-		/* Object model matrix */
-		this->gbuffer_descriptor_managers[index].addWrite(this->model_matrix_manager.getWriteInformation(1));
-		/* Texture sampler write information */
-		if (!this->texture_manager.isEmpty())
-		{
-			this->gbuffer_descriptor_managers[index].addWrite(this->texture_manager.getWriteInformation(2));
-		}
-		/* Material index set write information */
-		this->gbuffer_descriptor_managers[index].addWrite(this->material_index_manager.getWriteInformation(3));
-		/* Material data set write information */
-		this->gbuffer_descriptor_managers[index].addWrite(this->material_ssbo_manager.getWriteInformation(4));
+		this->gbuffer_descriptor_managers[index].addDescriptor(
+			this->material_ssbo_manager.getDescriptor(4, VK_SHADER_STAGE_FRAGMENT_BIT));
 
 		this->gbuffer_descriptor_managers[index].init();
 	}
@@ -159,7 +135,7 @@ protected:
 		this->gbuffer_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 0);
 		this->gbuffer_pipeline_manager.setVertexInput(0b1111);
 		std::vector<VkDescriptorSetLayout> layout = {this->gbuffer_descriptor_managers[0].layout};
-		this->gbuffer_pipeline_manager.setDescriptorSetLayout(layout);
+		this->gbuffer_pipeline_manager.setLayout(layout);
 
 		for (size_t i = 1; i < 4; i++)
 		{
@@ -276,7 +252,7 @@ protected:
 		this->light_pipeline_manager.setRenderPass(this->render_pass_manager.pass, 1);
 		this->light_pipeline_manager.setVertexInput(0);
 		std::vector<VkDescriptorSetLayout> layout = {this->light_descriptor_managers[0].layout};
-		this->light_pipeline_manager.setDescriptorSetLayout(layout);
+		this->light_pipeline_manager.setLayout(layout);
 		this->light_pipeline_manager.init();
 	}
 

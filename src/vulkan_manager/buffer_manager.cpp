@@ -57,9 +57,18 @@ void BufferManager::createBuffer(const VkDeviceSize size,
 	VkMemoryRequirements requirements;
 	vkGetBufferMemoryRequirements(context_manager_sptr->device, buffer, &requirements);
 
+	void* next = nullptr;
+	VkMemoryAllocateFlagsInfo alloc_flags{};
+	if ((usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) == VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+	{
+		alloc_flags.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
+		alloc_flags.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+		next = &alloc_flags;
+	}
+
 	VkMemoryAllocateInfo allocate_information{};
 	allocate_information.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocate_information.pNext = nullptr;
+	allocate_information.pNext = next;
 	allocate_information.allocationSize = requirements.size;
 	allocate_information.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, properties);
 	if (vkAllocateMemory(context_manager_sptr->device, &allocate_information, nullptr, &memory) != VK_SUCCESS)
@@ -119,16 +128,12 @@ VertexBufferManager::VertexBufferManager(const ContextManagerSPtr& context_manag
 
 void VertexBufferManager::init()
 {
-	VkDeviceSize size = sizeof(this->vertices[0]) * this->vertices.size();
+	VkDeviceSize size = sizeof(Vertex) * this->vertices.size();
 
-	VkBufferUsageFlags usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-
-	if (this->enable_ray_tracing)
+	if (size > 0)
 	{
-		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+		createDeviceLocalBuffer(size, this->vertices.data(), this->usage, this->buffer, this->memory);
 	}
-
-	createDeviceLocalBuffer(size, this->vertices.data(), usage, this->buffer, this->memory);
 }
 
 void VertexBufferManager::clear()
@@ -148,7 +153,15 @@ void IndexBufferManager::init()
 {
 	VkDeviceSize size = sizeof(this->indices[0]) * this->indices.size();
 
-	createDeviceLocalBuffer(size, this->indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, this->buffer, this->memory);
+	VkBufferUsageFlags usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+	if (this->enable_ray_tracing)
+	{
+		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+		usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+	}
+
+	createDeviceLocalBuffer(size, this->indices.data(), usage, this->buffer, this->memory);
 }
 
 void IndexBufferManager::clear()
@@ -248,6 +261,12 @@ VkWriteDescriptorSet UniformBufferManager::getWriteInformation(const uint32_t bi
 	return buffer_write;
 }
 
+std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> UniformBufferManager::getDescriptor(
+	const uint32_t binding, const VkShaderStageFlags flag)
+{
+	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
+}
+
 StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& context_manager_sptr,
 										   const CommandManagerSPtr& command_manager_sptr)
 {
@@ -257,7 +276,14 @@ StorageBufferManager::StorageBufferManager(const ContextManagerSPtr& context_man
 
 void StorageBufferManager::init()
 {
-	createDeviceLocalBuffer(this->size, this->data, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, this->buffer, this->memory);
+	if (this->enable_ray_tracing)
+	{
+		usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR;
+		usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+	}
+
+	createDeviceLocalBuffer(this->size, this->data, this->usage, this->buffer, this->memory);
 }
 
 void StorageBufferManager::clear()
@@ -279,7 +305,7 @@ VkDescriptorSetLayoutBinding StorageBufferManager::getLayoutBinding(const uint32
 	VkDescriptorSetLayoutBinding layout_binding{};
 	layout_binding.binding = binding;
 	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	layout_binding.descriptorCount = this->length;
+	layout_binding.descriptorCount = 1;
 	layout_binding.stageFlags = flag;
 	layout_binding.pImmutableSamplers = nullptr;
 
@@ -307,6 +333,42 @@ VkWriteDescriptorSet StorageBufferManager::getWriteInformation(const uint32_t bi
 	return buffer_write;
 }
 
+std::pair<VkDescriptorSetLayoutBinding, VkWriteDescriptorSet> StorageBufferManager::getDescriptor(
+	const uint32_t binding, const VkShaderStageFlags flag)
+{
+	return std::make_pair(getLayoutBinding(binding, flag), getWriteInformation(binding));
+}
+
+RandomBufferManager::RandomBufferManager(const ContextManagerSPtr& context_manager_sptr,
+										 const CommandManagerSPtr& command_manager_sptr)
+{
+	this->context_manager_sptr = context_manager_sptr;
+	this->command_manager_sptr = command_manager_sptr;
+}
+
+void RandomBufferManager::init()
+{
+	std::vector<float> random_table(this->size);
+#pragma omp parallel for
+	for (int i = 0; i < this->size; i++)
+	{
+		random_table[i] = getRandomNumber(0.0, 1.0);
+	}
+
+	StorageBufferManager::setData(random_table.data(), sizeof(float) * this->size, this->size);
+	StorageBufferManager::init();
+}
+
+void RandomBufferManager::clear()
+{
+	StorageBufferManager::clear();
+}
+
+void RandomBufferManager::setSize(const int size)
+{
+	this->size = size;
+}
+
 StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& context_manager_sptr,
 										   const CommandManagerSPtr& command_manager_sptr)
 {
@@ -317,7 +379,7 @@ StagingBufferManager::StagingBufferManager(const ContextManagerSPtr& context_man
 void StagingBufferManager::init()
 {
 	createBuffer(this->size,
-				 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				 this->usage,
 				 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				 this->buffer,
 				 this->memory);

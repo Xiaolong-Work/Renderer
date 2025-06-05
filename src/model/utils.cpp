@@ -29,8 +29,8 @@ void outputTimeUse(std::string name, std::chrono::system_clock::duration duratio
 	std::cout << std::endl;
 }
 
-void outputFrameRate(const int count)
+void outputFrameRate(const int fps, const int fr)
 {
-	std::cout << "FPS: " << count << "\r";
+	std::cout << "========== FPS: " << fps << " , Frame Time: " << fr << " ms ==========\r";
 	std::cout.flush();
 }

@@ -18,6 +18,8 @@ public:
 	 */
 	PathTracingScene() = default;
 
+	void operator=(const Scene& scene);
+
 	void setData(std::vector<Object>& object, const Camera& camera);
 
 	/**

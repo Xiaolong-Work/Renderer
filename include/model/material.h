@@ -26,6 +26,7 @@ struct Material
 	/* The name of the material. */
 	std::string name;
 
+	/* ========== Blinn-Phong ========== */
 	/* Ambient reflectance component (ka). */
 	Vector3f ka{0.0f};
 
@@ -47,6 +48,7 @@ struct Material
 	/* The diffuse texture index of the object, -1 means no texture data */
 	Index diffuse_texture{-1};
 
+	/* The specular texture index of the object, -1 means no texture data */
 	Index specular_texture{-1};
 
 	/* The type of the material */
@@ -59,15 +61,64 @@ struct Material
 
 	Index albedo_texture{-1};
 
+	/* ========== Double layer material ========== */
+	Vector4f bottom_albedo;
+	float bottom_metallic;
+	float bottom_roughness;
+
+	Index bottom_albedo_texture{-1};
+
 	void transferToPBR()
 	{
-		this->roughness = 1.0 - clamp(this->ns / 1000.0, 0.0, 1.0);
-		this->metallic = clamp(length(ks) / (length(ks) + length(kd) + 0.0001), 0.0, 1.0);
-		this->albedo = metallic > 0.5 ? Vector4f{ks, 1.0f} : Vector4f{kd, 1.0f};
+		switch (this->type)
+		{
+		case MaterialType::Diffuse:
+			{
+				this->roughness = 1.0;
+				this->metallic = 0.0;
+				this->albedo = Vector4f{kd, 1.0f};
+				this->albedo_texture = this->diffuse_texture;
+				break;
+			}
+		case MaterialType::Specular:
+			{
+				this->roughness = 0.0;
+				this->metallic = 1.0;
+				this->albedo = Vector4f{ks, 1.0f};
+				this->albedo_texture = this->specular_texture;
+				break;
+			}
+		case MaterialType::Refraction:
+			{
+				this->roughness = 0.0;
+				this->metallic = 0.0;
+				this->albedo = Vector4f{ks, 1.0f};
+				this->albedo_texture = this->specular_texture;
+				break;
+			}
+		case MaterialType::Glossy:
+			{
+				/* Top layer (mirror layer) */
+				this->roughness = clamp(0.0, 1.0, std::sqrt(2.0 / (this->ns + 2.0)));
+				this->metallic = 0.0;
+				this->albedo = Vector4f{ks, 1.0f};
+				this->albedo_texture = this->specular_texture;
+				this->ni = 1.5;
+
+				/* Base layer (diffuse reflection layer) */
+				this->bottom_roughness = 1.0;
+				this->bottom_metallic = 0.0;
+				this->bottom_albedo = Vector4f{kd, 1.0f};
+				this->bottom_albedo_texture = this->diffuse_texture;
+				break;
+			}
+		default:
+			{
+				break;
+			}
+		}
+		
+		this->metallic = clamp(0.0, 1.0, length(ks) / (length(ks) + length(kd) + 0.0001));
 		this->albedo_texture = this->diffuse_texture;
 	}
-};
-
-class PBRMaterial
-{
 };

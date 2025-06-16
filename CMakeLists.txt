@@ -28,8 +28,8 @@ set_target_properties(Renderer PROPERTIES
 find_package(Vulkan REQUIRED)
 include_directories(
 	${Vulkan_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/3rd_party/glfw/include
-	${CMAKE_SOURCE_DIR}/3rd_party/glm
+    ${CMAKE_SOURCE_DIR}/external/glfw/include
+	${CMAKE_SOURCE_DIR}/external/glm
 )
 
 # Add source directory
@@ -38,8 +38,9 @@ add_subdirectory(src/model)
 add_subdirectory(src/vulkan_manager)
 add_subdirectory(src/path_tracing)
 add_subdirectory(src/rasterizer)
-add_subdirectory(3rd_party/glm)
-add_subdirectory(3rd_party/glfw)
+add_subdirectory(external/glm)
+add_subdirectory(external/glfw)
+add_subdirectory(external/nrd)
 
 # Link library
 target_link_libraries(Renderer PathTracing)
@@ -77,15 +78,15 @@ if (MSVC)
 endif()
 
 target_include_directories(Renderer PUBLIC
-    3rd_party/imgui
-    3rd_party/imgui/backends
+    external/imgui
+    external/imgui/backends
 )
 
 target_sources(Renderer PUBLIC
-    3rd_party/imgui/imgui.cpp
-    3rd_party/imgui/imgui_draw.cpp
-    3rd_party/imgui/imgui_tables.cpp
-    3rd_party/imgui/imgui_widgets.cpp
-    3rd_party/imgui/backends/imgui_impl_glfw.cpp
-	3rd_party/imgui/backends/imgui_impl_vulkan.cpp
+    external/imgui/imgui.cpp
+    external/imgui/imgui_draw.cpp
+    external/imgui/imgui_tables.cpp
+    external/imgui/imgui_widgets.cpp
+    external/imgui/backends/imgui_impl_glfw.cpp
+	external/imgui/backends/imgui_impl_vulkan.cpp
 )

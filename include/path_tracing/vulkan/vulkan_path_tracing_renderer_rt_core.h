@@ -16,6 +16,8 @@
 #include <path_tracing_scene.h>
 #include <vulkan_render_base.h>
 
+#include <NRD.h>
+
 class VulkanPathTracingRendererRTCore : public VulkanRendererBase
 {
 public:
@@ -67,6 +69,16 @@ protected:
 	void setupDescriptor(const int index);
 
 	void createShaderBindingTable();
+
+	void setupNRD()
+	{
+		nrd::InstanceCreationDesc instance_creation{};
+	}
+
+	void denoNRD()
+	{
+		nrd::CommonSettings settings{};
+	}
 
 private:
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_property{};

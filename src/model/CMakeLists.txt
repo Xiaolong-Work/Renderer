@@ -8,10 +8,10 @@ add_library(Model ${SOURCES})
 target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/include/model)
 
 # Add third-party libraries
-target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/3rd_party/glm)
-target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/3rd_party/stb)
-target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/3rd_party/tinyobjloader)
-target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/3rd_party/tinyxml2)
-target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/3rd_party/tinygltf)
+target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/external/glm)
+target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/external/stb)
+target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/external/tinyobjloader)
+target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/external/tinyxml2)
+target_include_directories(Model PUBLIC ${CMAKE_SOURCE_DIR}/external/tinygltf)
 
-target_sources(Model PUBLIC ${CMAKE_SOURCE_DIR}/3rd_party/tinyxml2/tinyxml2.cpp)
+target_sources(Model PUBLIC ${CMAKE_SOURCE_DIR}/external/tinyxml2/tinyxml2.cpp)
